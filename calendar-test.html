@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calendar Test | Day Manager</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .test-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .event-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.75rem;
+      align-items: start;
+    }
+
+    .event-time {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-top: 0.25rem;
+    }
+
+    .status-box {
+      padding: 0.85rem 1rem;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+
+    .status-box.ok {
+      border-color: rgba(61, 122, 85, 0.25);
+      background: var(--ok-bg);
+      color: var(--ok);
+    }
+
+    .status-box.warn {
+      border-color: rgba(185, 28, 28, 0.18);
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+
+    .code-note {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.82rem;
+      background: var(--bg-2);
+      border: 1px solid var(--line);
+      padding: 0.12rem 0.4rem;
+      border-radius: var(--r-xs);
+    }
+
+    .inline-actions {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+
+    .helper-list {
+      margin: 0;
+      padding-left: 1.2rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 920px) {
+      .test-grid,
+      .event-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Google Calendar / OAuth test</p>
+      <h1>Calendar Connection Test</h1>
+      <p class="sub">本体を壊さずに、Googleカレンダーの接続・一覧取得・追加・削除だけを確認するテスト画面</p>
+    </div>
+    <div class="header-actions">
+      <a href="./index.html"><button class="ghost" type="button">本体に戻る</button></a>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>1. 認証情報を入力</h2>
+          <p>Google Cloud で作成した <span class="code-note">Client ID</span> と <span class="code-note">API Key</span> を入れてください。入力値はこのブラウザの localStorage にだけ保存されます。</p>
+        </div>
+      </div>
+
+      <form id="configForm" class="form-grid">
+        <label class="full-span">
+          OAuth Client ID
+          <input id="clientIdInput" type="text" placeholder="例: 1234567890-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com" />
+        </label>
+        <label class="full-span">
+          API Key
+          <input id="apiKeyInput" type="text" placeholder="例: AIza..." />
+        </label>
+      </form>
+
+      <div class="inline-actions">
+        <button id="saveConfigBtn" class="primary" type="button">入力内容を保存</button>
+        <button id="clearConfigBtn" type="button">保存内容を削除</button>
+        <button id="connectBtn" type="button">Googleで接続</button>
+        <button id="signoutBtn" class="ghost" type="button">接続解除</button>
+      </div>
+
+      <div id="statusBox" class="status-box" style="margin-top: 1rem;">未接続です。まず Client ID と API Key を保存してください。</div>
+    </section>
+
+    <section class="test-grid">
+      <section class="card">
+        <div class="card-header compact">
+          <div>
+            <h2>2. 指定日の予定を読む</h2>
+            <p>まずは一覧取得ができるか確認する</p>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <label class="full-span">
+            対象日
+            <input id="selectedDate" type="date" />
+          </label>
+        </div>
+
+        <div class="inline-actions">
+          <button id="loadEventsBtn" class="primary" type="button">予定を読み込む</button>
+        </div>
+
+        <div id="eventList" class="list-wrap empty" style="margin-top: 1rem;">まだありません</div>
+      </section>
+
+      <section class="card">
+        <div class="card-header compact">
+          <div>
+            <h2>3. 予定を1件追加</h2>
+            <p>最小構成の単発予定だけ作成する</p>
+          </div>
+        </div>
+
+        <form id="createEventForm" class="form-grid">
+          <label class="full-span">
+            タイトル
+            <input id="eventTitleInput" type="text" required placeholder="例: カレンダーテスト" />
+          </label>
+          <label>
+            日付
+            <input id="eventDateInput" type="date" required />
+          </label>
+          <label>
+            開始時刻
+            <input id="eventStartInput" type="time" required />
+          </label>
+          <label>
+            終了時刻
+            <input id="eventEndInput" type="time" required />
+          </label>
+          <label class="full-span">
+            説明（任意）
+            <input id="eventDescriptionInput" type="text" placeholder="例: day-manager-app の接続テスト" />
+          </label>
+          <button id="createEventBtn" class="primary full-span" type="submit">予定を追加</button>
+        </form>
+
+        <ul class="helper-list" style="margin-top: 1rem;">
+          <li>最初は自分で作ったテスト予定だけを追加して確認する</li>
+          <li>削除は左の一覧から行う</li>
+          <li>Google接続に失敗したら、Cloud Console の JavaScript origin 設定を確認する</li>
+        </ul>
+      </section>
+    </section>
+  </main>
+
+  <template id="eventItemTemplate">
+    <article class="list-item event-row">
+      <div class="list-main">
+        <strong class="item-title"></strong>
+        <div class="event-time"></div>
+        <p class="item-note"></p>
+      </div>
+      <div class="list-actions">
+        <button class="mini-btn delete-event-btn" type="button">削除</button>
+      </div>
+    </article>
+  </template>
+
+  <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+  <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+  <script src="calendar-test.js"></script>
+</body>
+</html>
