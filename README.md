@@ -1,21 +1,41 @@
-{
-  "name": "Day Manager",
-  "short_name": "DayManager",
-  "start_url": "./",
-  "display": "standalone",
-  "background_color": "#0b1020",
-  "theme_color": "#111827",
-  "lang": "ja",
-  "icons": [
-    {
-      "src": "icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
-  ]
-}
+# Day Manager
+
+予定・タスク・体調メモを1か所にまとめ、ChatGPTへ貼るための「今日の1日を設計して」文章を自動生成する無料のWebアプリです。
+
+## できること
+
+- 固定予定（毎週くり返す授業・通学など）の登録
+- 単発予定（その日だけの予定・外出・締切など）の登録
+- タスクの登録、優先度・見積時間・状態管理
+- 睡眠時間・体力・メモの保存
+- 対象日の予定、48時間以内の締切、未完了タスク、空き時間の整理
+- ChatGPTに貼る文章の自動生成とコピー
+- `localStorage` 保存
+- JSONバックアップの書き出し / 読み込み
+- PWA対応（ホーム画面追加・オフライン利用向け）
+
+## 使い方
+
+1. `index.html` をブラウザで開く
+2. 固定予定・単発予定・タスクを入力する
+3. 対象日を選ぶ
+4. 睡眠時間・体力・メモを入力する
+5. 「今日を設計する文章を生成」を押す
+6. 「コピー」を押してChatGPTに貼る
+
+## GitHub Pages で公開する
+
+1. このリポジトリにファイルを配置する
+2. GitHub の **Settings → Pages** を開く
+3. **Build and deployment** で `Deploy from a branch` を選ぶ
+4. Branch を `main` / `/ (root)` に設定して保存する
+
+## 保存先
+
+データはブラウザの `localStorage` に保存されます。  
+別端末へ移す場合は「バックアップ書き出し」で JSON を保存してから、「バックアップ読込」で復元してください。
+
+## 注意
+
+このアプリは外部カレンダーとは自動連携していません。  
+Google Calendar / Apple Calendar の予定を読む機能は未実装です.
