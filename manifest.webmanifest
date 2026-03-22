@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#111827" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <title>Day Manager</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Free / Local Storage / ChatGPT assist</p>
+      <h1>Day Manager</h1>
+      <p class="sub">予定とタスクをまとめて、ChatGPTに貼る用の1日設計テキストを自動生成</p>
+    </div>
+    <div class="header-actions">
+      <button id="exportBtn" class="ghost">バックアップ書き出し</button>
+      <label class="ghost file-label">
+        バックアップ読込
+        <input id="importInput" type="file" accept="application/json" hidden />
+      </label>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card planner-card">
+      <div class="card-header">
+        <div>
+          <h2>1日設計</h2>
+          <p>今日または任意の日付の予定・締切・未完了タスクを整理して出力</p>
+        </div>
+        <div class="date-wrap">
+          <label>
+            対象日
+            <input id="selectedDate" type="date" />
+          </label>
+        </div>
+      </div>
+
+      <div class="conditions-grid">
+        <label>
+          睡眠時間
+          <input id="sleepHours" type="number" min="0" max="24" step="0.5" placeholder="例: 6.5" />
+        </label>
+        <label>
+          体力 (0-10)
+          <input id="fatigue" type="number" min="0" max="10" step="1" placeholder="例: 5" />
+        </label>
+        <label class="full-span">
+          ひとことメモ
+          <input id="conditionNote" type="text" placeholder="例: 昼以降に眠くなりやすい / 夕方外出あり" />
+        </label>
+      </div>
+
+      <div class="summary-grid">
+        <article class="summary-box">
+          <h3>その日の予定</h3>
+          <div id="dayScheduleSummary" class="summary-list empty">まだありません</div>
+        </article>
+        <article class="summary-box">
+          <h3>48時間以内の締切</h3>
+          <div id="deadlineSummary" class="summary-list empty">まだありません</div>
+        </article>
+        <article class="summary-box">
+          <h3>未完了タスク</h3>
+          <div id="pendingSummary" class="summary-list empty">まだありません</div>
+        </article>
+        <article class="summary-box">
+          <h3>空き時間</h3>
+          <div id="freeTimeSummary" class="summary-list empty">まだありません</div>
+        </article>
+      </div>
+
+      <div class="prompt-actions">
+        <button id="generateBtn" class="primary">今日を設計する文章を生成</button>
+        <button id="copyBtn">コピー</button>
+      </div>
+
+      <label class="prompt-label">
+        ChatGPTに貼る文章
+        <textarea id="promptOutput" rows="14" placeholder="ここに生成されます"></textarea>
+      </label>
+    </section>
+
+    <section class="grid two-col">
+      <section class="card">
+        <div class="card-header compact">
+          <div>
+            <h2>固定予定</h2>
+            <p>毎週くり返す授業・通学・食事など</p>
+          </div>
+        </div>
+
+        <form id="fixedForm" class="form-grid">
+          <label>
+            タイトル
+            <input name="title" type="text" required placeholder="例: 応用数学I" />
+          </label>
+          <label>
+            曜日
+            <select name="weekday">
+              <option value="0">日</option>
+              <option value="1">月</option>
+              <option value="2">火</option>
+              <option value="3">水</option>
+              <option value="4">木</option>
+              <option value="5">金</option>
+              <option value="6">土</option>
+            </select>
+          </label>
+          <label>
+            開始
+            <input name="start" type="time" required />
+          </label>
+          <label>
+            終了
+            <input name="end" type="time" required />
+          </label>
+          <label class="full-span">
+            補足
+            <input name="note" type="text" placeholder="例: 移動込み / 教室情報" />
+          </label>
+          <button class="primary full-span" type="submit">固定予定を追加</button>
+        </form>
+
+        <div id="fixedList" class="list-wrap empty">まだありません</div>
+      </section>
+
+      <section class="card">
+        <div class="card-header compact">
+          <div>
+            <h2>単発予定</h2>
+            <p>その日だけの予定・締切・外出など</p>
+          </div>
+        </div>
+
+        <form id="eventForm" class="form-grid">
+          <label>
+            タイトル
+            <input name="title" type="text" required placeholder="例: 面談 / 提出期限" />
+          </label>
+          <label>
+            日付
+            <input name="date" type="date" required />
+          </label>
+          <label>
+            開始
+            <input name="start" type="time" />
+          </label>
+          <label>
+            終了
+            <input name="end" type="time" />
+          </label>
+          <label class="full-span">
+            補足
+            <input name="note" type="text" placeholder="例: 16:00までに提出 / 移動30分" />
+          </label>
+          <button class="primary full-span" type="submit">単発予定を追加</button>
+        </form>
+
+        <div id="eventList" class="list-wrap empty">まだありません</div>
+      </section>
+    </section>
+
+    <section class="card">
+      <div class="card-header compact">
+        <div>
+          <h2>タスク</h2>
+          <p>課題・復習・生活タスクなど。締切と見積時間を持たせる</p>
+        </div>
+      </div>
+
+      <form id="taskForm" class="form-grid task-grid">
+        <label>
+          タスク名
+          <input name="title" type="text" required placeholder="例: 微分積分レポート" />
+        </label>
+        <label>
+          分類
+          <input name="category" type="text" placeholder="例: 数学 / 生活 / 英語" />
+        </label>
+        <label>
+          締切日
+          <input name="deadlineDate" type="date" />
+        </label>
+        <label>
+          締切時刻
+          <input name="deadlineTime" type="time" />
+        </label>
+        <label>
+          見積時間(分)
+          <input name="estimate" type="number" min="0" step="10" placeholder="例: 60" />
+        </label>
+        <label>
+          優先度
+          <select name="priority">
+            <option value="高">高</option>
+            <option value="中" selected>中</option>
+            <option value="低">低</option>
+          </select>
+        </label>
+        <label class="full-span">
+          メモ
+          <input name="note" type="text" placeholder="例: 問題3まで / 提出形式PDF" />
+        </label>
+        <button class="primary full-span" type="submit">タスクを追加</button>
+      </form>
+
+      <div id="taskList" class="list-wrap empty">まだありません</div>
+    </section>
+  </main>
+
+  <template id="listItemTemplate">
+    <article class="list-item">
+      <div class="list-main">
+        <strong class="item-title"></strong>
+        <p class="item-meta"></p>
+        <p class="item-note"></p>
+      </div>
+      <div class="list-actions"></div>
+    </article>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
