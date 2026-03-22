@@ -1,15 +1,24 @@
 :root {
-  --bg: #0b1020;
-  --card: #151b2f;
-  --card-2: #1b2340;
-  --text: #eef2ff;
-  --muted: #b7c1e0;
-  --line: rgba(255, 255, 255, 0.12);
-  --accent: #7c9cff;
-  --accent-2: #9ce0ff;
-  --danger: #ff8f8f;
-  --ok: #95e3a3;
-  --shadow: 0 16px 50px rgba(0, 0, 0, 0.35);
+  /* サイバー・ヴェイパーウェイヴ風のカラーパレット */
+  --bg-color: #05050b;
+  --bg-grid: rgba(0, 240, 255, 0.05);
+  --card: rgba(15, 12, 30, 0.6);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --text: #e0e6ed;
+  --muted: #8b9bb4;
+  --line: rgba(0, 240, 255, 0.2);
+  
+  /* ネオンアクセント */
+  --accent: #00f0ff;      /* シアン */
+  --accent-2: #ff2a85;    /* ホットピンク */
+  --accent-3: #7000ff;    /* ディープパープル */
+  
+  --danger: #ff2a5f;
+  --ok: #00fa9a;
+  
+  --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+  --glow-cyan: 0 0 10px rgba(0, 240, 255, 0.4);
+  --glow-pink: 0 0 15px rgba(255, 42, 133, 0.4);
 }
 
 * {
@@ -18,9 +27,16 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: linear-gradient(180deg, #080c18 0%, #0b1020 100%);
+  font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+  background-color: var(--bg-color);
+  /* レトロなグリッド背景 */
+  background-image: 
+    linear-gradient(var(--bg-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+  background-size: 30px 30px;
+  background-attachment: fixed;
   color: var(--text);
+  line-height: 1.6;
 }
 
 button,
@@ -30,68 +46,88 @@ textarea {
   font: inherit;
 }
 
+/* ボタンの基本スタイル */
 button {
   cursor: pointer;
   border: 1px solid var(--line);
-  background: #20294b;
+  background: rgba(0, 0, 0, 0.4);
   color: var(--text);
-  border-radius: 12px;
-  padding: 0.8rem 1rem;
-  transition: 0.18s ease;
+  border-radius: 8px;
+  padding: 0.8rem 1.2rem;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(4px);
 }
 
 button:hover,
 .file-label:hover {
-  transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.24);
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: var(--glow-cyan);
 }
 
+/* プライマリボタン（グラデーション＆ネオングロウ） */
 button.primary {
-  background: linear-gradient(135deg, var(--accent), #5c76ff);
+  background: linear-gradient(135deg, var(--accent-3), var(--accent-2));
   border: none;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  box-shadow: 0 4px 15px rgba(255, 42, 133, 0.3);
+}
+
+button.primary:hover {
+  box-shadow: var(--glow-pink);
+  background: linear-gradient(135deg, #8a2be2, #ff1493);
 }
 
 button.ghost,
 .file-label {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.03);
 }
 
+/* トップバー（グラスモーフィズム） */
 .topbar {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
   padding: 1.6rem;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--accent);
+  box-shadow: 0 4px 20px rgba(0, 240, 255, 0.1);
   position: sticky;
   top: 0;
-  backdrop-filter: blur(16px);
-  background: rgba(11, 16, 32, 0.86);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(5, 5, 11, 0.8);
   z-index: 10;
 }
 
 .eyebrow {
   margin: 0 0 0.3rem;
-  font-size: 0.8rem;
-  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--accent-2);
+  color: var(--accent);
+  text-shadow: 0 0 5px rgba(0, 240, 255, 0.5);
 }
 
-h1,
-h2,
-h3,
-p {
+h1, h2, h3, p {
   margin-top: 0;
 }
 
 h1 {
   margin-bottom: 0.4rem;
-  font-size: 2rem;
+  font-size: 2.2rem;
+  font-weight: 800;
+  background: linear-gradient(to right, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0px 0px 20px rgba(255, 42, 133, 0.2);
 }
 
 .sub {
   margin-bottom: 0;
   color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .header-actions {
@@ -103,34 +139,57 @@ h1 {
 
 .file-label {
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  padding: 0.8rem 1.2rem;
   display: inline-flex;
   align-items: center;
+  transition: 0.3s;
 }
 
 .container {
   max-width: 1220px;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 2rem 1.5rem;
 }
 
 .grid {
   display: grid;
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
 .two-col {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+/* カード（グラスモーフィズム + ネオンボーダー） */
 .card {
-  background: linear-gradient(180deg, var(--card), var(--card-2));
-  border: 1px solid var(--line);
+  background: var(--card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--card-border);
+  border-top: 1px solid rgba(0, 240, 255, 0.3); /* 上部にシアンのハイライト */
+  border-bottom: 1px solid rgba(255, 42, 133, 0.3); /* 下部にピンクのハイライト */
   box-shadow: var(--shadow);
-  border-radius: 24px;
-  padding: 1.25rem;
-  margin-bottom: 1rem;
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* カード内の装飾光 */
+.card::before {
+  content: "";
+  position: absolute;
+  top: -50px;
+  left: -50px;
+  width: 100px;
+  height: 100px;
+  background: var(--accent-3);
+  filter: blur(60px);
+  opacity: 0.5;
+  z-index: -1;
+  border-radius: 50%;
 }
 
 .card-header {
@@ -138,11 +197,19 @@ h1 {
   justify-content: space-between;
   gap: 1rem;
   align-items: flex-start;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
 }
 
 .card-header.compact {
-  margin-bottom: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.card-header h2 {
+  font-size: 1.4rem;
+  color: #fff;
+  border-bottom: 2px solid var(--accent-2);
+  display: inline-block;
+  padding-bottom: 0.2rem;
 }
 
 .date-wrap label,
@@ -151,31 +218,47 @@ h1 {
 .prompt-label {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.5rem;
   color: var(--muted);
+  font-size: 0.9rem;
 }
 
+/* 入力フォームのサイバー化 */
 input,
 select,
 textarea {
   width: 100%;
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 0.85rem 0.95rem;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 2px solid var(--line);
+  border-radius: 6px;
+  padding: 0.85rem 1rem;
+  transition: all 0.3s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  border-bottom-color: var(--accent-2);
+  background: rgba(0, 0, 0, 0.7);
+  box-shadow: inset 0 0 10px rgba(0, 240, 255, 0.1);
 }
 
 textarea {
   min-height: 220px;
   resize: vertical;
+  font-family: monospace;
+  font-size: 0.95rem;
 }
 
 .conditions-grid,
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.9rem;
+  gap: 1.2rem;
 }
 
 .task-grid {
@@ -187,64 +270,83 @@ textarea {
 }
 
 .summary-grid {
-  margin: 1.25rem 0;
+  margin: 1.5rem 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.9rem;
+  gap: 1rem;
 }
 
 .summary-box {
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 1.2rem;
+  transition: 0.3s;
+}
+
+.summary-box:hover {
+  background: rgba(0, 240, 255, 0.03);
+  border-left-color: var(--accent-2);
 }
 
 .summary-box h3 {
-  margin-bottom: 0.75rem;
-  font-size: 1rem;
+  margin-bottom: 1rem;
+  font-size: 1.05rem;
+  color: var(--accent);
 }
 
 .summary-list {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.6rem;
 }
 
 .summary-list.empty,
 .list-wrap.empty {
-  color: var(--muted);
+  color: rgba(255,255,255,0.3);
+  font-style: italic;
 }
 
 .summary-chip {
-  background: rgba(124, 156, 255, 0.12);
-  border: 1px solid rgba(124, 156, 255, 0.24);
+  background: linear-gradient(90deg, rgba(112, 0, 255, 0.2), transparent);
+  border-left: 2px solid var(--accent-3);
   color: var(--text);
-  border-radius: 12px;
-  padding: 0.7rem 0.8rem;
+  border-radius: 4px;
+  padding: 0.7rem 1rem;
+  font-size: 0.9rem;
 }
 
 .prompt-actions {
   display: flex;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
   flex-wrap: wrap;
 }
 
 .list-wrap {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.8rem;
 }
 
+/* リストアイテム */
 .list-item {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 18px;
-  padding: 0.9rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 12px;
+  padding: 1rem 1.2rem;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.list-item:hover {
+  border-color: rgba(255, 42, 133, 0.4);
+  background: rgba(255, 42, 133, 0.05);
+  transform: translateX(4px);
 }
 
 .list-main {
@@ -253,8 +355,9 @@ textarea {
 
 .item-title {
   display: block;
-  margin-bottom: 0.3rem;
-  font-size: 1.02rem;
+  margin-bottom: 0.4rem;
+  font-size: 1.1rem;
+  color: #fff;
 }
 
 .item-meta,
@@ -262,37 +365,44 @@ textarea {
   margin: 0;
   color: var(--muted);
   word-break: break-word;
+  font-size: 0.85rem;
 }
 
 .item-note {
-  margin-top: 0.35rem;
+  margin-top: 0.4rem;
+  color: var(--accent);
 }
 
 .list-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.6rem;
   align-items: flex-start;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
 .mini-btn {
-  padding: 0.55rem 0.75rem;
-  border-radius: 10px;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  border-color: rgba(255, 42, 95, 0.4);
+  color: #ff8f8f;
+}
+
+.mini-btn:hover {
+  background: rgba(255, 42, 95, 0.2);
+  border-color: var(--danger);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(255, 42, 95, 0.4);
 }
 
 .status-select {
-  min-width: 120px;
+  min-width: 110px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
 }
 
-.tag-ok {
-  color: var(--ok);
-}
-
-.tag-danger {
-  color: var(--danger);
-}
-
+/* レスポンシブ対応 */
 @media (max-width: 920px) {
   .two-col,
   .summary-grid,
@@ -310,5 +420,6 @@ textarea {
 
   .list-actions {
     justify-content: flex-start;
+    margin-top: 0.5rem;
   }
 }
