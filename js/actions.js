@@ -1,0 +1,487 @@
+import { state, saveState, normalizeOneOffEvent, normalizeFixedSchedule, normalizeTask } from "./state.js";
+import { $, getFormValue } from "./utils.js";
+import { addDays, formatDateInput, formatTimeOnly, isSelectedDateToday, isValidTimeRange, roundToFiveMinutes } from "./time.js";
+import { renderAll, renderCurrentState, renderAutoPlan, updateStateNote, loadConditionInputsForDate } from "./render.js";
+import {
+  loadGoogleEventsForDate,
+  hasValidGoogleToken,
+  updateGoogleEventFromLocal,
+  createGoogleEventFromLocal,
+  syncLocalEventToGoogle,
+  syncUpdatedLocalEventToGoogle,
+  deleteLocalEvent,
+  deleteGoogleEventById
+} from "./google-calendar.js";
+import { generatePrompt, copyPrompt } from "./prompt.js";
+
+export function setToday() {
+  const today = formatDateInput(new Date());
+  $("selectedDate").value = today;
+  loadConditionInputsForDate(today);
+  const eventDateInput = document.querySelector('#eventForm input[name="date"]');
+  if (eventDateInput) eventDateInput.value = today;
+}
+
+export function bindEvents() {
+  $("fixedForm").addEventListener("submit", onSubmitFixedSchedule);
+  $("eventForm").addEventListener("submit", onSubmitOneOffEvent);
+  $("taskForm").addEventListener("submit", onSubmitTask);
+
+  $("fixedCancelBtn").addEventListener("click", resetFixedForm);
+  $("eventCancelBtn").addEventListener("click", resetEventForm);
+  $("taskCancelBtn").addEventListener("click", resetTaskForm);
+
+  $("selectedDate").addEventListener("change", onDateChanged);
+
+  $("sleepHours").addEventListener("input", saveCurrentConditionInputs);
+  $("fatigue").addEventListener("input", saveCurrentConditionInputs);
+  $("conditionNote").addEventListener("input", saveCurrentConditionInputs);
+
+  $("plannerMode").addEventListener("change", onPlannerModeChanged);
+
+  $("fatigueDownBtn").addEventListener("click", () => adjustFatigue(-1));
+  $("fatigueUpBtn").addEventListener("click", () => adjustFatigue(1));
+  $("unexpected30Btn").addEventListener("click", addUnexpectedThirtyMinutes);
+  $("forceReplanBtn").addEventListener("click", () => setPlannerMode("replan"));
+  $("endDayBtn").addEventListener("click", () => setPlannerMode("night"));
+
+  $("generateBtn").addEventListener("click", generatePrompt);
+  $("copyBtn").addEventListener("click", copyPrompt);
+
+  $("exportBtn").addEventListener("click", exportData);
+  $("importInput").addEventListener("change", importData);
+
+  $("eventAllDay").addEventListener("change", toggleEventTimeInputs);
+}
+
+export async function onDateChanged() {
+  const date = $("selectedDate").value;
+  loadConditionInputsForDate(date);
+
+  const eventDateInput = document.querySelector('#eventForm input[name="date"]');
+  if (eventDateInput && !getFormValue("eventForm", "editId")) {
+    eventDateInput.value = date;
+  }
+
+  if (hasValidGoogleToken()) {
+    await loadGoogleEventsForDate(date, { silent: true });
+  }
+
+  renderAll();
+}
+
+export function saveCurrentConditionInputs() {
+  const date = $("selectedDate").value;
+  if (!date) return;
+
+  state.dayConditions[date] = {
+    sleepHours: $("sleepHours").value,
+    fatigue: $("fatigue").value,
+    note: $("conditionNote").value.trim()
+  };
+  saveState();
+  renderCurrentState();
+  renderAutoPlan();
+}
+
+export function adjustFatigue(delta) {
+  const current = Number($("fatigue").value || 0);
+  const next = Math.max(0, Math.min(10, current + delta));
+  $("fatigue").value = String(next);
+  saveCurrentConditionInputs();
+
+  if (delta < 0) updateStateNote("体力を下げたので、重いタスクの優先度を少し落として再設計します。");
+  else updateStateNote("体力を更新しました。実行案を再計算します。");
+}
+
+export function addUnexpectedThirtyMinutes() {
+  if (!isSelectedDateToday($("selectedDate").value)) {
+    alert("ワンタップの想定外30分は、対象日が今日のときだけ使えます。");
+    return;
+  }
+
+  const rounded = roundToFiveMinutes(new Date());
+  const end = new Date(rounded.getTime() + 30 * 60 * 1000);
+
+  state.oneOffEvents.push(normalizeOneOffEvent({
+    id: crypto.randomUUID(),
+    title: "想定外対応",
+    date: formatDateInput(rounded),
+    start: formatTimeOnly(rounded),
+    end: formatTimeOnly(end),
+    note: "ワンタップ報告 / 自動追加",
+    allDay: false,
+    googleSyncStatus: "local"
+  }));
+
+  saveState();
+  updateStateNote("想定外30分を追加したので、残り時間を基準に再設計します。");
+  renderAll();
+}
+
+export function setPlannerMode(mode) {
+  state.uiState.plannerMode = mode;
+  saveState();
+  $("plannerMode").value = mode;
+  renderCurrentState();
+  renderAutoPlan();
+  generatePrompt();
+}
+
+export function onPlannerModeChanged() {
+  state.uiState.plannerMode = $("plannerMode").value;
+  saveState();
+  renderCurrentState();
+  renderAutoPlan();
+}
+
+export async function onSubmitFixedSchedule(e) {
+  e.preventDefault();
+  const fd = new FormData(e.currentTarget);
+  const payload = normalizeFixedSchedule({
+    id: String(fd.get("editId") || "") || crypto.randomUUID(),
+    title: String(fd.get("title")).trim(),
+    weekday: Number(fd.get("weekday")),
+    start: String(fd.get("start")),
+    end: String(fd.get("end")),
+    note: String(fd.get("note")).trim()
+  });
+
+  if (!payload.title) {
+    alert("タイトルを入力してください。");
+    return;
+  }
+  if (!isValidTimeRange(payload.start, payload.end)) {
+    alert("固定予定は開始時刻より後の終了時刻を設定してください。");
+    return;
+  }
+
+  const editingId = String(fd.get("editId") || "");
+  if (editingId) {
+    const target = state.fixedSchedules.find((item) => item.id === editingId);
+    if (!target) return;
+    Object.assign(target, payload);
+  } else {
+    state.fixedSchedules.push(payload);
+  }
+
+  saveState();
+  resetFixedForm();
+  renderAll();
+}
+
+export async function onSubmitOneOffEvent(e) {
+  e.preventDefault();
+  const fd = new FormData(e.currentTarget);
+  const editingId = String(fd.get("editId") || "");
+  const allDay = Boolean(fd.get("allDay"));
+
+  const payload = normalizeOneOffEvent({
+    id: editingId || crypto.randomUUID(),
+    title: String(fd.get("title")).trim(),
+    date: String(fd.get("date")),
+    start: allDay ? "" : String(fd.get("start") || ""),
+    end: allDay ? "" : String(fd.get("end") || ""),
+    note: String(fd.get("note")).trim(),
+    allDay
+  });
+
+  if (!payload.title || !payload.date) {
+    alert("タイトルと日付を入力してください。");
+    return;
+  }
+  if (!payload.allDay && payload.start && payload.end && !isValidTimeRange(payload.start, payload.end)) {
+    alert("単発予定は開始時刻より後の終了時刻を設定してください。");
+    return;
+  }
+
+  const shouldSyncToGoogle = Boolean(fd.get("syncToGoogle"));
+  let target = editingId ? state.oneOffEvents.find((item) => item.id === editingId) : null;
+
+  if (target) {
+    Object.assign(target, payload);
+    if (target.googleEventId) {
+      if (hasValidGoogleToken()) {
+        try {
+          await updateGoogleEventFromLocal(target);
+          target.googleSyncStatus = "synced";
+        } catch {
+          target.googleSyncStatus = "outdated";
+        }
+      } else {
+        target.googleSyncStatus = "outdated";
+      }
+    } else if (shouldSyncToGoogle && hasValidGoogleToken()) {
+      await tryCreateGoogleForLocalEvent(target);
+    } else if (shouldSyncToGoogle) {
+      target.googleSyncStatus = "pending";
+    }
+  } else {
+    target = payload;
+    if (shouldSyncToGoogle && hasValidGoogleToken()) {
+      await tryCreateGoogleForLocalEvent(target);
+    } else if (shouldSyncToGoogle) {
+      target.googleSyncStatus = "pending";
+    }
+    state.oneOffEvents.push(target);
+  }
+
+  saveState();
+  resetEventForm();
+  renderAll();
+
+  if (hasValidGoogleToken() && $("selectedDate").value === payload.date) {
+    await loadGoogleEventsForDate(payload.date, { silent: true });
+  }
+}
+
+async function tryCreateGoogleForLocalEvent(localEvent) {
+  try {
+    const created = await createGoogleEventFromLocal(localEvent);
+    localEvent.googleEventId = created.id;
+    localEvent.googleSyncStatus = "synced";
+  } catch {
+    localEvent.googleSyncStatus = "failed";
+  }
+}
+
+export function onSubmitTask(e) {
+  e.preventDefault();
+  const fd = new FormData(e.currentTarget);
+  const editingId = String(fd.get("editId") || "");
+  const payload = normalizeTask({
+    id: editingId || crypto.randomUUID(),
+    title: String(fd.get("title")).trim(),
+    category: String(fd.get("category")).trim(),
+    deadlineDate: String(fd.get("deadlineDate") || ""),
+    deadlineTime: String(fd.get("deadlineTime") || ""),
+    estimate: String(fd.get("estimate") || ""),
+    priority: String(fd.get("priority") || "中"),
+    importance: String(fd.get("importance") || "できれば"),
+    note: String(fd.get("note")).trim(),
+    status: String(fd.get("status") || "未着手"),
+    deferUntilDate: String(fd.get("deferUntilDate") || "")
+  });
+
+  if (!payload.title) {
+    alert("タスク名を入力してください。");
+    return;
+  }
+
+  if (editingId) {
+    const target = state.tasks.find((item) => item.id === editingId);
+    if (!target) return;
+    Object.assign(target, payload);
+  } else {
+    state.tasks.push(payload);
+  }
+
+  saveState();
+  resetTaskForm();
+  renderAll();
+}
+
+export function resetFixedForm() {
+  const form = $("fixedForm");
+  form.reset();
+  form.elements.editId.value = "";
+  $("fixedSubmitBtn").textContent = "固定予定を追加";
+  $("fixedCancelBtn").hidden = true;
+}
+
+export function resetEventForm() {
+  const form = $("eventForm");
+  form.reset();
+  form.elements.editId.value = "";
+  $("eventSubmitBtn").textContent = "単発予定を追加";
+  $("eventCancelBtn").hidden = true;
+  form.elements.date.value = $("selectedDate").value;
+  $("syncEventToGoogle").checked = true;
+  $("eventAllDay").checked = false;
+  toggleEventTimeInputs();
+}
+
+export function resetTaskForm() {
+  const form = $("taskForm");
+  form.reset();
+  form.elements.editId.value = "";
+  form.elements.priority.value = "中";
+  form.elements.importance.value = "できれば";
+  form.elements.status.value = "未着手";
+  form.elements.deferUntilDate.value = "";
+  $("taskSubmitBtn").textContent = "タスクを追加";
+  $("taskCancelBtn").hidden = true;
+}
+
+export function toggleEventTimeInputs() {
+  const form = $("eventForm");
+  const allDay = form.elements.allDay.checked;
+  form.elements.start.disabled = allDay;
+  form.elements.end.disabled = allDay;
+  if (allDay) {
+    form.elements.start.value = "";
+    form.elements.end.value = "";
+  }
+}
+
+export function populateFixedForm(id) {
+  const item = state.fixedSchedules.find((entry) => entry.id === id);
+  if (!item) return;
+  const form = $("fixedForm");
+  form.elements.editId.value = item.id;
+  form.elements.title.value = item.title;
+  form.elements.weekday.value = String(item.weekday);
+  form.elements.start.value = item.start;
+  form.elements.end.value = item.end;
+  form.elements.note.value = item.note;
+  $("fixedSubmitBtn").textContent = "固定予定を更新";
+  $("fixedCancelBtn").hidden = false;
+  form.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+export function duplicateFixedSchedule(id) {
+  const item = state.fixedSchedules.find((entry) => entry.id === id);
+  if (!item) return;
+  state.fixedSchedules.push({
+    ...item,
+    id: crypto.randomUUID(),
+    title: `${item.title} (複製)`
+  });
+  saveState();
+  renderAll();
+}
+
+export function deleteFixedSchedule(id) {
+  state.fixedSchedules = state.fixedSchedules.filter((item) => item.id !== id);
+  saveState();
+  renderAll();
+}
+
+export function populateEventForm(id) {
+  const item = state.oneOffEvents.find((entry) => entry.id === id);
+  if (!item) return;
+  const form = $("eventForm");
+  form.elements.editId.value = item.id;
+  form.elements.title.value = item.title;
+  form.elements.date.value = item.date;
+  form.elements.allDay.checked = Boolean(item.allDay);
+  form.elements.start.value = item.start;
+  form.elements.end.value = item.end;
+  form.elements.note.value = item.note;
+  $("syncEventToGoogle").checked = item.googleSyncStatus !== "local";
+  toggleEventTimeInputs();
+  $("eventSubmitBtn").textContent = "単発予定を更新";
+  $("eventCancelBtn").hidden = false;
+  form.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+export function duplicateOneOffEvent(id) {
+  const item = state.oneOffEvents.find((entry) => entry.id === id);
+  if (!item) return;
+  state.oneOffEvents.push({
+    ...item,
+    id: crypto.randomUUID(),
+    title: `${item.title} (複製)`,
+    googleEventId: "",
+    googleSyncStatus: "local"
+  });
+  saveState();
+  renderAll();
+}
+
+export async function deleteEvent(id) {
+  await deleteLocalEvent(id);
+}
+
+export async function syncEvent(id) {
+  await syncLocalEventToGoogle(id);
+}
+
+export async function syncUpdatedEvent(id) {
+  await syncUpdatedLocalEventToGoogle(id);
+}
+
+export function quickSetTaskStatus(id, status) {
+  const item = state.tasks.find((entry) => entry.id === id);
+  if (!item) return;
+  item.status = status;
+  if (status === "完了") item.deferUntilDate = "";
+  saveState();
+  renderAll();
+}
+
+export function deferTaskToTomorrow(id) {
+  const item = state.tasks.find((entry) => entry.id === id);
+  if (!item) return;
+  const baseDate = $("selectedDate").value || formatDateInput(new Date());
+  item.deferUntilDate = addDays(baseDate, 1);
+  item.status = item.status === "完了" ? "完了" : "未着手";
+  saveState();
+  renderAll();
+}
+
+export function populateTaskForm(id) {
+  const item = state.tasks.find((entry) => entry.id === id);
+  if (!item) return;
+  const form = $("taskForm");
+  form.elements.editId.value = item.id;
+  form.elements.title.value = item.title;
+  form.elements.category.value = item.category;
+  form.elements.deadlineDate.value = item.deadlineDate;
+  form.elements.deadlineTime.value = item.deadlineTime;
+  form.elements.estimate.value = item.estimate;
+  form.elements.priority.value = item.priority;
+  form.elements.importance.value = item.importance;
+  form.elements.status.value = item.status;
+  form.elements.deferUntilDate.value = item.deferUntilDate;
+  form.elements.note.value = item.note;
+  $("taskSubmitBtn").textContent = "タスクを更新";
+  $("taskCancelBtn").hidden = false;
+  form.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+export function deleteTask(id) {
+  state.tasks = state.tasks.filter((item) => item.id !== id);
+  saveState();
+  renderAll();
+}
+
+export async function deleteGoogleEvent(id) {
+  if (!confirm("Googleカレンダーからこの予定を削除します。よろしいですか？")) return;
+  await deleteGoogleEventById(id, { removeLocalMirror: true });
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `day-manager-backup-${formatDateInput(new Date())}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(String(reader.result));
+      state.fixedSchedules = (parsed.fixedSchedules || []).map(normalizeFixedSchedule);
+      state.oneOffEvents = (parsed.oneOffEvents || []).map(normalizeOneOffEvent);
+      state.tasks = (parsed.tasks || []).map(normalizeTask);
+      state.dayConditions = parsed.dayConditions || {};
+      state.uiState = { plannerMode: parsed.uiState?.plannerMode || "auto" };
+      saveState();
+      $("plannerMode").value = state.uiState.plannerMode;
+      loadConditionInputsForDate($("selectedDate").value);
+      renderAll();
+      alert("バックアップを読み込みました");
+    } catch {
+      alert("JSONの読み込みに失敗しました");
+    }
+  };
+  reader.readAsText(file, "utf-8");
+  e.target.value = "";
+}
