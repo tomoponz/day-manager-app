@@ -11,7 +11,9 @@
 
 <style>
   .calendar-actions,
-  .form-actions {
+  .form-actions,
+  .report-actions,
+  .mode-actions {
     display: flex;
     gap: 0.6rem;
     flex-wrap: wrap;
@@ -40,7 +42,8 @@
     color: var(--danger);
   }
 
-  .calendar-badge {
+  .calendar-badge,
+  .mode-chip {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
@@ -53,13 +56,15 @@
     font-weight: 600;
   }
 
-  .calendar-badge.connected {
+  .calendar-badge.connected,
+  .mode-chip.active {
     background: var(--ok-bg);
     color: var(--ok);
     border-color: rgba(61, 122, 85, 0.18);
   }
 
-  .calendar-note {
+  .calendar-note,
+  .status-note {
     margin-top: 0.8rem;
     color: var(--muted);
     font-size: 0.88rem;
@@ -92,7 +97,8 @@
     display: block;
   }
 
-  .planning-grid {
+  .planning-grid,
+  .state-grid {
     align-items: start;
   }
 
@@ -128,10 +134,52 @@
     text-decoration: none;
   }
 
+  .mode-toolbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+
+  .now-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .now-label {
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .now-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .report-actions button {
+    min-width: 120px;
+  }
+
+  .danger-list .summary-chip {
+    border-color: rgba(185, 28, 28, 0.18);
+    background: #fff8f8;
+  }
+
+  .state-grid .summary-box h3 {
+    color: var(--sage, var(--accent));
+  }
+
   @media (max-width: 920px) {
     .calendar-actions,
     .form-actions,
-    .settings-summary {
+    .settings-summary,
+    .mode-toolbar {
       flex-direction: column;
       align-items: flex-start;
     }
@@ -158,8 +206,8 @@
     <section class="card planner-card">
       <div class="card-header">
         <div>
-          <h2>1日設計</h2>
-          <p>今日または任意の日付の予定・締切・未完了タスクを整理し、実行案まで生成</p>
+          <h2>現在地点</h2>
+          <p>現在時刻・進行状況・危険箇所をもとに、AIがいまからの行動を組み直すための状態要約</p>
         </div>
         <div class="date-wrap">
           <label>
@@ -184,6 +232,58 @@
         </label>
       </div>
 
+      <div class="mode-toolbar">
+        <div class="now-box">
+          <span class="now-label">Current Time</span>
+          <strong id="currentDateTime" class="now-value">--</strong>
+          <span id="currentDateMeta" class="micro-note">--</span>
+        </div>
+
+        <div>
+          <label>
+            運用モード
+            <select id="plannerMode" aria-label="運用モード">
+              <option value="auto">自動</option>
+              <option value="morning">朝モード</option>
+              <option value="replan">再設計モード</option>
+              <option value="night">夜モード</option>
+            </select>
+          </label>
+          <div class="mode-actions">
+            <span id="activeModeChip" class="mode-chip">自動</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="report-actions">
+        <button id="fatigueDownBtn" type="button">体力 -1</button>
+        <button id="fatigueUpBtn" type="button">体力 +1</button>
+        <button id="unexpected30Btn" type="button">想定外30分</button>
+        <button id="forceReplanBtn" type="button">今から再設計</button>
+        <button id="endDayBtn" type="button">今日はここまで</button>
+      </div>
+
+      <p id="stateNote" class="status-note">人間は状態変化を報告し、アプリは現在地点を整理してAIに渡します。</p>
+
+      <div class="summary-grid state-grid">
+        <article class="summary-box">
+          <h3>いまの状態要約</h3>
+          <div id="currentStateSummary" class="summary-list empty">まだありません</div>
+        </article>
+        <article class="summary-box">
+          <h3>進行中 / これから</h3>
+          <div id="timelineStatusSummary" class="summary-list empty">まだありません</div>
+        </article>
+        <article class="summary-box danger-list">
+          <h3>危険アラート</h3>
+          <div id="riskSummary" class="summary-list empty">まだありません</div>
+        </article>
+        <article class="summary-box">
+          <h3>今日切る候補</h3>
+          <div id="cutSummary" class="summary-list empty">まだありません</div>
+        </article>
+      </div>
+
       <div class="summary-grid">
         <article class="summary-box">
           <h3>その日の予定</h3>
@@ -198,7 +298,7 @@
           <div id="pendingSummary" class="summary-list empty">まだありません</div>
         </article>
         <article class="summary-box">
-          <h3>空き時間</h3>
+          <h3>残り空き時間</h3>
           <div id="freeTimeSummary" class="summary-list empty">まだありません</div>
         </article>
       </div>
@@ -207,8 +307,8 @@
     <section class="card">
       <div class="card-header">
         <div>
-          <h2>自動時間割候補</h2>
-          <p>空き時間・締切・優先度・重要度をもとに、今日の実行案を自動で仮配置</p>
+          <h2>実行案</h2>
+          <p>空き時間・締切・優先度・重要度・現在時刻をもとに、いまからの行動案を自動で仮配置</p>
         </div>
       </div>
 
@@ -232,7 +332,7 @@
 
       <label class="prompt-label">
         ChatGPTに貼る文章
-        <textarea id="promptOutput" rows="16" placeholder="ここに生成されます"></textarea>
+        <textarea id="promptOutput" rows="18" placeholder="ここに生成されます"></textarea>
       </label>
     </section>
 
@@ -434,6 +534,10 @@
             <option value="進行中">進行中</option>
             <option value="完了">完了</option>
           </select>
+        </label>
+        <label>
+          着手保留日
+          <input name="deferUntilDate" type="date" />
         </label>
         <label class="full-span">
           メモ

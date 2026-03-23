@@ -7,7 +7,10 @@ const INITIAL_STATE = {
   fixedSchedules: [],
   oneOffEvents: [],
   tasks: [],
-  dayConditions: {}
+  dayConditions: {},
+  uiState: {
+    plannerMode: "auto"
+  }
 };
 
 const $ = (id) => document.getElementById(id);
@@ -22,6 +25,8 @@ const googleState = {
   tokenClient: null,
   eventsByDate: {}
 };
+
+let clockTimer = null;
 
 window.gapiLoaded = function gapiLoaded() {
   googleState.gapiLibraryLoaded = true;
@@ -41,6 +46,8 @@ function init() {
   setToday();
   bindEvents();
   hydrateGoogleConfigInputs();
+  hydratePlannerMode();
+  startClock();
   renderAll();
   updateGoogleConnectionBadge();
 
@@ -71,6 +78,14 @@ function bindEvents() {
   $("fatigue").addEventListener("input", saveCurrentConditionInputs);
   $("conditionNote").addEventListener("input", saveCurrentConditionInputs);
 
+  $("plannerMode").addEventListener("change", onPlannerModeChanged);
+
+  $("fatigueDownBtn").addEventListener("click", () => adjustFatigue(-1));
+  $("fatigueUpBtn").addEventListener("click", () => adjustFatigue(1));
+  $("unexpected30Btn").addEventListener("click", addUnexpectedThirtyMinutes);
+  $("forceReplanBtn").addEventListener("click", () => setPlannerMode("replan"));
+  $("endDayBtn").addEventListener("click", () => setPlannerMode("night"));
+
   $("generateBtn").addEventListener("click", generatePrompt);
   $("copyBtn").addEventListener("click", copyPrompt);
 
@@ -97,7 +112,10 @@ function loadState() {
       fixedSchedules: (parsed.fixedSchedules || []).map(normalizeFixedSchedule),
       oneOffEvents: (parsed.oneOffEvents || []).map(normalizeOneOffEvent),
       tasks: (parsed.tasks || []).map(normalizeTask),
-      dayConditions: parsed.dayConditions || {}
+      dayConditions: parsed.dayConditions || {},
+      uiState: {
+        plannerMode: parsed.uiState?.plannerMode || "auto"
+      }
     };
   } catch {
     return structuredClone(INITIAL_STATE);
@@ -144,7 +162,8 @@ function normalizeTask(item) {
     priority: item.priority || "中",
     importance: item.importance || "できれば",
     note: item.note || "",
-    status: item.status || "未着手"
+    status: item.status || "未着手",
+    deferUntilDate: item.deferUntilDate || ""
   };
 }
 
@@ -169,6 +188,90 @@ function saveGoogleConfig(config) {
 function hydrateGoogleConfigInputs() {
   $("googleClientId").value = googleState.config.clientId || "";
   $("googleApiKey").value = googleState.config.apiKey || "";
+}
+
+function hydratePlannerMode() {
+  $("plannerMode").value = state.uiState?.plannerMode || "auto";
+}
+
+function startClock() {
+  updateCurrentClock();
+  if (clockTimer) clearInterval(clockTimer);
+  clockTimer = setInterval(() => {
+    updateCurrentClock();
+    if (isSelectedDateToday()) {
+      renderCurrentState();
+      renderSummaries();
+      renderAutoPlan();
+    }
+  }, 60 * 1000);
+}
+
+function updateCurrentClock() {
+  const now = new Date();
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "local";
+  $("currentDateTime").textContent = formatDateTimeForDisplay(now);
+  $("currentDateMeta").textContent = `${timeZone} / ${weekdayNames[now.getDay()]}曜日 / 現在時刻を基準に再設計`;
+  updateActiveModeChip();
+}
+
+function getNowContext(dateStr = $("selectedDate").value) {
+  const now = new Date();
+  const todayStr = formatDateInput(now);
+  const isToday = dateStr === todayStr;
+  const selectedDate = new Date(`${dateStr}T00:00:00`);
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "local";
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  let autoMode = "morning";
+  if (currentMinutes >= 18 * 60) autoMode = "night";
+  else if (currentMinutes >= 11 * 60 + 30) autoMode = "replan";
+
+  const requestedMode = state.uiState?.plannerMode || "auto";
+  const effectiveMode = requestedMode === "auto" ? autoMode : requestedMode;
+
+  return {
+    now,
+    todayStr,
+    isToday,
+    selectedDate,
+    timeZone,
+    currentMinutes,
+    autoMode,
+    requestedMode,
+    effectiveMode,
+    effectiveModeLabel: modeLabel(effectiveMode),
+    currentDateLabel: formatDateTimeForDisplay(now)
+  };
+}
+
+function modeLabel(mode) {
+  return ({ auto: "自動", morning: "朝モード", replan: "再設計モード", night: "夜モード" })[mode] || "自動";
+}
+
+function setPlannerMode(mode) {
+  state.uiState.plannerMode = mode;
+  saveState();
+  hydratePlannerMode();
+  updateActiveModeChip();
+  renderCurrentState();
+  renderAutoPlan();
+  generatePrompt();
+}
+
+function onPlannerModeChanged() {
+  state.uiState.plannerMode = $("plannerMode").value;
+  saveState();
+  updateActiveModeChip();
+  renderCurrentState();
+  renderAutoPlan();
+}
+
+function updateActiveModeChip() {
+  const ctx = getNowContext();
+  const chip = $("activeModeChip");
+  chip.className = "mode-chip active";
+  chip.textContent = ctx.effectiveModeLabel;
 }
 
 async function maybeInitializeGoogleClient() {
@@ -211,7 +314,6 @@ function setToday() {
   const today = formatDateInput(new Date());
   $("selectedDate").value = today;
   loadConditionInputsForDate(today);
-
   const eventDateInput = document.querySelector('#eventForm input[name="date"]');
   if (eventDateInput) eventDateInput.value = today;
 }
@@ -227,11 +329,9 @@ async function onDateChanged() {
 
   if (hasValidGoogleToken()) {
     await loadGoogleEventsForDate(date, { silent: true });
-  } else {
-    renderGoogleEventList();
-    renderSummaries();
-    renderAutoPlan();
   }
+
+  renderAll();
 }
 
 function saveCurrentConditionInputs() {
@@ -243,6 +343,7 @@ function saveCurrentConditionInputs() {
     note: $("conditionNote").value.trim()
   };
   saveState();
+  renderCurrentState();
   renderAutoPlan();
 }
 
@@ -251,6 +352,49 @@ function loadConditionInputsForDate(date) {
   $("sleepHours").value = data.sleepHours || "";
   $("fatigue").value = data.fatigue || "";
   $("conditionNote").value = data.note || "";
+}
+
+function adjustFatigue(delta) {
+  const current = Number($("fatigue").value || 0);
+  const next = Math.max(0, Math.min(10, current + delta));
+  $("fatigue").value = String(next);
+  saveCurrentConditionInputs();
+  if (delta < 0) updateStateNote("体力を下げたので、重いタスクの優先度を少し落として再設計します。");
+  else updateStateNote("体力を更新しました。実行案を再計算します。");
+}
+
+function addUnexpectedThirtyMinutes() {
+  if (!isSelectedDateToday()) {
+    alert("ワンタップの想定外30分は、対象日が今日のときだけ使えます。");
+    return;
+  }
+  const now = new Date();
+  const rounded = new Date(now);
+  rounded.setMinutes(Math.ceil(now.getMinutes() / 5) * 5, 0, 0);
+  const end = new Date(rounded.getTime() + 30 * 60 * 1000);
+
+  state.oneOffEvents.push(normalizeOneOffEvent({
+    id: crypto.randomUUID(),
+    title: "想定外対応",
+    date: formatDateInput(rounded),
+    start: formatTimeOnly(rounded),
+    end: formatTimeOnly(end),
+    note: "ワンタップ報告 / 自動追加",
+    allDay: false,
+    googleSyncStatus: "local"
+  }));
+
+  saveState();
+  updateStateNote("想定外30分を追加したので、残り時間を基準に再設計します。");
+  renderAll();
+}
+
+function updateStateNote(message) {
+  $("stateNote").textContent = message;
+}
+
+function isSelectedDateToday() {
+  return $("selectedDate").value === formatDateInput(new Date());
 }
 
 function onSubmitFixedSchedule(e) {
@@ -315,9 +459,7 @@ async function onSubmitOneOffEvent(e) {
   }
 
   const shouldSyncToGoogle = Boolean(fd.get("syncToGoogle"));
-  let target = editingId
-    ? state.oneOffEvents.find((item) => item.id === editingId)
-    : null;
+  let target = editingId ? state.oneOffEvents.find((item) => item.id === editingId) : null;
 
   if (target) {
     Object.assign(target, payload);
@@ -387,7 +529,8 @@ function onSubmitTask(e) {
     priority: String(fd.get("priority") || "中"),
     importance: String(fd.get("importance") || "できれば"),
     note: String(fd.get("note")).trim(),
-    status: String(fd.get("status") || "未着手")
+    status: String(fd.get("status") || "未着手"),
+    deferUntilDate: String(fd.get("deferUntilDate") || "")
   });
 
   if (!payload.title) {
@@ -435,6 +578,7 @@ function resetTaskForm() {
   form.elements.priority.value = "中";
   form.elements.importance.value = "できれば";
   form.elements.status.value = "未着手";
+  form.elements.deferUntilDate.value = "";
   $("taskSubmitBtn").textContent = "タスクを追加";
   $("taskCancelBtn").hidden = true;
 }
@@ -455,6 +599,7 @@ function renderAll() {
   renderOneOffEvents();
   renderTasks();
   renderGoogleEventList();
+  renderCurrentState();
   renderSummaries();
   renderAutoPlan();
   updateGoogleConnectionBadge();
@@ -526,9 +671,7 @@ function renderOneOffEvents() {
   }
   wrap.className = "list-wrap";
   items.forEach((item) => {
-    const timeLabel = item.allDay
-      ? "終日"
-      : item.start ? `${item.start}${item.end ? ` - ${item.end}` : ""}` : "時刻未設定";
+    const timeLabel = item.allDay ? "終日" : item.start ? `${item.start}${item.end ? ` - ${item.end}` : ""}` : "時刻未設定";
     const syncLabel = getLocalEventSyncLabel(item);
     const actions = [
       makeActionButton("編集", () => populateEventForm(item.id)),
@@ -627,7 +770,6 @@ function renderTasks() {
     const actions = [];
     const statusSelect = document.createElement("select");
     statusSelect.className = "status-select";
-
     ["未着手", "進行中", "完了"].forEach((status) => {
       const option = document.createElement("option");
       option.value = status;
@@ -635,7 +777,6 @@ function renderTasks() {
       if (status === item.status) option.selected = true;
       statusSelect.appendChild(option);
     });
-
     statusSelect.addEventListener("change", () => {
       const target = state.tasks.find((x) => x.id === item.id);
       target.status = statusSelect.value;
@@ -644,17 +785,18 @@ function renderTasks() {
     });
 
     actions.push(statusSelect);
+    if (item.status !== "進行中") actions.push(makeActionButton("着手", () => quickSetTaskStatus(item.id, "進行中")));
+    if (item.status !== "完了") actions.push(makeActionButton("完了", () => quickSetTaskStatus(item.id, "完了")));
+    actions.push(makeActionButton("明日", () => deferTaskToTomorrow(item.id)));
     actions.push(makeActionButton("編集", () => populateTaskForm(item.id)));
-    actions.push(makeActionButton("複製", () => duplicateTask(item.id)));
     actions.push(makeDeleteButton(() => {
       state.tasks = state.tasks.filter((x) => x.id !== item.id);
       saveState();
       renderAll();
     }));
 
-    const deadlineText = item.deadlineDate
-      ? `${item.deadlineDate}${item.deadlineTime ? ` ${item.deadlineTime}` : ""}`
-      : "締切未設定";
+    const deadlineText = item.deadlineDate ? `${item.deadlineDate}${item.deadlineTime ? ` ${item.deadlineTime}` : ""}` : "締切未設定";
+    const deferText = item.deferUntilDate ? ` / 保留:${item.deferUntilDate}` : "";
     const meta = [
       item.category || "分類なし",
       `重要度:${item.importance}`,
@@ -662,7 +804,7 @@ function renderTasks() {
       `見積:${item.estimate || "?"}分`,
       `締切:${deadlineText}`,
       `状態:${item.status}`
-    ].join(" / ");
+    ].join(" / ") + deferText;
 
     wrap.appendChild(createListItem({
       title: item.title,
@@ -671,6 +813,25 @@ function renderTasks() {
       actions
     }));
   });
+}
+
+function quickSetTaskStatus(id, status) {
+  const item = state.tasks.find((entry) => entry.id === id);
+  if (!item) return;
+  item.status = status;
+  if (status === "完了") item.deferUntilDate = "";
+  saveState();
+  renderAll();
+}
+
+function deferTaskToTomorrow(id) {
+  const item = state.tasks.find((entry) => entry.id === id);
+  if (!item) return;
+  const baseDate = $("selectedDate").value || formatDateInput(new Date());
+  item.deferUntilDate = addDays(baseDate, 1);
+  item.status = item.status === "完了" ? "完了" : "未着手";
+  saveState();
+  renderAll();
 }
 
 function populateTaskForm(id) {
@@ -686,29 +847,16 @@ function populateTaskForm(id) {
   form.elements.priority.value = item.priority;
   form.elements.importance.value = item.importance;
   form.elements.status.value = item.status;
+  form.elements.deferUntilDate.value = item.deferUntilDate;
   form.elements.note.value = item.note;
   $("taskSubmitBtn").textContent = "タスクを更新";
   $("taskCancelBtn").hidden = false;
   form.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-function duplicateTask(id) {
-  const item = state.tasks.find((entry) => entry.id === id);
-  if (!item) return;
-  state.tasks.push({
-    ...item,
-    id: crypto.randomUUID(),
-    title: `${item.title} (複製)`,
-    status: "未着手"
-  });
-  saveState();
-  renderAll();
-}
-
 function renderGoogleEventList() {
   const wrap = $("googleEventList");
   wrap.innerHTML = "";
-
   const date = $("selectedDate").value;
   const events = getCachedGoogleEvents(date);
 
@@ -740,36 +888,124 @@ function renderGoogleEventList() {
   });
 }
 
+function renderCurrentState() {
+  const date = $("selectedDate").value;
+  const ctx = getNowContext(date);
+  const schedules = getSchedulesForDate(date);
+  const split = splitSchedulesByNow(schedules, ctx);
+  const risks = buildRiskAlerts(date, ctx, schedules);
+  const cuts = buildCutCandidates(date, ctx);
+  const freeSlots = computeFreeSlots(schedules, ctx);
+
+  fillSummary($("currentStateSummary"), buildCurrentStateLines(date, ctx, split, freeSlots));
+  fillSummary($("timelineStatusSummary"), buildTimelineStatusLines(split));
+  fillSummary($("riskSummary"), risks);
+  fillSummary($("cutSummary"), cuts);
+
+  const note = ctx.isToday
+    ? `${ctx.effectiveModeLabel}として、現在時刻以降の残り時間を優先して評価しています。`
+    : `対象日は今日ではないので、現在時刻は参考情報として扱い、日全体の計画を出します。`;
+  updateStateNote(note);
+}
+
+function buildCurrentStateLines(date, ctx, split, freeSlots) {
+  const lines = [
+    `現在日時: ${ctx.currentDateLabel}`,
+    `運用モード: ${ctx.effectiveModeLabel}`,
+    `対象日: ${date}`
+  ];
+
+  if (ctx.isToday) {
+    const remainingMinutes = Math.max(0, toMinutes("24:00") - ctx.currentMinutes);
+    lines.push(`今日の残り時間: ${Math.floor(remainingMinutes / 60)}時間${remainingMinutes % 60}分`);
+    if (split.current.length) lines.push(`進行中予定: ${split.current.map((item) => item.title).join(" / ")}`);
+    lines.push(`残り空き時間候補: ${freeSlots.length ? freeSlots.map((slot) => `${slot.start}-${slot.end}`).join(" / ") : "ほぼなし"}`);
+  } else {
+    lines.push(`今日は ${ctx.todayStr} / 現在時刻は参考のみ`);
+  }
+  return lines;
+}
+
+function buildTimelineStatusLines(split) {
+  const lines = [];
+  if (split.current.length) split.current.forEach((item) => lines.push(`進行中 / ${formatScheduleLine(item)}`));
+  if (split.upcoming.length) split.upcoming.slice(0, 5).forEach((item) => lines.push(`これから / ${formatScheduleLine(item)}`));
+  if (!lines.length && split.done.length) split.done.slice(-3).forEach((item) => lines.push(`終了済み / ${formatScheduleLine(item)}`));
+  return lines;
+}
+
+function buildRiskAlerts(dateStr, ctx, schedules) {
+  const alerts = [];
+  const reference = ctx.isToday ? ctx.now : new Date(`${dateStr}T00:00:00`);
+  const freeSlots = computeFreeSlots(schedules, ctx);
+  const pending = getPendingTasks(dateStr, ctx);
+
+  pending.forEach((task) => {
+    if (!task.deadlineDate) return;
+    const due = new Date(`${task.deadlineDate}T${task.deadlineTime || "23:59"}:00`);
+    const diffHours = (due.getTime() - reference.getTime()) / (1000 * 60 * 60);
+    if (diffHours < 0) alerts.push(`期限超過 / ${task.title}`);
+    else if (diffHours <= 12) alerts.push(`12時間以内 / ${task.title}`);
+    else if (diffHours <= 24) alerts.push(`24時間以内 / ${task.title}`);
+  });
+
+  if (ctx.isToday && !freeSlots.length) alerts.push("残り空き時間がほぼありません");
+  if (ctx.isToday && Number($("fatigue").value || 5) <= 2) alerts.push("体力がかなり低いので、重い作業は縮小推奨");
+
+  const failedSync = state.oneOffEvents.filter((item) => item.googleSyncStatus === "failed");
+  if (failedSync.length) alerts.push(`Google同期失敗 ${failedSync.length}件`);
+
+  return alerts.slice(0, 6);
+}
+
+function buildCutCandidates(dateStr, ctx) {
+  const plan = buildAutoPlan(dateStr, ctx, true);
+  return plan.cutCandidates;
+}
+
+function splitSchedulesByNow(schedules, ctx) {
+  if (!ctx.isToday) {
+    return { done: [], current: [], upcoming: schedules };
+  }
+  const done = [];
+  const current = [];
+  const upcoming = [];
+
+  schedules.forEach((item) => {
+    if (item.allDay || !item.start) {
+      upcoming.push(item);
+      return;
+    }
+    const start = toMinutes(item.start);
+    const end = item.end ? toMinutes(item.end) : start;
+    if (end <= ctx.currentMinutes) done.push(item);
+    else if (start <= ctx.currentMinutes && end > ctx.currentMinutes) current.push(item);
+    else upcoming.push(item);
+  });
+
+  return { done, current, upcoming };
+}
+
 function renderSummaries() {
   const selectedDate = $("selectedDate").value;
+  const ctx = getNowContext(selectedDate);
   const schedules = getSchedulesForDate(selectedDate);
-  const deadlines = getUpcomingTasks(selectedDate, 48);
-  const pending = getPendingTasks();
-  const freeSlots = computeFreeSlots(schedules);
+  const deadlines = getUpcomingTasks(selectedDate, 48, ctx);
+  const pending = getPendingTasks(selectedDate, ctx);
+  const freeSlots = computeFreeSlots(schedules, ctx);
 
-  fillSummary($("dayScheduleSummary"), schedules.length
-    ? schedules.map((item) => `${formatScheduleLine(item)}`)
-    : []);
-  fillSummary($("deadlineSummary"), deadlines.length
-    ? deadlines.map((task) => `${task.title} / ${task.deadlineDate}${task.deadlineTime ? ` ${task.deadlineTime}` : ""} / 優先度:${task.priority}`)
-    : []);
-  fillSummary($("pendingSummary"), pending.length
-    ? pending.slice(0, 8).map((task) => `${task.title} / ${task.category || "分類なし"} / ${task.status}`)
-    : []);
-  fillSummary($("freeTimeSummary"), freeSlots.length
-    ? freeSlots.map((slot) => `${slot.start} - ${slot.end} (${slot.minutes}分)`)
-    : []);
+  fillSummary($("dayScheduleSummary"), schedules.length ? schedules.map((item) => formatScheduleLine(item)) : []);
+  fillSummary($("deadlineSummary"), deadlines.length ? deadlines.map((task) => `${task.title} / ${task.deadlineDate}${task.deadlineTime ? ` ${task.deadlineTime}` : ""} / 優先度:${task.priority}`) : []);
+  fillSummary($("pendingSummary"), pending.length ? pending.slice(0, 8).map((task) => `${task.title} / ${task.category || "分類なし"} / ${task.status}`) : []);
+  fillSummary($("freeTimeSummary"), freeSlots.length ? freeSlots.map((slot) => `${slot.start} - ${slot.end} (${slot.minutes}分)`) : []);
 }
 
 function renderAutoPlan() {
   const date = $("selectedDate").value;
   const plan = buildAutoPlan(date);
-
   fillSummary($("autoTopThree"), plan.topThree);
   fillSummary($("autoTimeline"), plan.timeline);
-
-  const note = $("autoPlanNote");
-  note.textContent = plan.note;
+  $("autoPlanNote").textContent = plan.note;
 }
 
 function fillSummary(container, lines) {
@@ -788,36 +1024,28 @@ function fillSummary(container, lines) {
   });
 }
 
-function buildAutoPlan(dateStr) {
+function buildAutoPlan(dateStr, providedCtx = null, includeCutCandidates = false) {
+  const ctx = providedCtx || getNowContext(dateStr);
   const schedules = getSchedulesForDate(dateStr);
-  const freeSlots = computeFreeSlots(schedules);
-  const selectedDate = new Date(`${dateStr}T00:00:00`);
+  const freeSlots = computeFreeSlots(schedules, ctx);
+  const referenceDate = ctx.isToday ? ctx.now : new Date(`${dateStr}T00:00:00`);
   const fatigue = Number($("fatigue").value || 5);
 
-  const tasks = state.tasks
-    .filter((task) => task.status !== "完了")
+  const tasks = getPendingTasks(dateStr, ctx)
     .map((task) => ({
       ...task,
       remaining: Math.max(20, Number(task.estimate) || 60)
     }));
 
   if (!tasks.length) {
-    return {
-      topThree: [],
-      timeline: [],
-      note: "未完了タスクがないため、自動時間割候補はありません。"
-    };
+    return { topThree: [], timeline: [], cutCandidates: [], note: "未完了タスクがないため、自動時間割候補はありません。" };
   }
-
   if (!freeSlots.length) {
-    return {
-      topThree: [],
-      timeline: [],
-      note: "空き時間がほぼないため、自動時間割候補は作れません。"
-    };
+    return { topThree: [], timeline: [], cutCandidates: deriveCutCandidates(tasks, dateStr), note: "残り空き時間がほぼないため、自動時間割候補は作れません。" };
   }
 
   const placements = [];
+  const scheduledTaskIds = new Set();
 
   for (const slot of freeSlots) {
     let cursor = toMinutes(slot.start);
@@ -826,33 +1054,29 @@ function buildAutoPlan(dateStr) {
 
     while (remainingSlot >= 20 && safety < 20) {
       safety += 1;
-
       const candidates = tasks
         .filter((task) => task.remaining > 0)
-        .map((task) => ({
-          task,
-          score: scoreTask(task, selectedDate, remainingSlot, fatigue)
-        }))
+        .map((task) => ({ task, score: scoreTask(task, referenceDate, remainingSlot, fatigue, ctx) }))
         .filter((entry) => entry.score > -999)
         .sort((a, b) => b.score - a.score);
 
       const chosen = candidates[0]?.task;
       if (!chosen) break;
 
-      const allocation = Math.min(chosen.remaining, remainingSlot, chosen.remaining <= 120 ? chosen.remaining : Math.min(90, remainingSlot));
+      const suggestedChunk = suggestChunkMinutes(chosen, remainingSlot, ctx);
+      const allocation = Math.min(chosen.remaining, remainingSlot, suggestedChunk);
       if (allocation < 20) break;
 
       const start = fromMinutes(cursor);
       const end = fromMinutes(cursor + allocation);
       const partial = allocation < chosen.remaining;
-
       placements.push({
         taskId: chosen.id,
         label: `${start} - ${end} / ${chosen.title}${partial ? " (部分着手)" : ""}`,
-        topLabel: `${chosen.title} / ${chosen.importance} / 優先度:${chosen.priority}`,
-        allocation
+        topLabel: `${chosen.title} / ${chosen.importance} / 優先度:${chosen.priority}`
       });
 
+      scheduledTaskIds.add(chosen.id);
       chosen.remaining -= allocation;
       cursor += allocation;
       remainingSlot -= allocation;
@@ -862,50 +1086,76 @@ function buildAutoPlan(dateStr) {
   const topThree = [];
   const seen = new Set();
   placements.forEach((item) => {
-    if (seen.has(item.taskId)) return;
-    if (topThree.length >= 3) return;
+    if (seen.has(item.taskId) || topThree.length >= 3) return;
     seen.add(item.taskId);
     topThree.push(item.topLabel);
   });
 
+  const unscheduled = tasks.filter((task) => !scheduledTaskIds.has(task.id));
+  const cutCandidates = deriveCutCandidates(unscheduled, dateStr);
+  const note = placements.length
+    ? `${ctx.effectiveModeLabel}として、現在時刻以降に収まりやすい順で仮配置しています。`
+    : "条件に合う自動配置候補を作れませんでした。今日は切る候補を確認してください。";
+
   return {
     topThree,
     timeline: placements.map((item) => item.label),
-    note: placements.length
-      ? "空き時間に収まりやすい順で仮配置しています。必要に応じて手動で入れ替えてください。"
-      : "空き時間はありますが、見積や優先度の条件に合う候補を作れませんでした。"
+    cutCandidates: includeCutCandidates ? cutCandidates : [],
+    note
   };
 }
 
-function scoreTask(task, selectedDate, slotMinutes, fatigue) {
-  let score = 0;
+function suggestChunkMinutes(task, slotMinutes, ctx) {
+  const estimate = Math.max(20, Number(task.estimate) || 60);
+  if (ctx.effectiveMode === "night") return Math.min(slotMinutes, Math.min(estimate, 45));
+  if (ctx.effectiveMode === "replan") return Math.min(slotMinutes, Math.min(estimate, 60));
+  return Math.min(slotMinutes, estimate <= 120 ? estimate : 90);
+}
 
-  score += ({ "必須": 60, "できれば": 25, "後回し": -10 })[task.importance] ?? 0;
-  score += ({ "高": 30, "中": 12, "低": 0 })[task.priority] ?? 0;
-  score += ({ "未着手": 8, "進行中": 16, "完了": -999 })[task.status] ?? 0;
+function deriveCutCandidates(tasks, dateStr) {
+  return tasks
+    .slice()
+    .sort((a, b) => {
+      const aScore = ({ 後回し: 0, できれば: 1, 必須: 2 })[a.importance] ?? 1;
+      const bScore = ({ 後回し: 0, できれば: 1, 必須: 2 })[b.importance] ?? 1;
+      if (aScore !== bScore) return aScore - bScore;
+      return (Number(b.estimate) || 60) - (Number(a.estimate) || 60);
+    })
+    .slice(0, 4)
+    .map((task) => `${task.title} / ${task.importance}${task.deferUntilDate ? ` / 保留:${task.deferUntilDate}` : ""}`);
+}
+
+function scoreTask(task, referenceDate, slotMinutes, fatigue, ctx) {
+  if (task.deferUntilDate && task.deferUntilDate > $("selectedDate").value) return -999;
+
+  let score = 0;
+  score += ({ 必須: 60, できれば: 25, 後回し: -12 })[task.importance] ?? 0;
+  score += ({ 高: 30, 中: 12, 低: 0 })[task.priority] ?? 0;
+  score += ({ 未着手: 8, 進行中: 16, 完了: -999 })[task.status] ?? 0;
 
   const estimate = Number(task.estimate) || 60;
-  if (estimate <= slotMinutes) {
-    score += 18;
-  } else if (slotMinutes >= 30) {
-    score += 6;
-  } else {
-    score -= 20;
-  }
+  if (estimate <= slotMinutes) score += 18;
+  else if (slotMinutes >= 30) score += 6;
+  else score -= 20;
 
   if (task.deadlineDate) {
     const due = new Date(`${task.deadlineDate}T${task.deadlineTime || "23:59"}:00`);
-    const hoursToDue = (due.getTime() - selectedDate.getTime()) / (1000 * 60 * 60);
-
-    if (hoursToDue <= 24) score += 50;
-    else if (hoursToDue <= 48) score += 36;
-    else if (hoursToDue <= 72) score += 24;
-    else if (hoursToDue <= 168) score += 10;
+    const hoursToDue = (due.getTime() - referenceDate.getTime()) / (1000 * 60 * 60);
+    if (hoursToDue <= 0) score += 80;
+    else if (hoursToDue <= 12) score += 56;
+    else if (hoursToDue <= 24) score += 44;
+    else if (hoursToDue <= 48) score += 30;
+    else if (hoursToDue <= 72) score += 18;
   }
 
-  if (fatigue <= 3 && estimate >= 90) score -= 22;
+  if (fatigue <= 3 && estimate >= 90) score -= 25;
   if (fatigue <= 3 && task.importance === "後回し") score -= 12;
   if (fatigue >= 7 && task.priority === "高") score += 8;
+
+  if (ctx.effectiveMode === "morning" && estimate >= 60) score += 10;
+  if (ctx.effectiveMode === "night" && estimate >= 90) score -= 18;
+  if (ctx.effectiveMode === "night" && task.importance === "必須" && estimate <= 45) score += 10;
+  if (ctx.effectiveMode === "replan" && task.status === "進行中") score += 10;
 
   return score;
 }
@@ -914,20 +1164,10 @@ function getSchedulesForDate(dateStr) {
   if (!dateStr) return [];
   const dateObj = new Date(`${dateStr}T00:00:00`);
   const weekday = dateObj.getDay();
-
-  const fixed = state.fixedSchedules
-    .filter((item) => item.weekday === weekday)
-    .map((item) => ({ ...item, type: "fixed", date: dateStr, allDay: false }));
-
-  const oneOff = state.oneOffEvents
-    .filter((item) => item.date === dateStr)
-    .map((item) => ({ ...item, type: "event" }));
-
+  const fixed = state.fixedSchedules.filter((item) => item.weekday === weekday).map((item) => ({ ...item, type: "fixed", date: dateStr, allDay: false }));
+  const oneOff = state.oneOffEvents.filter((item) => item.date === dateStr).map((item) => ({ ...item, type: "event" }));
   const syncedIds = new Set(oneOff.map((item) => item.googleEventId).filter(Boolean));
-  const googleSchedules = getCachedGoogleEvents(dateStr)
-    .filter((event) => !syncedIds.has(event.id))
-    .map((event) => mapGoogleEventToSchedule(event, dateStr));
-
+  const googleSchedules = getCachedGoogleEvents(dateStr).filter((event) => !syncedIds.has(event.id)).map((event) => mapGoogleEventToSchedule(event, dateStr));
   return [...fixed, ...oneOff, ...googleSchedules].sort(compareSchedule);
 }
 
@@ -937,7 +1177,6 @@ function getCachedGoogleEvents(dateStr) {
 
 function mapGoogleEventToSchedule(event, fallbackDate) {
   const isAllDay = Boolean(event.start?.date && !event.start?.dateTime);
-
   if (isAllDay) {
     return {
       id: event.id,
@@ -951,10 +1190,8 @@ function mapGoogleEventToSchedule(event, fallbackDate) {
       date: event.start?.date || fallbackDate
     };
   }
-
   const startDate = new Date(event.start?.dateTime || `${fallbackDate}T00:00:00`);
   const endDate = event.end?.dateTime ? new Date(event.end.dateTime) : null;
-
   return {
     id: event.id,
     title: event.summary || "Google予定",
@@ -968,11 +1205,12 @@ function mapGoogleEventToSchedule(event, fallbackDate) {
   };
 }
 
-function getUpcomingTasks(dateStr, hours = 48) {
-  const start = new Date(`${dateStr}T00:00:00`);
+function getUpcomingTasks(dateStr, hours = 48, ctx = getNowContext(dateStr)) {
+  const start = ctx.isToday ? ctx.now : new Date(`${dateStr}T00:00:00`);
   const end = new Date(start.getTime() + hours * 60 * 60 * 1000);
   return state.tasks
     .filter((task) => task.status !== "完了" && task.deadlineDate)
+    .filter((task) => !task.deferUntilDate || task.deferUntilDate <= dateStr)
     .filter((task) => {
       const taskDate = new Date(`${task.deadlineDate}T${task.deadlineTime || "23:59"}:00`);
       return taskDate >= start && taskDate <= end;
@@ -980,30 +1218,31 @@ function getUpcomingTasks(dateStr, hours = 48) {
     .sort((a, b) => (`${a.deadlineDate}${a.deadlineTime}`).localeCompare(`${b.deadlineDate}${b.deadlineTime}`));
 }
 
-function getPendingTasks() {
-  return state.tasks.filter((task) => task.status !== "完了");
+function getPendingTasks(dateStr = $("selectedDate").value, ctx = getNowContext(dateStr)) {
+  return state.tasks.filter((task) => {
+    if (task.status === "完了") return false;
+    if (task.deferUntilDate && task.deferUntilDate > dateStr && ctx.effectiveMode !== "night") return false;
+    return true;
+  });
 }
 
 function compareSchedule(a, b) {
   const allDayRankA = a.allDay ? 0 : 1;
   const allDayRankB = b.allDay ? 0 : 1;
   if (allDayRankA !== allDayRankB) return allDayRankA - allDayRankB;
-
   const aKey = `${a.start || "99:99"}${a.title}`;
   const bKey = `${b.start || "99:99"}${b.title}`;
   return aKey.localeCompare(bKey);
 }
 
 function formatScheduleLine(item) {
-  if (item.allDay) {
-    return `終日 / ${item.title}${item.note ? ` / ${item.note}` : ""}`;
-  }
+  if (item.allDay) return `終日 / ${item.title}${item.note ? ` / ${item.note}` : ""}`;
   const time = item.start ? `${item.start}${item.end ? ` - ${item.end}` : ""}` : "時刻未設定";
   const note = item.note ? ` / ${item.note}` : "";
   return `${time} / ${item.title}${note}`;
 }
 
-function computeFreeSlots(schedules) {
+function computeFreeSlots(schedules, ctx = getNowContext()) {
   const baseStart = toMinutes("06:00");
   const baseEnd = toMinutes("24:00");
   const blocks = schedules
@@ -1014,48 +1253,48 @@ function computeFreeSlots(schedules) {
 
   const merged = [];
   for (const block of blocks) {
-    if (!merged.length || block.start > merged[merged.length - 1].end) {
-      merged.push({ ...block });
-    } else {
-      merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, block.end);
-    }
+    if (!merged.length || block.start > merged[merged.length - 1].end) merged.push({ ...block });
+    else merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, block.end);
   }
 
   const free = [];
-  let cursor = baseStart;
+  let cursor = ctx.isToday ? Math.max(baseStart, ctx.currentMinutes) : baseStart;
   for (const block of merged) {
-    if (block.start > cursor) {
-      free.push(makeSlot(cursor, block.start));
-    }
+    if (block.end <= cursor) continue;
+    if (block.start > cursor) free.push(makeSlot(cursor, block.start));
     cursor = Math.max(cursor, block.end);
   }
   if (cursor < baseEnd) free.push(makeSlot(cursor, baseEnd));
-
   return free.filter((slot) => slot.minutes >= 20);
 }
 
 function makeSlot(start, end) {
-  return {
-    start: fromMinutes(start),
-    end: fromMinutes(end),
-    minutes: end - start
-  };
+  return { start: fromMinutes(start), end: fromMinutes(end), minutes: end - start };
 }
 
 function generatePrompt() {
   saveCurrentConditionInputs();
   const selectedDate = $("selectedDate").value;
+  const ctx = getNowContext(selectedDate);
   const dayData = state.dayConditions[selectedDate] || {};
   const schedules = getSchedulesForDate(selectedDate);
-  const deadlines = getUpcomingTasks(selectedDate, 48);
-  const pending = getPendingTasks();
-  const freeSlots = computeFreeSlots(schedules);
-  const autoPlan = buildAutoPlan(selectedDate);
+  const deadlines = getUpcomingTasks(selectedDate, 48, ctx);
+  const pending = getPendingTasks(selectedDate, ctx);
+  const freeSlots = computeFreeSlots(schedules, ctx);
+  const autoPlan = buildAutoPlan(selectedDate, ctx, true);
+  const split = splitSchedulesByNow(schedules, ctx);
+  const risks = buildRiskAlerts(selectedDate, ctx, schedules);
 
   const text = [
     "今日の1日を設計して。",
-    `日付：${selectedDate} (${weekdayNames[new Date(`${selectedDate}T00:00:00`).getDay()]})`,
+    `現在日時：${ctx.currentDateLabel}`,
+    `タイムゾーン：${ctx.timeZone}`,
+    `対象日：${selectedDate} (${weekdayNames[new Date(`${selectedDate}T00:00:00`).getDay()]})`,
+    `運用モード：${ctx.effectiveModeLabel}`,
     `睡眠・体調：睡眠 ${dayData.sleepHours || "未入力"} 時間 / 体力 ${dayData.fatigue || "未入力"} / メモ ${dayData.note || "なし"}`,
+    "現在地点：",
+    split.current.length ? split.current.map((item) => `- 進行中 / ${formatScheduleLine(item)}`).join("\n") : "- 進行中予定なし",
+    split.upcoming.length ? split.upcoming.slice(0, 5).map((item) => `- これから / ${formatScheduleLine(item)}`).join("\n") : "- これからの予定少なめ",
     "固定予定・単発予定：",
     schedules.length ? schedules.map((item) => `- ${formatScheduleLine(item)}`).join("\n") : "- なし",
     "48時間以内の締切：",
@@ -1064,19 +1303,21 @@ function generatePrompt() {
       : "- なし",
     "未完了タスク：",
     pending.length
-      ? pending.map((task) => `- ${task.title} / ${task.category || "分類なし"} / 状態:${task.status} / 重要度:${task.importance} / 優先度:${task.priority} / 見積:${task.estimate || "?"}分 / 締切:${task.deadlineDate || "未設定"}${task.deadlineTime ? ` ${task.deadlineTime}` : ""}${task.note ? ` / ${task.note}` : ""}`).join("\n")
+      ? pending.map((task) => `- ${task.title} / ${task.category || "分類なし"} / 状態:${task.status} / 重要度:${task.importance} / 優先度:${task.priority} / 見積:${task.estimate || "?"}分 / 締切:${task.deadlineDate || "未設定"}${task.deadlineTime ? ` ${task.deadlineTime}` : ""}${task.deferUntilDate ? ` / 保留:${task.deferUntilDate}` : ""}${task.note ? ` / ${task.note}` : ""}`).join("\n")
       : "- なし",
-    "空き時間候補：",
-    freeSlots.length
-      ? freeSlots.map((slot) => `- ${slot.start} - ${slot.end} (${slot.minutes}分)`).join("\n")
-      : "- ほぼなし",
+    "残り空き時間候補：",
+    freeSlots.length ? freeSlots.map((slot) => `- ${slot.start} - ${slot.end} (${slot.minutes}分)`).join("\n") : "- ほぼなし",
+    "危険アラート：",
+    risks.length ? risks.map((line) => `- ${line}`).join("\n") : "- 特になし",
     "アプリ内の自動時間割候補：",
     autoPlan.timeline.length ? autoPlan.timeline.map((line) => `- ${line}`).join("\n") : "- なし",
     "アプリ内の最優先3件：",
     autoPlan.topThree.length ? autoPlan.topThree.map((line) => `- ${line}`).join("\n") : "- なし",
+    "今日切る候補：",
+    autoPlan.cutCandidates.length ? autoPlan.cutCandidates.map((line) => `- ${line}`).join("\n") : "- なし",
     "出力形式：",
-    "1. 今日の最優先3件",
-    "2. 時間ブロック化した1日設計",
+    "1. いまからの最優先3件",
+    "2. 現在時刻以降の時間ブロック化した1日設計",
     "3. 今やらないこと",
     "4. 詰まった時の代替案",
     "5. 夜の締め条件"
@@ -1119,7 +1360,9 @@ function importData(e) {
       state.oneOffEvents = (parsed.oneOffEvents || []).map(normalizeOneOffEvent);
       state.tasks = (parsed.tasks || []).map(normalizeTask);
       state.dayConditions = parsed.dayConditions || {};
+      state.uiState = { plannerMode: parsed.uiState?.plannerMode || "auto" };
       saveState();
+      hydratePlannerMode();
       loadConditionInputsForDate($("selectedDate").value);
       renderAll();
       alert("バックアップを読み込みました");
@@ -1187,6 +1430,15 @@ function formatTimeOnly(date) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
+function formatDateTimeForDisplay(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${d} ${hh}:${mm}`;
+}
+
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
@@ -1217,11 +1469,7 @@ function onClearGoogleConfig() {
   googleState.gapiReady = false;
   googleState.eventsByDate = {};
   hydrateGoogleConfigInputs();
-
-  if (gapi?.client?.setToken) {
-    gapi.client.setToken("");
-  }
-
+  if (gapi?.client?.setToken) gapi.client.setToken("");
   updateGoogleStatus("保存済みの連携設定を削除しました。", "");
   renderAll();
 }
@@ -1254,11 +1502,8 @@ function onConnectGoogle() {
   };
 
   const currentToken = gapi.client.getToken();
-  if (!currentToken) {
-    googleState.tokenClient.requestAccessToken({ prompt: "consent" });
-  } else {
-    googleState.tokenClient.requestAccessToken({ prompt: "" });
-  }
+  if (!currentToken) googleState.tokenClient.requestAccessToken({ prompt: "consent" });
+  else googleState.tokenClient.requestAccessToken({ prompt: "" });
 }
 
 function onDisconnectGoogle() {
@@ -1279,12 +1524,9 @@ async function loadGoogleEventsForSelectedDate() {
 async function loadGoogleEventsForDate(dateStr, { silent = false } = {}) {
   if (!hasValidGoogleToken()) {
     renderGoogleEventList();
-    renderSummaries();
-    renderAutoPlan();
     if (!silent) updateGoogleStatus("先に Google で接続してください。", "warn");
     return [];
   }
-
   if (!dateStr) {
     if (!silent) updateGoogleStatus("対象日を選んでください。", "warn");
     return [];
@@ -1294,7 +1536,6 @@ async function loadGoogleEventsForDate(dateStr, { silent = false } = {}) {
     if (!silent) updateGoogleStatus("Google予定を読み込んでいます...", "");
     const timeMin = new Date(`${dateStr}T00:00:00`).toISOString();
     const timeMax = new Date(`${dateStr}T23:59:59`).toISOString();
-
     const response = await gapi.client.calendar.events.list({
       calendarId: "primary",
       timeMin,
@@ -1303,20 +1544,12 @@ async function loadGoogleEventsForDate(dateStr, { silent = false } = {}) {
       singleEvents: true,
       orderBy: "startTime"
     });
-
     googleState.eventsByDate[dateStr] = response.result.items || [];
-    renderGoogleEventList();
-    renderSummaries();
-    renderAutoPlan();
-
-    if (!silent) {
-      updateGoogleStatus(`${googleState.eventsByDate[dateStr].length} 件の Google 予定を読み込みました。`, "ok");
-    }
+    renderAll();
+    if (!silent) updateGoogleStatus(`${googleState.eventsByDate[dateStr].length} 件の Google 予定を読み込みました。`, "ok");
     return googleState.eventsByDate[dateStr];
   } catch (error) {
-    if (!silent) {
-      updateGoogleStatus(`Google予定の読込に失敗しました: ${getErrorMessage(error)}`, "warn");
-    }
+    if (!silent) updateGoogleStatus(`Google予定の読込に失敗しました: ${getErrorMessage(error)}`, "warn");
     return [];
   }
 }
@@ -1332,7 +1565,6 @@ function updateGoogleStatus(message, variant = "") {
 function updateGoogleConnectionBadge() {
   const badge = $("googleConnectionBadge");
   if (!badge) return;
-
   badge.className = "calendar-badge";
   if (hasValidGoogleToken()) {
     badge.textContent = "接続中";
@@ -1349,72 +1581,33 @@ function hasValidGoogleToken() {
 }
 
 async function createGoogleEventFromLocal(localEvent) {
-  if (!hasValidGoogleToken()) {
-    throw new Error("Google に接続していません");
-  }
-
+  if (!hasValidGoogleToken()) throw new Error("Google に接続していません");
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const resource = {
-    summary: localEvent.title,
-    description: localEvent.note || ""
-  };
-
+  const resource = { summary: localEvent.title, description: localEvent.note || "" };
   if (localEvent.allDay || !localEvent.start || !localEvent.end) {
     resource.start = { date: localEvent.date };
     resource.end = { date: addDays(localEvent.date, 1) };
   } else {
-    resource.start = {
-      dateTime: `${localEvent.date}T${localEvent.start}:00`,
-      timeZone
-    };
-    resource.end = {
-      dateTime: `${localEvent.date}T${localEvent.end}:00`,
-      timeZone
-    };
+    resource.start = { dateTime: `${localEvent.date}T${localEvent.start}:00`, timeZone };
+    resource.end = { dateTime: `${localEvent.date}T${localEvent.end}:00`, timeZone };
   }
-
-  const response = await gapi.client.calendar.events.insert({
-    calendarId: "primary",
-    resource
-  });
-
+  const response = await gapi.client.calendar.events.insert({ calendarId: "primary", resource });
   return response.result;
 }
 
 async function updateGoogleEventFromLocal(localEvent) {
-  if (!hasValidGoogleToken()) {
-    throw new Error("Google に接続していません");
-  }
-  if (!localEvent.googleEventId) {
-    throw new Error("Google Event ID がありません");
-  }
-
+  if (!hasValidGoogleToken()) throw new Error("Google に接続していません");
+  if (!localEvent.googleEventId) throw new Error("Google Event ID がありません");
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const resource = {
-    summary: localEvent.title,
-    description: localEvent.note || ""
-  };
-
+  const resource = { summary: localEvent.title, description: localEvent.note || "" };
   if (localEvent.allDay || !localEvent.start || !localEvent.end) {
     resource.start = { date: localEvent.date };
     resource.end = { date: addDays(localEvent.date, 1) };
   } else {
-    resource.start = {
-      dateTime: `${localEvent.date}T${localEvent.start}:00`,
-      timeZone
-    };
-    resource.end = {
-      dateTime: `${localEvent.date}T${localEvent.end}:00`,
-      timeZone
-    };
+    resource.start = { dateTime: `${localEvent.date}T${localEvent.start}:00`, timeZone };
+    resource.end = { dateTime: `${localEvent.date}T${localEvent.end}:00`, timeZone };
   }
-
-  const response = await gapi.client.calendar.events.update({
-    calendarId: "primary",
-    eventId: localEvent.googleEventId,
-    resource
-  });
-
+  const response = await gapi.client.calendar.events.update({ calendarId: "primary", eventId: localEvent.googleEventId, resource });
   Object.keys(googleState.eventsByDate).forEach((dateKey) => {
     googleState.eventsByDate[dateKey] = googleState.eventsByDate[dateKey].filter((event) => event.id !== localEvent.googleEventId);
   });
@@ -1425,12 +1618,10 @@ async function updateGoogleEventFromLocal(localEvent) {
 async function syncLocalEventToGoogle(localEventId) {
   const item = state.oneOffEvents.find((event) => event.id === localEventId);
   if (!item) return;
-
   if (!hasValidGoogleToken()) {
     updateGoogleStatus("Google に接続してから『Google追加』を押してください。", "warn");
     return;
   }
-
   try {
     updateGoogleStatus("ローカル予定を Google Calendar に追加しています...", "");
     const created = await createGoogleEventFromLocal(item);
@@ -1451,12 +1642,10 @@ async function syncLocalEventToGoogle(localEventId) {
 async function syncUpdatedLocalEventToGoogle(localEventId) {
   const item = state.oneOffEvents.find((event) => event.id === localEventId);
   if (!item || !item.googleEventId) return;
-
   if (!hasValidGoogleToken()) {
     updateGoogleStatus("Google に接続してから『Google更新』を押してください。", "warn");
     return;
   }
-
   try {
     updateGoogleStatus("Google Calendar の予定を更新しています...", "");
     await updateGoogleEventFromLocal(item);
@@ -1483,7 +1672,6 @@ function cacheGoogleEvent(event, dateStr) {
 async function deleteLocalEvent(localEventId) {
   const item = state.oneOffEvents.find((event) => event.id === localEventId);
   if (!item) return;
-
   if (item.googleEventId) {
     if (hasValidGoogleToken()) {
       try {
@@ -1497,42 +1685,27 @@ async function deleteLocalEvent(localEventId) {
       if (!proceed) return;
     }
   }
-
   state.oneOffEvents = state.oneOffEvents.filter((event) => event.id !== localEventId);
   saveState();
   renderAll();
 }
 
 async function deleteGoogleEventById(eventId, { removeLocalMirror = true, silent = false } = {}) {
-  if (!hasValidGoogleToken()) {
-    throw new Error("Google に接続していません");
-  }
-
-  await gapi.client.calendar.events.delete({
-    calendarId: "primary",
-    eventId
-  });
-
+  if (!hasValidGoogleToken()) throw new Error("Google に接続していません");
+  await gapi.client.calendar.events.delete({ calendarId: "primary", eventId });
   Object.keys(googleState.eventsByDate).forEach((dateKey) => {
     googleState.eventsByDate[dateKey] = googleState.eventsByDate[dateKey].filter((event) => event.id !== eventId);
   });
-
   if (removeLocalMirror) {
     state.oneOffEvents = state.oneOffEvents.filter((event) => event.googleEventId !== eventId);
     saveState();
   }
-
   renderAll();
-
-  if (!silent) {
-    updateGoogleStatus("Google Calendar の予定を削除しました。", "ok");
-  }
+  if (!silent) updateGoogleStatus("Google Calendar の予定を削除しました。", "ok");
 }
 
 function formatGoogleEventTime(event) {
-  if (event.start?.date && !event.start?.dateTime) {
-    return `${event.start.date} / 終日`;
-  }
+  if (event.start?.date && !event.start?.dateTime) return `${event.start.date} / 終日`;
   const start = event.start?.dateTime ? new Date(event.start.dateTime) : null;
   const end = event.end?.dateTime ? new Date(event.end.dateTime) : null;
   if (!start) return "時刻不明";
