@@ -13,6 +13,10 @@
 - `localStorage` 保存
 - JSONバックアップの書き出し / 読み込み
 - PWA対応（ホーム画面追加・オフライン利用向け）
+- Google Calendar 連携（β）
+  - 指定日の Google 予定の読込
+  - 単発予定の Google 追加
+  - 同期済み予定の Google 削除
 
 ## 使い方
 
@@ -23,6 +27,14 @@
 5. 「今日を設計する文章を生成」を押す
 6. 「コピー」を押してChatGPTに貼る
 
+## Google Calendar 連携の使い方
+
+1. Google Cloud で `OAuth Client ID` と `API Key` を作成する
+2. アプリ上の Google Calendar 連携欄に入力して保存する
+3. `Googleで接続` を押す
+4. 対象日を切り替えると、その日の Google 予定を読み込む
+5. 単発予定の追加時に `Google Calendar にも追加する` を有効にすると、ローカル保存と同時に Google 側にも予定を作成する
+
 ## GitHub Pages で公開する
 
 1. このリポジトリにファイルを配置する
@@ -32,10 +44,12 @@
 
 ## 保存先
 
-データはブラウザの `localStorage` に保存されます。  
-別端末へ移す場合は「バックアップ書き出し」で JSON を保存してから、「バックアップ読込」で復元してください。
+- 予定・タスク・体調メモはブラウザの `localStorage` に保存されます
+- Google 連携用の `Client ID` と `API Key` もこのブラウザの `localStorage` にだけ保存されます
+- 別端末へ移す場合は「バックアップ書き出し」で JSON を保存してから、「バックアップ読込」で復元してください
 
 ## 注意
 
-このアプリは外部カレンダーとは自動連携していません。  
-Google Calendar / Apple Calendar の予定を読む機能は未実装です.
+- Google Calendar 連携は最初は **単発予定のみ** を同期対象にしています
+- 固定予定とタスクは Google Calendar へ自動同期しません
+- Google 側で直接作成した予定は、接続後に対象日ごとに読み込みます

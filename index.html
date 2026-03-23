@@ -8,6 +8,94 @@
   <link rel="icon" href="icons/icon-192.png" />
   <title>Day Manager</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    .calendar-actions {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+
+    .calendar-status {
+      margin-top: 1rem;
+      padding: 0.85rem 1rem;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+
+    .calendar-status.ok {
+      border-color: rgba(61, 122, 85, 0.25);
+      background: var(--ok-bg);
+      color: var(--ok);
+    }
+
+    .calendar-status.warn {
+      border-color: rgba(185, 28, 28, 0.18);
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+
+    .calendar-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      background: var(--bg-2);
+      color: var(--muted);
+      border: 1px solid var(--line);
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    .calendar-badge.connected {
+      background: var(--ok-bg);
+      color: var(--ok);
+      border-color: rgba(61, 122, 85, 0.18);
+    }
+
+    .calendar-note {
+      margin-top: 0.8rem;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .sync-option {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      background: var(--bg-2);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      padding: 0.85rem 0.95rem;
+      font-size: 0.88rem;
+      color: var(--text);
+    }
+
+    .sync-option input[type="checkbox"] {
+      width: auto;
+      margin: 0;
+      accent-color: var(--accent);
+      transform: scale(1.1);
+    }
+
+    .micro-note {
+      margin-top: 0.35rem;
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 400;
+      display: block;
+    }
+
+    @media (max-width: 920px) {
+      .calendar-actions {
+        flex-direction: column;
+      }
+    }
+  </style>
 </head>
 <body>
   <header class="topbar">
@@ -17,6 +105,7 @@
       <p class="sub">予定とタスクをまとめて、ChatGPTに貼る用の1日設計テキストを自動生成</p>
     </div>
     <div class="header-actions">
+      <a href="./calendar-test.html" class="file-label">連携テスト画面</a>
       <button id="exportBtn" class="ghost">バックアップ書き出し</button>
       <label class="ghost file-label">
         バックアップ読込
@@ -83,6 +172,48 @@
         ChatGPTに貼る文章
         <textarea id="promptOutput" rows="14" placeholder="ここに生成されます"></textarea>
       </label>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>Google Calendar 連携 (β)</h2>
+          <p>Googleカレンダーの予定を読み込み、単発予定の追加・削除を同期します。認証情報はこの端末のブラウザにだけ保存されます。</p>
+        </div>
+        <div>
+          <span id="googleConnectionBadge" class="calendar-badge">未接続</span>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <label class="full-span">
+          OAuth Client ID
+          <input id="googleClientId" type="text" placeholder="例: 1234567890-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com" />
+        </label>
+        <label class="full-span">
+          API Key
+          <input id="googleApiKey" type="text" placeholder="例: AIza..." />
+        </label>
+      </div>
+
+      <div class="calendar-actions">
+        <button id="saveGoogleConfigBtn" class="primary" type="button">連携設定を保存</button>
+        <button id="clearGoogleConfigBtn" type="button">保存内容を削除</button>
+        <button id="connectGoogleBtn" type="button">Googleで接続</button>
+        <button id="disconnectGoogleBtn" class="ghost" type="button">接続解除</button>
+        <button id="reloadGoogleEventsBtn" class="ghost" type="button">対象日のGoogle予定を再読込</button>
+      </div>
+
+      <div id="googleStatusBox" class="calendar-status">未接続です。Client ID と API Key を保存してから Google で接続してください。</div>
+      <p class="calendar-note">対象日を切り替えると、その日の Google 予定を読み直します。単発予定を Google に同期したい場合は、下のチェックボックスを有効にしてください。</p>
+
+      <div class="card-header compact" style="margin-top: 1.2rem;">
+        <div>
+          <h2>対象日の Google 予定</h2>
+          <p>Googleカレンダーから直接読み込んだ予定一覧</p>
+        </div>
+      </div>
+      <div id="googleEventList" class="list-wrap empty">まだありません</div>
     </section>
 
     <section class="grid two-col">
@@ -158,6 +289,13 @@
             補足
             <input name="note" type="text" placeholder="例: 16:00までに提出 / 移動30分" />
           </label>
+          <label class="sync-option full-span">
+            <input id="syncEventToGoogle" name="syncToGoogle" type="checkbox" checked />
+            <span>
+              Google Calendar にも追加する
+              <span class="micro-note">接続中ならローカル保存と同時に Google 側にも予定を作成します。未接続ならローカル保存のみです。</span>
+            </span>
+          </label>
           <button class="primary full-span" type="submit">単発予定を追加</button>
         </form>
 
@@ -224,6 +362,8 @@
     </article>
   </template>
 
+  <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+  <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
   <script src="app.js"></script>
 </body>
 </html>
