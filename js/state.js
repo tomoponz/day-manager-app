@@ -6,6 +6,10 @@ export const INITIAL_STATE = {
   oneOffEvents: [],
   tasks: [],
   dayConditions: {},
+  settings: {
+    focusMinutesTarget: 180,
+    bufferMinutes: 10
+  },
   uiState: {
     plannerMode: "auto"
   }
@@ -23,6 +27,10 @@ export function loadState() {
       oneOffEvents: (parsed.oneOffEvents || []).map(normalizeOneOffEvent),
       tasks: (parsed.tasks || []).map(normalizeTask),
       dayConditions: parsed.dayConditions || {},
+      settings: {
+        focusMinutesTarget: Number(parsed.settings?.focusMinutesTarget ?? INITIAL_STATE.settings.focusMinutesTarget),
+        bufferMinutes: Number(parsed.settings?.bufferMinutes ?? INITIAL_STATE.settings.bufferMinutes)
+      },
       uiState: {
         plannerMode: parsed.uiState?.plannerMode || "auto"
       }
@@ -91,6 +99,7 @@ export function normalizeTask(item) {
     importance: item.importance || "できれば",
     note: item.note || "",
     status: item.status || "未着手",
-    deferUntilDate: item.deferUntilDate || ""
+    deferUntilDate: item.deferUntilDate || "",
+    protectTimeBlock: Boolean(item.protectTimeBlock)
   };
 }

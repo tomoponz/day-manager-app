@@ -1,6 +1,6 @@
 import { state } from "./state.js";
 import { getCachedGoogleEvents } from "./google-calendar.js";
-import { WEEKDAY_NAMES, getNowContext, toMinutes, fromMinutes, formatDateInput, formatTimeOnly } from "./time.js";
+import { getNowContext, toMinutes, fromMinutes, formatDateInput, formatTimeOnly } from "./time.js";
 import { $ } from "./utils.js";
 
 function currentContext(dateStr = $("selectedDate")?.value || formatDateInput(new Date())) {
@@ -86,7 +86,6 @@ export function compareSchedule(a, b) {
   const allDayRankA = a.allDay ? 0 : 1;
   const allDayRankB = b.allDay ? 0 : 1;
   if (allDayRankA !== allDayRankB) return allDayRankA - allDayRankB;
-
   const aKey = `${a.start || "99:99"}${a.title}`;
   const bKey = `${b.start || "99:99"}${b.title}`;
   return aKey.localeCompare(bKey);
@@ -100,10 +99,7 @@ export function formatScheduleLine(item) {
 }
 
 export function splitSchedulesByNow(schedules, ctx) {
-  if (!ctx.isToday) {
-    return { done: [], current: [], upcoming: schedules };
-  }
-
+  if (!ctx.isToday) return { done: [], current: [], upcoming: schedules };
   const done = [];
   const current = [];
   const upcoming = [];
@@ -119,16 +115,19 @@ export function splitSchedulesByNow(schedules, ctx) {
     else if (start <= ctx.currentMinutes && end > ctx.currentMinutes) current.push(item);
     else upcoming.push(item);
   });
-
   return { done, current, upcoming };
 }
 
 export function computeFreeSlots(schedules, ctx = currentContext()) {
   const baseStart = toMinutes("06:00");
   const baseEnd = toMinutes("24:00");
+  const buffer = Math.max(0, Number(state.settings?.bufferMinutes || 0));
   const blocks = schedules
     .filter((item) => !item.allDay && item.start && item.end)
-    .map((item) => ({ start: toMinutes(item.start), end: toMinutes(item.end) }))
+    .map((item) => ({
+      start: Math.max(baseStart, toMinutes(item.start) - Math.floor(buffer / 2)),
+      end: Math.min(baseEnd, toMinutes(item.end) + Math.ceil(buffer / 2))
+    }))
     .filter((item) => Number.isFinite(item.start) && Number.isFinite(item.end) && item.end > item.start)
     .sort((a, b) => a.start - b.start);
 
@@ -146,7 +145,6 @@ export function computeFreeSlots(schedules, ctx = currentContext()) {
     cursor = Math.max(cursor, block.end);
   }
   if (cursor < baseEnd) free.push(makeSlot(cursor, baseEnd));
-
   return free.filter((slot) => slot.minutes >= 20);
 }
 
@@ -158,9 +156,9 @@ export function buildCurrentStateLines(date, ctx, split, freeSlots) {
   const lines = [
     `現在日時: ${ctx.currentDateLabel}`,
     `運用モード: ${ctx.effectiveModeLabel}`,
-    `対象日: ${date}`
+    `対象日: ${date}`,
+    `集中目標: ${state.settings?.focusMinutesTarget || 0}分 / バッファ: ${state.settings?.bufferMinutes || 0}分`
   ];
-
   if (ctx.isToday) {
     const remainingMinutes = Math.max(0, toMinutes("24:00") - ctx.currentMinutes);
     lines.push(`今日の残り時間: ${Math.floor(remainingMinutes / 60)}時間${remainingMinutes % 60}分`);
@@ -169,7 +167,6 @@ export function buildCurrentStateLines(date, ctx, split, freeSlots) {
   } else {
     lines.push(`今日は ${ctx.todayStr} / 現在時刻は参考のみ`);
   }
-
   return lines;
 }
 
@@ -186,7 +183,6 @@ export function buildRiskAlerts(dateStr, ctx, schedules) {
   const reference = ctx.isToday ? ctx.now : new Date(`${dateStr}T00:00:00`);
   const freeSlots = computeFreeSlots(schedules, ctx);
   const pending = getPendingTasks(dateStr, ctx);
-
   pending.forEach((task) => {
     if (!task.deadlineDate) return;
     const due = new Date(`${task.deadlineDate}T${task.deadlineTime || "23:59"}:00`);
@@ -195,13 +191,10 @@ export function buildRiskAlerts(dateStr, ctx, schedules) {
     else if (diffHours <= 12) alerts.push(`12時間以内 / ${task.title}`);
     else if (diffHours <= 24) alerts.push(`24時間以内 / ${task.title}`);
   });
-
   if (ctx.isToday && !freeSlots.length) alerts.push("残り空き時間がほぼありません");
   if (ctx.isToday && Number($("fatigue")?.value || 5) <= 2) alerts.push("体力がかなり低いので、重い作業は縮小推奨");
-
   const failedSync = state.oneOffEvents.filter((item) => item.googleSyncStatus === "failed");
   if (failedSync.length) alerts.push(`Google同期失敗 ${failedSync.length}件`);
-
   return alerts.slice(0, 6);
 }
 
@@ -215,27 +208,24 @@ export function buildAutoPlan(dateStr, providedCtx = null, includeCutCandidates 
   const freeSlots = computeFreeSlots(schedules, ctx);
   const referenceDate = ctx.isToday ? ctx.now : new Date(`${dateStr}T00:00:00`);
   const fatigue = Number($("fatigue")?.value || 5);
+  const focusTarget = Math.max(0, Number(state.settings?.focusMinutesTarget || 0));
 
   const tasks = getPendingTasks(dateStr, ctx).map((task) => ({
     ...task,
     remaining: Math.max(20, Number(task.estimate) || 60)
   }));
 
-  if (!tasks.length) {
-    return { topThree: [], timeline: [], cutCandidates: [], note: "未完了タスクがないため、自動時間割候補はありません。" };
-  }
-  if (!freeSlots.length) {
-    return { topThree: [], timeline: [], cutCandidates: deriveCutCandidates(tasks), note: "残り空き時間がほぼないため、自動時間割候補は作れません。" };
-  }
+  if (!tasks.length) return { topThree: [], timeline: [], cutCandidates: [], note: "未完了タスクがないため、自動時間割候補はありません。", focusSummary: "0 / 0分" };
+  if (!freeSlots.length) return { topThree: [], timeline: [], cutCandidates: deriveCutCandidates(tasks), note: "残り空き時間がほぼないため、自動時間割候補は作れません。", focusSummary: `0 / ${focusTarget}分` };
 
   const placements = [];
   const scheduledTaskIds = new Set();
+  let plannedFocusMinutes = 0;
 
   for (const slot of freeSlots) {
     let cursor = toMinutes(slot.start);
     let remainingSlot = slot.minutes;
     let safety = 0;
-
     while (remainingSlot >= 20 && safety < 20) {
       safety += 1;
       const candidates = tasks
@@ -243,23 +233,19 @@ export function buildAutoPlan(dateStr, providedCtx = null, includeCutCandidates 
         .map((task) => ({ task, score: scoreTask(task, referenceDate, remainingSlot, fatigue, ctx, dateStr) }))
         .filter((entry) => entry.score > -999)
         .sort((a, b) => b.score - a.score);
-
       const chosen = candidates[0]?.task;
       if (!chosen) break;
-
       const allocation = Math.min(chosen.remaining, remainingSlot, suggestChunkMinutes(chosen, remainingSlot, ctx));
       if (allocation < 20) break;
-
       const start = fromMinutes(cursor);
       const end = fromMinutes(cursor + allocation);
       const partial = allocation < chosen.remaining;
-
       placements.push({
         taskId: chosen.id,
-        label: `${start} - ${end} / ${chosen.title}${partial ? " (部分着手)" : ""}`,
-        topLabel: `${chosen.title} / ${chosen.importance} / 優先度:${chosen.priority}`
+        label: `${start} - ${end} / ${chosen.title}${partial ? " (部分着手)" : ""}${chosen.protectTimeBlock ? " [保護]" : ""}`,
+        topLabel: `${chosen.title} / ${chosen.importance} / 優先度:${chosen.priority}${chosen.protectTimeBlock ? " / 保護" : ""}`
       });
-
+      if (chosen.protectTimeBlock || chosen.importance === "必須") plannedFocusMinutes += allocation;
       scheduledTaskIds.add(chosen.id);
       chosen.remaining -= allocation;
       cursor += allocation;
@@ -285,7 +271,8 @@ export function buildAutoPlan(dateStr, providedCtx = null, includeCutCandidates 
     topThree,
     timeline: placements.map((item) => item.label),
     cutCandidates: includeCutCandidates ? cutCandidates : [],
-    note
+    note,
+    focusSummary: `${plannedFocusMinutes} / ${focusTarget}分`
   };
 }
 
@@ -302,7 +289,7 @@ export function deriveCutCandidates(tasks) {
     .sort((a, b) => {
       const aScore = ({ 後回し: 0, できれば: 1, 必須: 2 })[a.importance] ?? 1;
       const bScore = ({ 後回し: 0, できれば: 1, 必須: 2 })[b.importance] ?? 1;
-      if (aScore != bScore) return aScore - bScore;
+      if (aScore !== bScore) return aScore - bScore;
       return (Number(b.estimate) || 60) - (Number(a.estimate) || 60);
     })
     .slice(0, 4)
@@ -311,11 +298,11 @@ export function deriveCutCandidates(tasks) {
 
 export function scoreTask(task, referenceDate, slotMinutes, fatigue, ctx, dateStr = $("selectedDate")?.value || formatDateInput(new Date())) {
   if (task.deferUntilDate && task.deferUntilDate > dateStr) return -999;
-
   let score = 0;
   score += ({ 必須: 60, できれば: 25, 後回し: -12 })[task.importance] ?? 0;
   score += ({ 高: 30, 中: 12, 低: 0 })[task.priority] ?? 0;
   score += ({ 未着手: 8, 進行中: 16, 完了: -999 })[task.status] ?? 0;
+  if (task.protectTimeBlock) score += 22;
 
   const estimate = Number(task.estimate) || 60;
   if (estimate <= slotMinutes) score += 18;

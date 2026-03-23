@@ -1,6 +1,6 @@
 import { state } from "./state.js";
 import { googleState, hasValidGoogleToken, getCachedGoogleEvents, formatGoogleEventTime } from "./google-calendar.js";
-import { $, getFormValue } from "./utils.js";
+import { $ } from "./utils.js";
 import { WEEKDAY_NAMES, getNowContext, formatDateInput } from "./time.js";
 import {
   getSchedulesForDate,
@@ -48,6 +48,11 @@ export function hydratePlannerMode() {
   if (select) select.value = state.uiState?.plannerMode || "auto";
 }
 
+export function hydrateSettingsInputs() {
+  if ($("focusMinutesTarget")) $("focusMinutesTarget").value = String(state.settings?.focusMinutesTarget ?? 180);
+  if ($("bufferMinutes")) $("bufferMinutes").value = String(state.settings?.bufferMinutes ?? 10);
+}
+
 export function loadConditionInputsForDate(date) {
   const data = state.dayConditions[date] || { sleepHours: "", fatigue: "", note: "" };
   $("sleepHours").value = data.sleepHours || "";
@@ -64,6 +69,7 @@ export function renderCurrentClock() {
 
 export function renderAll() {
   renderCurrentClock();
+  hydrateSettingsInputs();
   renderFixedSchedules();
   renderOneOffEvents();
   renderTasks();
@@ -78,13 +84,11 @@ export function renderFixedSchedules() {
   const wrap = $("fixedList");
   wrap.innerHTML = "";
   const items = [...state.fixedSchedules].sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start));
-
   if (!items.length) {
     wrap.className = "list-wrap empty";
     wrap.textContent = "まだありません";
     return;
   }
-
   wrap.className = "list-wrap";
   items.forEach((item) => {
     wrap.appendChild(createListItem({
@@ -104,13 +108,11 @@ export function renderOneOffEvents() {
   const wrap = $("eventList");
   wrap.innerHTML = "";
   const items = [...state.oneOffEvents].sort((a, b) => `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`));
-
   if (!items.length) {
     wrap.className = "list-wrap empty";
     wrap.textContent = "まだありません";
     return;
   }
-
   wrap.className = "list-wrap";
   items.forEach((item) => {
     const timeLabel = item.allDay ? "終日" : item.start ? `${item.start}${item.end ? ` - ${item.end}` : ""}` : "時刻未設定";
@@ -119,7 +121,6 @@ export function renderOneOffEvents() {
       makeActionButton("編集", () => handlers.onEditEvent?.(item.id)),
       makeActionButton("複製", () => handlers.onDuplicateEvent?.(item.id))
     ];
-
     if (hasValidGoogleToken()) {
       if (!item.googleEventId) {
         actions.push(makeActionButton(item.googleSyncStatus === "failed" ? "Google再送" : "Google追加", () => handlers.onSyncEvent?.(item.id)));
@@ -127,9 +128,7 @@ export function renderOneOffEvents() {
         actions.push(makeActionButton("Google更新", () => handlers.onSyncUpdatedEvent?.(item.id)));
       }
     }
-
     actions.push(makeDeleteButton(() => handlers.onDeleteEvent?.(item.id)));
-
     wrap.appendChild(createListItem({
       title: `${item.date} / ${item.title}`,
       meta: `${timeLabel} / ${syncLabel}`,
@@ -145,7 +144,6 @@ export function renderTasks() {
   const order = { 高: 0, 中: 1, 低: 2 };
   const statusRank = { 未着手: 0, 進行中: 1, 完了: 2 };
   const importanceRank = { 必須: 0, できれば: 1, 後回し: 2 };
-
   const items = [...state.tasks].sort((a, b) => {
     if (statusRank[a.status] !== statusRank[b.status]) return statusRank[a.status] - statusRank[b.status];
     if (importanceRank[a.importance] !== importanceRank[b.importance]) return importanceRank[a.importance] - importanceRank[b.importance];
@@ -154,13 +152,11 @@ export function renderTasks() {
     if (deadlineA !== deadlineB) return deadlineA.localeCompare(deadlineB);
     return order[a.priority] - order[b.priority];
   });
-
   if (!items.length) {
     wrap.className = "list-wrap empty";
     wrap.textContent = "まだありません";
     return;
   }
-
   wrap.className = "list-wrap";
   items.forEach((item) => {
     const actions = [];
@@ -175,15 +171,14 @@ export function renderTasks() {
     });
     statusSelect.addEventListener("change", () => handlers.onQuickSetTaskStatus?.(item.id, statusSelect.value));
     actions.push(statusSelect);
-
     if (item.status !== "進行中") actions.push(makeActionButton("着手", () => handlers.onQuickSetTaskStatus?.(item.id, "進行中")));
     if (item.status !== "完了") actions.push(makeActionButton("完了", () => handlers.onQuickSetTaskStatus?.(item.id, "完了")));
     actions.push(makeActionButton("明日", () => handlers.onDeferTaskToTomorrow?.(item.id)));
     actions.push(makeActionButton("編集", () => handlers.onEditTask?.(item.id)));
     actions.push(makeDeleteButton(() => handlers.onDeleteTask?.(item.id)));
-
     const deadlineText = item.deadlineDate ? `${item.deadlineDate}${item.deadlineTime ? ` ${item.deadlineTime}` : ""}` : "締切未設定";
     const deferText = item.deferUntilDate ? ` / 保留:${item.deferUntilDate}` : "";
+    const protectText = item.protectTimeBlock ? " / 保護" : "";
     const meta = [
       item.category || "分類なし",
       `重要度:${item.importance}`,
@@ -191,8 +186,7 @@ export function renderTasks() {
       `見積:${item.estimate || "?"}分`,
       `締切:${deadlineText}`,
       `状態:${item.status}`
-    ].join(" / ") + deferText;
-
+    ].join(" / ") + deferText + protectText;
     wrap.appendChild(createListItem({
       title: item.title,
       meta,
@@ -207,28 +201,23 @@ export function renderGoogleEventList() {
   wrap.innerHTML = "";
   const date = $("selectedDate").value;
   const events = getCachedGoogleEvents(date);
-
   if (!hasValidGoogleToken()) {
     wrap.className = "list-wrap empty";
     wrap.textContent = "Google未接続です";
     return;
   }
-
   if (!events.length) {
     wrap.className = "list-wrap empty";
     wrap.textContent = "まだありません";
     return;
   }
-
   wrap.className = "list-wrap";
   events.forEach((event) => {
     wrap.appendChild(createListItem({
       title: event.summary || "タイトルなし",
       meta: `Google Calendar / ${formatGoogleEventTime(event)}`,
       note: event.description || "",
-      actions: [
-        makeDeleteButton(() => handlers.onDeleteGoogleEvent?.(event.id))
-      ]
+      actions: [makeDeleteButton(() => handlers.onDeleteGoogleEvent?.(event.id))]
     }));
   });
 }
@@ -241,12 +230,10 @@ export function renderCurrentState() {
   const risks = buildRiskAlerts(date, ctx, schedules);
   const cuts = buildCutCandidates(date, ctx);
   const freeSlots = computeFreeSlots(schedules, ctx);
-
   fillSummary($("currentStateSummary"), buildCurrentStateLines(date, ctx, split, freeSlots));
   fillSummary($("timelineStatusSummary"), buildTimelineStatusLines(split));
   fillSummary($("riskSummary"), risks);
   fillSummary($("cutSummary"), cuts);
-
   const note = ctx.isToday
     ? `${ctx.effectiveModeLabel}として、現在時刻以降の残り時間を優先して評価しています。`
     : `対象日は今日ではないので、現在時刻は参考情報として扱い、日全体の計画を出します。`;
@@ -260,7 +247,6 @@ export function renderSummaries() {
   const deadlines = getUpcomingTasks(selectedDate, 48, ctx);
   const pending = getPendingTasks(selectedDate, ctx);
   const freeSlots = computeFreeSlots(schedules, ctx);
-
   fillSummary($("dayScheduleSummary"), schedules.length ? schedules.map((item) => formatScheduleLine(item)) : []);
   fillSummary($("deadlineSummary"), deadlines.length ? deadlines.map((task) => `${task.title} / ${task.deadlineDate}${task.deadlineTime ? ` ${task.deadlineTime}` : ""} / 優先度:${task.priority}`) : []);
   fillSummary($("pendingSummary"), pending.length ? pending.slice(0, 8).map((task) => `${task.title} / ${task.category || "分類なし"} / ${task.status}`) : []);
@@ -272,7 +258,7 @@ export function renderAutoPlan() {
   const plan = buildAutoPlan(date);
   fillSummary($("autoTopThree"), plan.topThree);
   fillSummary($("autoTimeline"), plan.timeline);
-  $("autoPlanNote").textContent = plan.note;
+  $("autoPlanNote").textContent = `${plan.note} / 集中ブロック: ${plan.focusSummary}`;
 }
 
 export function updateGoogleStatus(message, variant = "") {
@@ -286,7 +272,6 @@ export function updateGoogleStatus(message, variant = "") {
 export function updateGoogleConnectionBadge() {
   const badge = $("googleConnectionBadge");
   if (!badge) return;
-
   badge.className = "calendar-badge";
   if (hasValidGoogleToken()) {
     badge.textContent = "接続中";
@@ -317,7 +302,6 @@ function fillSummary(container, lines) {
     container.textContent = "まだありません";
     return;
   }
-
   container.className = "summary-list";
   lines.forEach((line) => {
     const div = document.createElement("div");

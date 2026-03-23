@@ -10,7 +10,12 @@ import {
   syncLocalEventToGoogle,
   syncUpdatedLocalEventToGoogle,
   deleteLocalEvent,
-  deleteGoogleEventById
+  deleteGoogleEventById,
+  onSaveGoogleConfig,
+  onClearGoogleConfig,
+  onConnectGoogle,
+  onDisconnectGoogle,
+  loadGoogleEventsForSelectedDate
 } from "./google-calendar.js";
 import { generatePrompt, copyPrompt } from "./prompt.js";
 
@@ -20,6 +25,7 @@ export function setToday() {
   loadConditionInputsForDate(today);
   const eventDateInput = document.querySelector('#eventForm input[name="date"]');
   if (eventDateInput) eventDateInput.value = today;
+  hydrateSettingsInputs();
 }
 
 export function bindEvents() {
@@ -39,6 +45,9 @@ export function bindEvents() {
 
   $("plannerMode").addEventListener("change", onPlannerModeChanged);
 
+  $("focusMinutesTarget").addEventListener("input", saveSettingsInputs);
+  $("bufferMinutes").addEventListener("input", saveSettingsInputs);
+
   $("fatigueDownBtn").addEventListener("click", () => adjustFatigue(-1));
   $("fatigueUpBtn").addEventListener("click", () => adjustFatigue(1));
   $("unexpected30Btn").addEventListener("click", addUnexpectedThirtyMinutes);
@@ -51,29 +60,42 @@ export function bindEvents() {
   $("exportBtn").addEventListener("click", exportData);
   $("importInput").addEventListener("change", importData);
 
+  $("saveGoogleConfigBtn").addEventListener("click", onSaveGoogleConfig);
+  $("clearGoogleConfigBtn").addEventListener("click", onClearGoogleConfig);
+  $("connectGoogleBtn").addEventListener("click", onConnectGoogle);
+  $("disconnectGoogleBtn").addEventListener("click", onDisconnectGoogle);
+  $("reloadGoogleEventsBtn").addEventListener("click", async () => {
+    await loadGoogleEventsForSelectedDate();
+  });
+
   $("eventAllDay").addEventListener("change", toggleEventTimeInputs);
+}
+
+export function hydrateSettingsInputs() {
+  if ($("focusMinutesTarget")) $("focusMinutesTarget").value = String(state.settings?.focusMinutesTarget ?? 180);
+  if ($("bufferMinutes")) $("bufferMinutes").value = String(state.settings?.bufferMinutes ?? 10);
+}
+
+export function saveSettingsInputs() {
+  state.settings.focusMinutesTarget = Math.max(0, Number($("focusMinutesTarget")?.value || 0));
+  state.settings.bufferMinutes = Math.max(0, Number($("bufferMinutes")?.value || 0));
+  saveState();
+  renderCurrentState();
+  renderAutoPlan();
 }
 
 export async function onDateChanged() {
   const date = $("selectedDate").value;
   loadConditionInputsForDate(date);
-
   const eventDateInput = document.querySelector('#eventForm input[name="date"]');
-  if (eventDateInput && !getFormValue("eventForm", "editId")) {
-    eventDateInput.value = date;
-  }
-
-  if (hasValidGoogleToken()) {
-    await loadGoogleEventsForDate(date, { silent: true });
-  }
-
+  if (eventDateInput && !getFormValue("eventForm", "editId")) eventDateInput.value = date;
+  if (hasValidGoogleToken()) await loadGoogleEventsForDate(date, { silent: true });
   renderAll();
 }
 
 export function saveCurrentConditionInputs() {
   const date = $("selectedDate").value;
   if (!date) return;
-
   state.dayConditions[date] = {
     sleepHours: $("sleepHours").value,
     fatigue: $("fatigue").value,
@@ -89,7 +111,6 @@ export function adjustFatigue(delta) {
   const next = Math.max(0, Math.min(10, current + delta));
   $("fatigue").value = String(next);
   saveCurrentConditionInputs();
-
   if (delta < 0) updateStateNote("体力を下げたので、重いタスクの優先度を少し落として再設計します。");
   else updateStateNote("体力を更新しました。実行案を再計算します。");
 }
@@ -99,10 +120,8 @@ export function addUnexpectedThirtyMinutes() {
     alert("ワンタップの想定外30分は、対象日が今日のときだけ使えます。");
     return;
   }
-
   const rounded = roundToFiveMinutes(new Date());
   const end = new Date(rounded.getTime() + 30 * 60 * 1000);
-
   state.oneOffEvents.push(normalizeOneOffEvent({
     id: crypto.randomUUID(),
     title: "想定外対応",
@@ -113,7 +132,6 @@ export function addUnexpectedThirtyMinutes() {
     allDay: false,
     googleSyncStatus: "local"
   }));
-
   saveState();
   updateStateNote("想定外30分を追加したので、残り時間を基準に再設計します。");
   renderAll();
@@ -146,16 +164,8 @@ export async function onSubmitFixedSchedule(e) {
     end: String(fd.get("end")),
     note: String(fd.get("note")).trim()
   });
-
-  if (!payload.title) {
-    alert("タイトルを入力してください。");
-    return;
-  }
-  if (!isValidTimeRange(payload.start, payload.end)) {
-    alert("固定予定は開始時刻より後の終了時刻を設定してください。");
-    return;
-  }
-
+  if (!payload.title) return alert("タイトルを入力してください。");
+  if (!isValidTimeRange(payload.start, payload.end)) return alert("固定予定は開始時刻より後の終了時刻を設定してください。");
   const editingId = String(fd.get("editId") || "");
   if (editingId) {
     const target = state.fixedSchedules.find((item) => item.id === editingId);
@@ -164,7 +174,6 @@ export async function onSubmitFixedSchedule(e) {
   } else {
     state.fixedSchedules.push(payload);
   }
-
   saveState();
   resetFixedForm();
   renderAll();
@@ -175,7 +184,6 @@ export async function onSubmitOneOffEvent(e) {
   const fd = new FormData(e.currentTarget);
   const editingId = String(fd.get("editId") || "");
   const allDay = Boolean(fd.get("allDay"));
-
   const payload = normalizeOneOffEvent({
     id: editingId || crypto.randomUUID(),
     title: String(fd.get("title")).trim(),
@@ -185,19 +193,10 @@ export async function onSubmitOneOffEvent(e) {
     note: String(fd.get("note")).trim(),
     allDay
   });
-
-  if (!payload.title || !payload.date) {
-    alert("タイトルと日付を入力してください。");
-    return;
-  }
-  if (!payload.allDay && payload.start && payload.end && !isValidTimeRange(payload.start, payload.end)) {
-    alert("単発予定は開始時刻より後の終了時刻を設定してください。");
-    return;
-  }
-
+  if (!payload.title || !payload.date) return alert("タイトルと日付を入力してください。");
+  if (!payload.allDay && payload.start && payload.end && !isValidTimeRange(payload.start, payload.end)) return alert("単発予定は開始時刻より後の終了時刻を設定してください。");
   const shouldSyncToGoogle = Boolean(fd.get("syncToGoogle"));
   let target = editingId ? state.oneOffEvents.find((item) => item.id === editingId) : null;
-
   if (target) {
     Object.assign(target, payload);
     if (target.googleEventId) {
@@ -218,21 +217,14 @@ export async function onSubmitOneOffEvent(e) {
     }
   } else {
     target = payload;
-    if (shouldSyncToGoogle && hasValidGoogleToken()) {
-      await tryCreateGoogleForLocalEvent(target);
-    } else if (shouldSyncToGoogle) {
-      target.googleSyncStatus = "pending";
-    }
+    if (shouldSyncToGoogle && hasValidGoogleToken()) await tryCreateGoogleForLocalEvent(target);
+    else if (shouldSyncToGoogle) target.googleSyncStatus = "pending";
     state.oneOffEvents.push(target);
   }
-
   saveState();
   resetEventForm();
   renderAll();
-
-  if (hasValidGoogleToken() && $("selectedDate").value === payload.date) {
-    await loadGoogleEventsForDate(payload.date, { silent: true });
-  }
+  if (hasValidGoogleToken() && $("selectedDate").value === payload.date) await loadGoogleEventsForDate(payload.date, { silent: true });
 }
 
 async function tryCreateGoogleForLocalEvent(localEvent) {
@@ -260,14 +252,10 @@ export function onSubmitTask(e) {
     importance: String(fd.get("importance") || "できれば"),
     note: String(fd.get("note")).trim(),
     status: String(fd.get("status") || "未着手"),
-    deferUntilDate: String(fd.get("deferUntilDate") || "")
+    deferUntilDate: String(fd.get("deferUntilDate") || ""),
+    protectTimeBlock: Boolean(fd.get("protectTimeBlock"))
   });
-
-  if (!payload.title) {
-    alert("タスク名を入力してください。");
-    return;
-  }
-
+  if (!payload.title) return alert("タスク名を入力してください。");
   if (editingId) {
     const target = state.tasks.find((item) => item.id === editingId);
     if (!target) return;
@@ -275,7 +263,6 @@ export function onSubmitTask(e) {
   } else {
     state.tasks.push(payload);
   }
-
   saveState();
   resetTaskForm();
   renderAll();
@@ -309,6 +296,7 @@ export function resetTaskForm() {
   form.elements.importance.value = "できれば";
   form.elements.status.value = "未着手";
   form.elements.deferUntilDate.value = "";
+  form.elements.protectTimeBlock.checked = false;
   $("taskSubmitBtn").textContent = "タスクを追加";
   $("taskCancelBtn").hidden = true;
 }
@@ -342,11 +330,7 @@ export function populateFixedForm(id) {
 export function duplicateFixedSchedule(id) {
   const item = state.fixedSchedules.find((entry) => entry.id === id);
   if (!item) return;
-  state.fixedSchedules.push({
-    ...item,
-    id: crypto.randomUUID(),
-    title: `${item.title} (複製)`
-  });
+  state.fixedSchedules.push({ ...item, id: crypto.randomUUID(), title: `${item.title} (複製)` });
   saveState();
   renderAll();
 }
@@ -378,28 +362,14 @@ export function populateEventForm(id) {
 export function duplicateOneOffEvent(id) {
   const item = state.oneOffEvents.find((entry) => entry.id === id);
   if (!item) return;
-  state.oneOffEvents.push({
-    ...item,
-    id: crypto.randomUUID(),
-    title: `${item.title} (複製)`,
-    googleEventId: "",
-    googleSyncStatus: "local"
-  });
+  state.oneOffEvents.push({ ...item, id: crypto.randomUUID(), title: `${item.title} (複製)`, googleEventId: "", googleSyncStatus: "local" });
   saveState();
   renderAll();
 }
 
-export async function deleteEvent(id) {
-  await deleteLocalEvent(id);
-}
-
-export async function syncEvent(id) {
-  await syncLocalEventToGoogle(id);
-}
-
-export async function syncUpdatedEvent(id) {
-  await syncUpdatedLocalEventToGoogle(id);
-}
+export async function deleteEvent(id) { await deleteLocalEvent(id); }
+export async function syncEvent(id) { await syncLocalEventToGoogle(id); }
+export async function syncUpdatedEvent(id) { await syncUpdatedLocalEventToGoogle(id); }
 
 export function quickSetTaskStatus(id, status) {
   const item = state.tasks.find((entry) => entry.id === id);
@@ -435,6 +405,7 @@ export function populateTaskForm(id) {
   form.elements.status.value = item.status;
   form.elements.deferUntilDate.value = item.deferUntilDate;
   form.elements.note.value = item.note;
+  form.elements.protectTimeBlock.checked = Boolean(item.protectTimeBlock);
   $("taskSubmitBtn").textContent = "タスクを更新";
   $("taskCancelBtn").hidden = false;
   form.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -472,10 +443,15 @@ function importData(e) {
       state.oneOffEvents = (parsed.oneOffEvents || []).map(normalizeOneOffEvent);
       state.tasks = (parsed.tasks || []).map(normalizeTask);
       state.dayConditions = parsed.dayConditions || {};
+      state.settings = {
+        focusMinutesTarget: Number(parsed.settings?.focusMinutesTarget ?? state.settings.focusMinutesTarget),
+        bufferMinutes: Number(parsed.settings?.bufferMinutes ?? state.settings.bufferMinutes)
+      };
       state.uiState = { plannerMode: parsed.uiState?.plannerMode || "auto" };
       saveState();
       $("plannerMode").value = state.uiState.plannerMode;
       loadConditionInputsForDate($("selectedDate").value);
+      hydrateSettingsInputs();
       renderAll();
       alert("バックアップを読み込みました");
     } catch {

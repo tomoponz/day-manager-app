@@ -226,6 +226,14 @@
           体力 (0-10)
           <input id="fatigue" type="number" min="0" max="10" step="1" placeholder="例: 5" />
         </label>
+        <label>
+          集中目標(分)
+          <input id="focusMinutesTarget" type="number" min="0" step="10" placeholder="例: 180" />
+        </label>
+        <label>
+          バッファ(分)
+          <input id="bufferMinutes" type="number" min="0" step="5" placeholder="例: 10" />
+        </label>
         <label class="full-span">
           ひとことメモ
           <input id="conditionNote" type="text" placeholder="例: 昼以降に眠くなりやすい / 夕方外出あり" />
@@ -538,6 +546,13 @@
         <label>
           着手保留日
           <input name="deferUntilDate" type="date" />
+        </label>
+        <label class="full-span sync-option">
+          <input name="protectTimeBlock" type="checkbox" />
+          <span>
+            守るべき時間ブロック
+            <span class="micro-note">このタスクは自動時間割で優先的に守ります。重要で動かしたくない課題向け。</span>
+          </span>
         </label>
         <label class="full-span">
           メモ
