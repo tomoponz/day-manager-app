@@ -17,11 +17,21 @@ async function boot() {
 }
 
 function init() {
-  if (document.getElementById(AI_SECTION_ID)) return;
+  const existingSection = document.getElementById(AI_SECTION_ID);
+  if (existingSection) {
+    if (existingSection.dataset.bound === '1') return;
+    existingSection.dataset.bound = '1';
+    bindEvents();
+    renderPlanningDraftList();
+    setStatus('Gemini提案JSONを読み込むと、ここからローカル予定や Google Calendar に反映できます。');
+    return;
+  }
+
   const promptCard = document.getElementById('promptOutput')?.closest('.card');
   if (!promptCard) return;
 
   promptCard.insertAdjacentHTML('afterend', buildSectionHtml());
+  document.getElementById(AI_SECTION_ID)?.setAttribute('data-bound', '1');
   bindEvents();
   renderPlanningDraftList();
   setStatus('Gemini提案JSONを読み込むと、ここからローカル予定や Google Calendar に反映できます。');

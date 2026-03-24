@@ -1,5 +1,6 @@
 import { state } from "./state.js";
 import { $ } from "./utils.js";
+import { showToast } from "./ui-feedback.js";
 import { WEEKDAY_NAMES, getNowContext } from "./time.js";
 import {
   getSchedulesForDate,
@@ -71,10 +72,10 @@ export async function copyPrompt() {
 
   try {
     await navigator.clipboard.writeText(textarea.value);
-    alert("コピーしました");
+    showToast("コピーしました。", { variant: "ok", duration: 2200 });
   } catch {
     textarea.select();
     document.execCommand("copy");
-    alert("コピーしました");
+    showToast("コピーしました。", { variant: "ok", duration: 2200 });
   }
 }
