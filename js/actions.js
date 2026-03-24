@@ -20,6 +20,7 @@ import {
 } from './google-calendar.js';
 import { generatePrompt, copyPrompt } from './prompt.js';
 import { parseQuickAddInput } from './quick-add.js';
+import { showToast, confirmDialog } from './ui-feedback.js';
 
 export function setToday() {
   const today = formatDateInput(new Date());
@@ -144,7 +145,7 @@ export function adjustFatigue(delta) {
 
 export function addUnexpectedThirtyMinutes() {
   if (!isSelectedDateToday($('selectedDate').value)) {
-    alert('ワンタップの想定外30分は、対象日が今日のときだけ使えます。');
+    showToast('ワンタップの想定外30分は、対象日が今日のときだけ使えます。', { variant: 'warn' });
     return;
   }
   const rounded = roundToFiveMinutes(new Date());
@@ -191,8 +192,14 @@ export async function onSubmitFixedSchedule(e) {
     end: String(fd.get('end')),
     note: String(fd.get('note')).trim()
   });
-  if (!payload.title) return alert('タイトルを入力してください。');
-  if (!isValidTimeRange(payload.start, payload.end)) return alert('固定予定は開始時刻より後の終了時刻を設定してください。');
+  if (!payload.title) {
+    showToast('タイトルを入力してください。', { variant: 'warn' });
+    return;
+  }
+  if (!isValidTimeRange(payload.start, payload.end)) {
+    showToast('固定予定は開始時刻より後の終了時刻を設定してください。', { variant: 'warn' });
+    return;
+  }
   const editingId = String(fd.get('editId') || '');
   if (editingId) {
     const target = state.fixedSchedules.find((item) => item.id === editingId);
@@ -220,8 +227,14 @@ export async function onSubmitOneOffEvent(e) {
     note: String(fd.get('note')).trim(),
     allDay
   });
-  if (!payload.title || !payload.date) return alert('タイトルと日付を入力してください。');
-  if (!payload.allDay && payload.start && payload.end && !isValidTimeRange(payload.start, payload.end)) return alert('単発予定は開始時刻より後の終了時刻を設定してください。');
+  if (!payload.title || !payload.date) {
+    showToast('タイトルと日付を入力してください。', { variant: 'warn' });
+    return;
+  }
+  if (!payload.allDay && payload.start && payload.end && !isValidTimeRange(payload.start, payload.end)) {
+    showToast('単発予定は開始時刻より後の終了時刻を設定してください。', { variant: 'warn' });
+    return;
+  }
   const shouldSyncToGoogle = Boolean(fd.get('syncToGoogle'));
   let target = editingId ? state.oneOffEvents.find((item) => item.id === editingId) : null;
   if (target) {
@@ -282,7 +295,10 @@ export function onSubmitTask(e) {
     deferUntilDate: String(fd.get('deferUntilDate') || ''),
     protectTimeBlock: Boolean(fd.get('protectTimeBlock'))
   });
-  if (!payload.title) return alert('タスク名を入力してください。');
+  if (!payload.title) {
+    showToast('タスク名を入力してください。', { variant: 'warn' });
+    return;
+  }
   if (editingId) {
     const target = state.tasks.find((item) => item.id === editingId);
     if (!target) return;
@@ -469,7 +485,14 @@ export function deleteTask(id) {
 }
 
 export async function deleteGoogleEvent(id) {
-  if (!confirm('Googleカレンダーからこの予定を削除します。よろしいですか？')) return;
+  const ok = await confirmDialog({
+    title: 'Google予定を削除',
+    message: 'Googleカレンダーからこの予定を削除します。よろしいですか？',
+    confirmText: '削除する',
+    cancelText: 'キャンセル',
+    danger: true
+  });
+  if (!ok) return;
   await deleteGoogleEventById(id, { removeLocalMirror: true });
 }
 
@@ -508,9 +531,9 @@ function importData(e) {
       loadConditionInputsForDate($('selectedDate').value);
       hydrateSettingsInputs();
       renderAll();
-      alert('バックアップを読み込みました');
+      showToast('バックアップを読み込みました。', { variant: 'ok' });
     } catch {
-      alert('JSONの読み込みに失敗しました');
+      showToast('JSONの読み込みに失敗しました。', { variant: 'warn' });
     }
   };
   reader.readAsText(file, 'utf-8');

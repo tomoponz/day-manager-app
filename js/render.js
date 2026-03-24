@@ -177,21 +177,28 @@ export function renderTasks() {
     actions.push(makeActionButton("編集", () => handlers.onEditTask?.(item.id)));
     actions.push(makeDeleteButton(() => handlers.onDeleteTask?.(item.id)));
     const deadlineText = item.deadlineDate ? `${item.deadlineDate}${item.deadlineTime ? ` ${item.deadlineTime}` : ""}` : "締切未設定";
+    const deadlineState = getTaskDeadlineState(item);
     const deferText = item.deferUntilDate ? ` / 保留:${item.deferUntilDate}` : "";
     const protectText = item.protectTimeBlock ? " / 保護" : "";
     const meta = [
-      item.category || "分類なし",
-      `重要度:${item.importance}`,
-      `優先度:${item.priority}`,
-      `見積:${item.estimate || "?"}分`,
-      `締切:${deadlineText}`,
-      `状態:${item.status}`
-    ].join(" / ") + deferText + protectText;
+      { label: item.category || "分類なし", kind: "plain" },
+      { label: `重要度:${item.importance}`, kind: item.importance === "必須" ? "danger" : "plain" },
+      { label: `優先度:${item.priority}`, kind: item.priority === "高" ? "warn" : "plain" },
+      { label: `状態:${item.status}`, kind: item.status === "完了" ? "ok" : "plain" }
+    ];
+    const detail = [`見積:${item.estimate || "?"}分`, `締切:${deadlineText}${deadlineState.label ? ` (${deadlineState.label})` : ""}`].join(" / ") + deferText + protectText;
+    const itemClassName = [
+      "task-item",
+      item.status === "完了" ? "is-completed" : "",
+      deadlineState.className
+    ].filter(Boolean).join(" ");
     wrap.appendChild(createListItem({
       title: item.title,
       meta,
+      detail,
       note: item.note,
-      actions
+      actions,
+      className: itemClassName
     }));
   });
 }
@@ -319,14 +326,41 @@ function getLocalEventSyncLabel(item) {
   return "ローカルのみ";
 }
 
-function createListItem({ title, meta, note, actions }) {
+function createListItem({ title, meta, detail, note, actions, className = "" }) {
   const tpl = $("listItemTemplate").content.cloneNode(true);
+  const article = tpl.querySelector(".list-item");
+  if (className) article.classList.add(...className.split(" "));
   tpl.querySelector(".item-title").textContent = title;
-  tpl.querySelector(".item-meta").textContent = meta || "";
-  tpl.querySelector(".item-note").textContent = note || "";
+  const metaWrap = tpl.querySelector(".item-meta");
+  if (Array.isArray(meta)) {
+    metaWrap.innerHTML = "";
+    meta.forEach((badge) => {
+      const span = document.createElement("span");
+      span.className = `item-badge is-${badge.kind || "plain"}`;
+      span.textContent = badge.label;
+      metaWrap.appendChild(span);
+    });
+  } else {
+    metaWrap.textContent = meta || "";
+  }
+  const detailEl = tpl.querySelector(".item-detail");
+  detailEl.textContent = detail || "";
+  const noteEl = tpl.querySelector(".item-note");
+  noteEl.textContent = note || "";
   const actionWrap = tpl.querySelector(".list-actions");
   (actions || []).forEach((el) => actionWrap.appendChild(el));
   return tpl;
+}
+
+function getTaskDeadlineState(task) {
+  if (!task.deadlineDate) return { className: "", label: "" };
+  const now = new Date();
+  const deadline = new Date(`${task.deadlineDate}T${task.deadlineTime || "23:59"}:00`);
+  if (Number.isNaN(deadline.getTime())) return { className: "", label: "" };
+  if (task.status !== "完了" && deadline.getTime() < now.getTime()) return { className: "is-overdue", label: "期限超過" };
+  const hours = (deadline.getTime() - now.getTime()) / (1000 * 60 * 60);
+  if (task.status !== "完了" && hours <= 24) return { className: "is-deadline-soon", label: "24時間以内" };
+  return { className: "", label: "" };
 }
 
 function makeDeleteButton(onClick) {
