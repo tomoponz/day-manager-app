@@ -1,5 +1,5 @@
 import { state, saveState, normalizeOneOffEvent, normalizeFixedSchedule, normalizeTask } from './state.js';
-import { $, getFormValue } from './utils.js';
+import { $, debounce, getFormValue } from './utils.js';
 import { addDays, formatDateInput, formatTimeOnly, isSelectedDateToday, isValidTimeRange, roundToFiveMinutes } from './time.js';
 import { renderAll, renderCurrentState, renderAutoPlan, updateStateNote, loadConditionInputsForDate } from './render.js';
 import {
@@ -41,6 +41,8 @@ function focusFormPanel(panelId, form) {
 }
 
 export function bindEvents() {
+  const debouncedSaveCurrentConditionInputs = debounce(saveCurrentConditionInputs, 400);
+
   $('fixedForm').addEventListener('submit', onSubmitFixedSchedule);
   $('eventForm').addEventListener('submit', onSubmitOneOffEvent);
   $('taskForm').addEventListener('submit', onSubmitTask);
@@ -51,9 +53,9 @@ export function bindEvents() {
 
   $('selectedDate').addEventListener('change', onDateChanged);
 
-  $('sleepHours').addEventListener('input', saveCurrentConditionInputs);
-  $('fatigue').addEventListener('input', saveCurrentConditionInputs);
-  $('conditionNote').addEventListener('input', saveCurrentConditionInputs);
+  $('sleepHours').addEventListener('input', debouncedSaveCurrentConditionInputs);
+  $('fatigue').addEventListener('input', debouncedSaveCurrentConditionInputs);
+  $('conditionNote').addEventListener('input', debouncedSaveCurrentConditionInputs);
 
   $('plannerMode').addEventListener('change', onPlannerModeChanged);
   $('focusMinutesTarget').addEventListener('input', saveSettingsInputs);
@@ -474,8 +476,12 @@ function exportData() {
   const a = document.createElement('a');
   a.href = url;
   a.download = `day-manager-backup-${formatDateInput(new Date())}.json`;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 1000);
 }
 
 function importData(e) {
