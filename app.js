@@ -23,17 +23,17 @@
   };
 
   bootstrap().catch((error) => {
-    console.error("Day Manager bootstrap failed:", error);
+    console.error('Day Manager bootstrap failed:', error);
   });
 
   async function bootstrap() {
     const [stateModule, utilsModule, timeModule, renderModule, actionsModule, googleModule] = await Promise.all([
-      import("./js/state.js"),
-      import("./js/utils.js"),
-      import("./js/time.js"),
-      import("./js/render.js"),
-      import("./js/actions.js"),
-      import("./js/google-calendar.js")
+      import('./js/state.js'),
+      import('./js/utils.js'),
+      import('./js/time.js'),
+      import('./js/render.js'),
+      import('./js/actions.js'),
+      import('./js/google-calendar.js')
     ]);
 
     googleApi = googleModule;
@@ -70,17 +70,18 @@
     renderModule.updateGoogleConnectionBadge();
 
     if (googleModule.googleState.config.clientId && googleModule.googleState.config.apiKey) {
-      renderModule.updateGoogleStatus("連携設定は保存されています。Googleで接続すると対象日の予定を読み込めます。");
+      renderModule.updateGoogleStatus('連携設定は保存されています。Googleで接続すると対象日の予定を読み込めます。');
     } else {
-      renderModule.updateGoogleStatus("未接続です。Client ID と API Key を保存してから Google で接続してください。");
+      renderModule.updateGoogleStatus('未接続です。Client ID と API Key を保存してから Google で接続してください。');
     }
 
     registerServiceWorker();
     googleModule.maybePrepareTokenClient();
+    await import('./js/ai-gemini-assist.js');
 
     timeModule.startClock(() => {
       renderModule.renderCurrentClock();
-      if (timeModule.isSelectedDateToday(utilsModule.$("selectedDate")?.value)) {
+      if (timeModule.isSelectedDateToday(utilsModule.$('selectedDate')?.value)) {
         renderModule.renderCurrentState();
         renderModule.renderSummaries();
         renderModule.renderAutoPlan();
@@ -98,8 +99,8 @@
   }
 
   function registerServiceWorker() {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
     }
   }
 })();
