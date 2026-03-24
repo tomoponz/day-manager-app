@@ -36,8 +36,11 @@ function setPanelOpen(panelId, isOpen) {
 }
 
 function focusFormPanel(panelId, form) {
+  setPanelOpen('appSettingsPanel', true);
   setPanelOpen(panelId, true);
-  form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  requestAnimationFrame(() => {
+    form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
 }
 
 export function bindEvents() {
