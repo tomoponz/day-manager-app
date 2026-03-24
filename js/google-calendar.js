@@ -1,4 +1,4 @@
-import { GOOGLE_CONFIG_KEY, loadGoogleConfig, saveGoogleConfig, state, saveState } from "./state.js";
+import { GOOGLE_CONFIG_KEY, loadGoogleConfig, saveGoogleConfig, state, saveState, normalizeOneOffEvent } from "./state.js";
 import { $, getFormValue } from "./utils.js";
 import { addDays, formatDateInput, formatTimeOnly } from "./time.js";
 
@@ -205,6 +205,67 @@ export async function loadGoogleEventsForDate(dateStr, { silent = false } = {}) 
     if (!silent) notifyStatus(`Google予定の読込に失敗しました: ${getErrorMessage(error)}`, "warn");
     return [];
   }
+}
+
+export function importGoogleEventsToLocal(dateStr = $("selectedDate")?.value || "") {
+  const events = getCachedGoogleEvents(dateStr);
+  if (!events.length) {
+    notifyStatus("取り込める Google 予定がありません。先に対象日の予定を読み込んでください。", "warn");
+    return { imported: 0, skipped: 0 };
+  }
+
+  let imported = 0;
+  let skipped = 0;
+
+  events.forEach((event) => {
+    const candidate = mapGoogleEventToLocal(event, dateStr);
+    const alreadyLinked = state.oneOffEvents.some((item) => item.googleEventId === event.id);
+    const duplicateLocal = state.oneOffEvents.some((item) => item.date === candidate.date && item.title === candidate.title && (item.start || "") === (candidate.start || "") && (item.end || "") === (candidate.end || "") && Boolean(item.allDay) === Boolean(candidate.allDay));
+
+    if (alreadyLinked || duplicateLocal) {
+      skipped += 1;
+      return;
+    }
+
+    state.oneOffEvents.push(normalizeOneOffEvent(candidate));
+    imported += 1;
+  });
+
+  saveState();
+  rerender();
+  notifyStatus(`Google 予定をローカルへ ${imported} 件取り込みました。重複候補 ${skipped} 件はスキップしました。`, imported ? "ok" : "warn");
+  return { imported, skipped };
+}
+
+function mapGoogleEventToLocal(event, fallbackDate) {
+  const allDay = Boolean(event.start?.date && !event.start?.dateTime);
+  if (allDay) {
+    return {
+      id: crypto.randomUUID(),
+      title: event.summary || "Google予定",
+      date: event.start?.date || fallbackDate,
+      start: "",
+      end: "",
+      note: event.description || "Google から取込",
+      allDay: true,
+      googleEventId: event.id,
+      googleSyncStatus: "synced"
+    };
+  }
+
+  const start = event.start?.dateTime ? new Date(event.start.dateTime) : new Date(`${fallbackDate}T00:00:00`);
+  const end = event.end?.dateTime ? new Date(event.end.dateTime) : null;
+  return {
+    id: crypto.randomUUID(),
+    title: event.summary || "Google予定",
+    date: formatDateInput(start),
+    start: formatTimeOnly(start),
+    end: end ? formatTimeOnly(end) : "",
+    note: event.description || "Google から取込",
+    allDay: false,
+    googleEventId: event.id,
+    googleSyncStatus: "synced"
+  };
 }
 
 export async function createGoogleEventFromLocal(localEvent) {

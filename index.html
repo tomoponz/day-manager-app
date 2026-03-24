@@ -13,7 +13,8 @@
   .calendar-actions,
   .form-actions,
   .report-actions,
-  .mode-actions {
+  .mode-actions,
+  .quick-add-actions {
     display: flex;
     gap: 0.6rem;
     flex-wrap: wrap;
@@ -64,7 +65,8 @@
   }
 
   .calendar-note,
-  .status-note {
+  .status-note,
+  .quick-add-note {
     margin-top: 0.8rem;
     color: var(--muted);
     font-size: 0.88rem;
@@ -175,11 +177,23 @@
     color: var(--sage, var(--accent));
   }
 
+  .quick-add-box {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .quick-add-result {
+    min-height: 1.2rem;
+    font-size: 0.86rem;
+    color: var(--muted);
+  }
+
   @media (max-width: 920px) {
     .calendar-actions,
     .form-actions,
     .settings-summary,
-    .mode-toolbar {
+    .mode-toolbar,
+    .quick-add-actions {
       flex-direction: column;
       align-items: flex-start;
     }
@@ -215,6 +229,18 @@
             <input id="selectedDate" type="date" />
           </label>
         </div>
+      </div>
+
+      <div class="quick-add-box">
+        <label>
+          クイック追加
+          <input id="quickAddInput" type="text" placeholder="例: 明日14:00 A社MTG / タスク: 線形レポ 60分 高 必須" />
+        </label>
+        <div class="quick-add-actions">
+          <button id="quickAddBtn" type="button" class="primary">1行で追加</button>
+        </div>
+        <p class="quick-add-note">日付・時刻・分数・優先度を含む1行から、予定またはタスクを自動で追加します。</p>
+        <div id="quickAddResult" class="quick-add-result"></div>
       </div>
 
       <div class="conditions-grid">
@@ -371,6 +397,7 @@
           <button id="connectGoogleBtn" type="button">Googleで接続</button>
           <button id="disconnectGoogleBtn" class="ghost" type="button">接続解除</button>
           <button id="reloadGoogleEventsBtn" class="ghost" type="button">対象日のGoogle予定を再読込</button>
+          <button id="importGoogleToLocalBtn" class="ghost" type="button">Google予定を取込</button>
           <a href="./calendar-test.html" class="file-label subtle-link">連携テスト画面</a>
         </div>
 
