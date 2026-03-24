@@ -24,6 +24,7 @@ export function parseQuickAddInput(input, selectedDateValue = formatDateInput(ne
   }
 
   if (detectedType === "task") {
+    const deadlineDate = dateInfo.explicit ? dateInfo.date : (timeInfo.start ? baseDate : "");
     return {
       ok: true,
       type: "task",
@@ -31,7 +32,7 @@ export function parseQuickAddInput(input, selectedDateValue = formatDateInput(ne
       value: {
         title,
         category: parseCategory(raw),
-        deadlineDate: dateInfo.date,
+        deadlineDate,
         deadlineTime: timeInfo.start || "",
         estimate: durationMinutes ? String(durationMinutes) : "",
         priority,
@@ -70,30 +71,39 @@ function detectType(text) {
 }
 
 function parseDate(text, fallbackDate) {
-  if (/明後日/.test(text)) return { date: addDays(fallbackDate, 2) };
-  if (/明日/.test(text)) return { date: addDays(fallbackDate, 1) };
-  if (/今日/.test(text)) return { date: fallbackDate };
+  if (/明後日/.test(text)) return { date: addDays(fallbackDate, 2), explicit: true };
+  if (/明日/.test(text)) return { date: addDays(fallbackDate, 1), explicit: true };
+  if (/今日/.test(text)) return { date: fallbackDate, explicit: true };
 
   const iso = text.match(/(20\d{2})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
   if (iso) {
     const [, y, m, d] = iso;
-    return { date: `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` };
+    return {
+      date: `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+      explicit: true
+    };
   }
 
   const md = text.match(/(\d{1,2})[\/\-](\d{1,2})/);
   if (md) {
     const year = fallbackDate.slice(0, 4);
     const [, m, d] = md;
-    return { date: `${year}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` };
+    return {
+      date: `${year}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+      explicit: true
+    };
   }
 
   const weekday = text.match(/(今週|来週)?([日月火水木金土])曜?/);
   if (weekday) {
     const [, prefix = "今週", dayChar] = weekday;
-    return { date: resolveWeekdayDate(fallbackDate, WEEKDAY_MAP[dayChar], prefix === "来週") };
+    return {
+      date: resolveWeekdayDate(fallbackDate, WEEKDAY_MAP[dayChar], prefix === "来週"),
+      explicit: true
+    };
   }
 
-  return { date: fallbackDate };
+  return { date: "", explicit: false };
 }
 
 function resolveWeekdayDate(baseDateStr, targetWeekday, forceNextWeek = false) {
@@ -141,8 +151,11 @@ function parseDuration(text) {
 }
 
 function parsePriority(text) {
-  if (/優先度[:：]?高|\b高\b/.test(text)) return "高";
-  if (/優先度[:：]?低|\b低\b/.test(text)) return "低";
+  const explicit = text.match(/優先度[:：]?\s*(高|中|低)/);
+  if (explicit) return explicit[1];
+  if (hasStandaloneKeyword(text, "高")) return "高";
+  if (hasStandaloneKeyword(text, "低")) return "低";
+  if (hasStandaloneKeyword(text, "中")) return "中";
   return "中";
 }
 
@@ -166,9 +179,26 @@ function cleanupTitle(text) {
   title = title.replace(/\d+(?:\.\d+)?\s*時間/g, " ");
   title = title.replace(/\d+\s*分/g, " ");
   title = title.replace(/優先度[:：]?(高|中|低)|必須|後回し|できれば|進行中|完了|保護|守る|固定/g, " ");
+  title = replaceStandaloneKeywords(title, ["高", "中", "低"]);
   title = title.replace(/分類[:：]\s*[^\s]+/g, " ");
   title = title.replace(/[()（）]/g, " ");
   return title.replace(/\s+/g, " ").trim();
+}
+
+function hasStandaloneKeyword(text, keyword) {
+  const escaped = escapeRegExp(keyword);
+  return new RegExp(`(?:^|[\\s　,，/／()（）])${escaped}(?=$|[\\s　,，/／()（）])`).test(text);
+}
+
+function replaceStandaloneKeywords(text, keywords) {
+  return keywords.reduce((acc, keyword) => {
+    const escaped = escapeRegExp(keyword);
+    return acc.replace(new RegExp(`(^|[\\s　,，/／()（）])${escaped}(?=$|[\\s　,，/／()（）])`, "g"), "$1");
+  }, text);
+}
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function buildQuickNote(text) {

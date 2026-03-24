@@ -115,7 +115,7 @@ export function onClearGoogleConfig() {
   googleState.eventsByDate = {};
 
   if (gapi?.client?.setToken) {
-    gapi.client.setToken("");
+    gapi.client.setToken(null);
   }
 
   rerender();
@@ -158,7 +158,7 @@ export function onDisconnectGoogle() {
   const token = gapi?.client?.getToken();
   if (token?.access_token) {
     google.accounts.oauth2.revoke(token.access_token);
-    gapi.client.setToken("");
+    gapi.client.setToken(null);
   }
   googleState.eventsByDate = {};
   rerender();
@@ -271,17 +271,7 @@ function mapGoogleEventToLocal(event, fallbackDate) {
 export async function createGoogleEventFromLocal(localEvent) {
   if (!hasValidGoogleToken()) throw new Error("Google に接続していません");
 
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const resource = { summary: localEvent.title, description: localEvent.note || "" };
-
-  if (localEvent.allDay || !localEvent.start || !localEvent.end) {
-    resource.start = { date: localEvent.date };
-    resource.end = { date: addDays(localEvent.date, 1) };
-  } else {
-    resource.start = { dateTime: `${localEvent.date}T${localEvent.start}:00`, timeZone };
-    resource.end = { dateTime: `${localEvent.date}T${localEvent.end}:00`, timeZone };
-  }
-
+  const resource = buildGoogleEventResource(localEvent);
   const response = await gapi.client.calendar.events.insert({ calendarId: "primary", resource });
   return response.result;
 }
@@ -290,17 +280,7 @@ export async function updateGoogleEventFromLocal(localEvent) {
   if (!hasValidGoogleToken()) throw new Error("Google に接続していません");
   if (!localEvent.googleEventId) throw new Error("Google Event ID がありません");
 
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const resource = { summary: localEvent.title, description: localEvent.note || "" };
-
-  if (localEvent.allDay || !localEvent.start || !localEvent.end) {
-    resource.start = { date: localEvent.date };
-    resource.end = { date: addDays(localEvent.date, 1) };
-  } else {
-    resource.start = { dateTime: `${localEvent.date}T${localEvent.start}:00`, timeZone };
-    resource.end = { dateTime: `${localEvent.date}T${localEvent.end}:00`, timeZone };
-  }
-
+  const resource = buildGoogleEventResource(localEvent);
   const response = await gapi.client.calendar.events.update({
     calendarId: "primary",
     eventId: localEvent.googleEventId,
@@ -312,6 +292,25 @@ export async function updateGoogleEventFromLocal(localEvent) {
   });
   cacheGoogleEvent(response.result, localEvent.date);
   return response.result;
+}
+
+function buildGoogleEventResource(localEvent) {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const resource = { summary: localEvent.title, description: localEvent.note || "" };
+
+  if (localEvent.allDay) {
+    resource.start = { date: localEvent.date };
+    resource.end = { date: addDays(localEvent.date, 1) };
+    return resource;
+  }
+
+  if (!localEvent.start || !localEvent.end) {
+    throw new Error("Google同期する単発予定は、終日予定にするか、開始・終了時刻の両方を入れてください。");
+  }
+
+  resource.start = { dateTime: `${localEvent.date}T${localEvent.start}:00`, timeZone };
+  resource.end = { dateTime: `${localEvent.date}T${localEvent.end}:00`, timeZone };
+  return resource;
 }
 
 export async function syncLocalEventToGoogle(localEventId) {
