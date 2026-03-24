@@ -15,9 +15,11 @@ import {
   onClearGoogleConfig,
   onConnectGoogle,
   onDisconnectGoogle,
-  loadGoogleEventsForSelectedDate
+  loadGoogleEventsForSelectedDate,
+  importGoogleEventsToLocal
 } from "./google-calendar.js";
 import { generatePrompt, copyPrompt } from "./prompt.js";
+import { parseQuickAddInput } from "./quick-add.js";
 
 export function setToday() {
   const today = formatDateInput(new Date());
@@ -44,7 +46,6 @@ export function bindEvents() {
   $("conditionNote").addEventListener("input", saveCurrentConditionInputs);
 
   $("plannerMode").addEventListener("change", onPlannerModeChanged);
-
   $("focusMinutesTarget").addEventListener("input", saveSettingsInputs);
   $("bufferMinutes").addEventListener("input", saveSettingsInputs);
 
@@ -57,6 +58,14 @@ export function bindEvents() {
   $("generateBtn").addEventListener("click", generatePrompt);
   $("copyBtn").addEventListener("click", copyPrompt);
 
+  $("quickAddBtn")?.addEventListener("click", handleQuickAdd);
+  $("quickAddInput")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleQuickAdd();
+    }
+  });
+
   $("exportBtn").addEventListener("click", exportData);
   $("importInput").addEventListener("change", importData);
 
@@ -66,6 +75,9 @@ export function bindEvents() {
   $("disconnectGoogleBtn").addEventListener("click", onDisconnectGoogle);
   $("reloadGoogleEventsBtn").addEventListener("click", async () => {
     await loadGoogleEventsForSelectedDate();
+  });
+  $("importGoogleToLocalBtn")?.addEventListener("click", () => {
+    importGoogleEventsToLocal($("selectedDate")?.value || "");
   });
 
   $("eventAllDay").addEventListener("change", toggleEventTimeInputs);
@@ -266,6 +278,27 @@ export function onSubmitTask(e) {
   saveState();
   resetTaskForm();
   renderAll();
+}
+
+export function handleQuickAdd() {
+  const input = $("quickAddInput")?.value || "";
+  const resultBox = $("quickAddResult");
+  const parsed = parseQuickAddInput(input, $("selectedDate")?.value || formatDateInput(new Date()));
+  if (!parsed.ok) {
+    if (resultBox) resultBox.textContent = parsed.error;
+    return;
+  }
+
+  if (parsed.type === "task") {
+    state.tasks.push(normalizeTask({ id: crypto.randomUUID(), ...parsed.value }));
+  } else {
+    state.oneOffEvents.push(normalizeOneOffEvent({ id: crypto.randomUUID(), googleSyncStatus: "local", ...parsed.value }));
+  }
+
+  saveState();
+  renderAll();
+  if (resultBox) resultBox.textContent = `追加しました: ${parsed.preview}`;
+  if ($("quickAddInput")) $("quickAddInput").value = "";
 }
 
 export function resetFixedForm() {
