@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang='ja'>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#111827" />
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" href="icons/icon-192.png" />
+  <meta charset='UTF-8' />
+  <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+  <meta name='theme-color' content='#111827' />
+  <link rel='manifest' href='manifest.webmanifest' />
+  <link rel='icon' href='icons/icon-192.png' />
   <title>Day Manager</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel='stylesheet' href='style.css' />
 
 <style>
   .calendar-actions,
@@ -84,7 +84,7 @@
     color: var(--text);
   }
 
-  .sync-option input[type="checkbox"] {
+  .sync-option input[type='checkbox'] {
     width: auto;
     margin: 0;
     accent-color: var(--accent);
@@ -188,12 +188,54 @@
     color: var(--muted);
   }
 
+  .subsection-fold {
+    margin-top: 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .subsection-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    cursor: pointer;
+    list-style: none;
+    padding: 0.95rem 1rem;
+    background: var(--bg-2);
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .subsection-summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .subsection-summary::after {
+    content: '開く';
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 500;
+  }
+
+  .subsection-fold[open] > .subsection-summary::after {
+    content: '閉じる';
+  }
+
+  .subsection-body {
+    padding: 1rem;
+    border-top: 1px solid var(--line);
+  }
+
   @media (max-width: 920px) {
     .calendar-actions,
     .form-actions,
     .settings-summary,
     .mode-toolbar,
-    .quick-add-actions {
+    .quick-add-actions,
+    .subsection-summary {
       flex-direction: column;
       align-items: flex-start;
     }
@@ -201,413 +243,428 @@
 </style>
 </head>
 <body>
-  <header class="topbar">
+  <header class='topbar'>
     <div>
-      <p class="eyebrow">Free / Local Storage / ChatGPT assist</p>
+      <p class='eyebrow'>Free / Local Storage / ChatGPT assist</p>
       <h1>Day Manager</h1>
-      <p class="sub">予定とタスクをまとめて、今日の実行案とChatGPT向け1日設計テキストを生成</p>
+      <p class='sub'>予定とタスクをまとめて、今日の実行案とChatGPT向け1日設計テキストを生成</p>
     </div>
-    <div class="header-actions">
-      <button id="exportBtn" class="ghost">バックアップ書き出し</button>
-      <label class="ghost file-label">
+    <div class='header-actions'>
+      <button id='exportBtn' class='ghost'>バックアップ書き出し</button>
+      <label class='ghost file-label'>
         バックアップ読込
-        <input id="importInput" type="file" accept="application/json" hidden />
+        <input id='importInput' type='file' accept='application/json' hidden />
       </label>
     </div>
   </header>
 
-  <main class="container">
-    <section class="card planner-card">
-      <div class="card-header">
+  <main class='container'>
+    <section class='card planner-card'>
+      <div class='card-header'>
         <div>
           <h2>現在地点</h2>
           <p>現在時刻・進行状況・危険箇所をもとに、AIがいまからの行動を組み直すための状態要約</p>
         </div>
-        <div class="date-wrap">
+        <div class='date-wrap'>
           <label>
             対象日
-            <input id="selectedDate" type="date" />
+            <input id='selectedDate' type='date' />
           </label>
         </div>
       </div>
 
-      <div class="quick-add-box">
+      <div class='quick-add-box'>
         <label>
           クイック追加
-          <input id="quickAddInput" type="text" placeholder="例: 明日14:00 A社MTG / タスク: 線形レポ 60分 高 必須" />
+          <input id='quickAddInput' type='text' placeholder='例: 明日14:00 A社MTG / タスク: 線形レポ 60分 高 必須' />
         </label>
-        <div class="quick-add-actions">
-          <button id="quickAddBtn" type="button" class="primary">1行で追加</button>
+        <div class='quick-add-actions'>
+          <button id='quickAddBtn' type='button' class='primary'>1行で追加</button>
         </div>
-        <p class="quick-add-note">日付・時刻・分数・優先度を含む1行から、予定またはタスクを自動で追加します。</p>
-        <div id="quickAddResult" class="quick-add-result"></div>
+        <p class='quick-add-note'>日付・時刻・分数・優先度を含む1行から、予定またはタスクを自動で追加します。</p>
+        <div id='quickAddResult' class='quick-add-result'></div>
       </div>
 
-      <div class="conditions-grid">
+      <div class='conditions-grid'>
         <label>
           睡眠時間
-          <input id="sleepHours" type="number" min="0" max="24" step="0.5" placeholder="例: 6.5" />
+          <input id='sleepHours' type='number' min='0' max='24' step='0.5' placeholder='例: 6.5' />
         </label>
         <label>
           体力 (0-10)
-          <input id="fatigue" type="number" min="0" max="10" step="1" placeholder="例: 5" />
+          <input id='fatigue' type='number' min='0' max='10' step='1' placeholder='例: 5' />
         </label>
         <label>
           集中目標(分)
-          <input id="focusMinutesTarget" type="number" min="0" step="10" placeholder="例: 180" />
+          <input id='focusMinutesTarget' type='number' min='0' step='10' placeholder='例: 180' />
         </label>
         <label>
           バッファ(分)
-          <input id="bufferMinutes" type="number" min="0" step="5" placeholder="例: 10" />
+          <input id='bufferMinutes' type='number' min='0' step='5' placeholder='例: 10' />
         </label>
-        <label class="full-span">
+        <label class='full-span'>
           ひとことメモ
-          <input id="conditionNote" type="text" placeholder="例: 昼以降に眠くなりやすい / 夕方外出あり" />
+          <input id='conditionNote' type='text' placeholder='例: 昼以降に眠くなりやすい / 夕方外出あり' />
         </label>
       </div>
 
-      <div class="mode-toolbar">
-        <div class="now-box">
-          <span class="now-label">Current Time</span>
-          <strong id="currentDateTime" class="now-value">--</strong>
-          <span id="currentDateMeta" class="micro-note">--</span>
+      <div class='mode-toolbar'>
+        <div class='now-box'>
+          <span class='now-label'>Current Time</span>
+          <strong id='currentDateTime' class='now-value'>--</strong>
+          <span id='currentDateMeta' class='micro-note'>--</span>
         </div>
 
         <div>
           <label>
             運用モード
-            <select id="plannerMode" aria-label="運用モード">
-              <option value="auto">自動</option>
-              <option value="morning">朝モード</option>
-              <option value="replan">再設計モード</option>
-              <option value="night">夜モード</option>
+            <select id='plannerMode' aria-label='運用モード'>
+              <option value='auto'>自動</option>
+              <option value='morning'>朝モード</option>
+              <option value='replan'>再設計モード</option>
+              <option value='night'>夜モード</option>
             </select>
           </label>
-          <div class="mode-actions">
-            <span id="activeModeChip" class="mode-chip">自動</span>
+          <div class='mode-actions'>
+            <span id='activeModeChip' class='mode-chip'>自動</span>
           </div>
         </div>
       </div>
 
-      <div class="report-actions">
-        <button id="fatigueDownBtn" type="button">体力 -1</button>
-        <button id="fatigueUpBtn" type="button">体力 +1</button>
-        <button id="unexpected30Btn" type="button">想定外30分</button>
-        <button id="forceReplanBtn" type="button">今から再設計</button>
-        <button id="endDayBtn" type="button">今日はここまで</button>
+      <div class='report-actions'>
+        <button id='fatigueDownBtn' type='button'>体力 -1</button>
+        <button id='fatigueUpBtn' type='button'>体力 +1</button>
+        <button id='unexpected30Btn' type='button'>想定外30分</button>
+        <button id='forceReplanBtn' type='button'>今から再設計</button>
+        <button id='endDayBtn' type='button'>今日はここまで</button>
       </div>
 
-      <p id="stateNote" class="status-note">人間は状態変化を報告し、アプリは現在地点を整理してAIに渡します。</p>
+      <p id='stateNote' class='status-note'>人間は状態変化を報告し、アプリは現在地点を整理してAIに渡します。</p>
 
-      <div class="summary-grid state-grid">
-        <article class="summary-box">
+      <div class='summary-grid state-grid'>
+        <article class='summary-box'>
           <h3>いまの状態要約</h3>
-          <div id="currentStateSummary" class="summary-list empty">まだありません</div>
+          <div id='currentStateSummary' class='summary-list empty'>まだありません</div>
         </article>
-        <article class="summary-box">
+        <article class='summary-box'>
           <h3>進行中 / これから</h3>
-          <div id="timelineStatusSummary" class="summary-list empty">まだありません</div>
+          <div id='timelineStatusSummary' class='summary-list empty'>まだありません</div>
         </article>
-        <article class="summary-box danger-list">
+        <article class='summary-box danger-list'>
           <h3>危険アラート</h3>
-          <div id="riskSummary" class="summary-list empty">まだありません</div>
+          <div id='riskSummary' class='summary-list empty'>まだありません</div>
         </article>
-        <article class="summary-box">
+        <article class='summary-box'>
           <h3>今日切る候補</h3>
-          <div id="cutSummary" class="summary-list empty">まだありません</div>
+          <div id='cutSummary' class='summary-list empty'>まだありません</div>
         </article>
       </div>
 
-      <div class="summary-grid">
-        <article class="summary-box">
+      <div class='summary-grid'>
+        <article class='summary-box'>
           <h3>その日の予定</h3>
-          <div id="dayScheduleSummary" class="summary-list empty">まだありません</div>
+          <div id='dayScheduleSummary' class='summary-list empty'>まだありません</div>
         </article>
-        <article class="summary-box">
+        <article class='summary-box'>
           <h3>48時間以内の締切</h3>
-          <div id="deadlineSummary" class="summary-list empty">まだありません</div>
+          <div id='deadlineSummary' class='summary-list empty'>まだありません</div>
         </article>
-        <article class="summary-box">
+        <article class='summary-box'>
           <h3>未完了タスク</h3>
-          <div id="pendingSummary" class="summary-list empty">まだありません</div>
+          <div id='pendingSummary' class='summary-list empty'>まだありません</div>
         </article>
-        <article class="summary-box">
+        <article class='summary-box'>
           <h3>残り空き時間</h3>
-          <div id="freeTimeSummary" class="summary-list empty">まだありません</div>
+          <div id='freeTimeSummary' class='summary-list empty'>まだありません</div>
         </article>
       </div>
     </section>
 
-    <section class="card">
-      <div class="card-header">
+    <section class='card'>
+      <div class='card-header'>
         <div>
           <h2>実行案</h2>
           <p>空き時間・締切・優先度・重要度・現在時刻をもとに、いまからの行動案を自動で仮配置</p>
         </div>
       </div>
 
-      <div class="summary-grid planning-grid">
-        <article class="summary-box">
+      <div class='summary-grid planning-grid'>
+        <article class='summary-box'>
           <h3>今日の最優先3件</h3>
-          <div id="autoTopThree" class="summary-list empty">まだありません</div>
+          <div id='autoTopThree' class='summary-list empty'>まだありません</div>
         </article>
-        <article class="summary-box">
+        <article class='summary-box'>
           <h3>時間割候補</h3>
-          <div id="autoTimeline" class="summary-list empty">まだありません</div>
+          <div id='autoTimeline' class='summary-list empty'>まだありません</div>
         </article>
       </div>
 
-      <p id="autoPlanNote" class="calendar-note">空き時間とタスクから自動候補を生成します。体力が低い日は重いタスクの優先度を少し下げます。</p>
+      <p id='autoPlanNote' class='calendar-note'>空き時間とタスクから自動候補を生成します。体力が低い日は重いタスクの優先度を少し下げます。</p>
 
-      <div class="prompt-actions">
-        <button id="generateBtn" class="primary">今日を設計する文章を生成</button>
-        <button id="copyBtn">コピー</button>
+      <div class='prompt-actions'>
+        <button id='generateBtn' class='primary'>今日を設計する文章を生成</button>
+        <button id='copyBtn'>コピー</button>
       </div>
 
-      <label class="prompt-label">
+      <label class='prompt-label'>
         ChatGPTに貼る文章
-        <textarea id="promptOutput" rows="18" placeholder="ここに生成されます"></textarea>
+        <textarea id='promptOutput' rows='18' placeholder='ここに生成されます'></textarea>
       </label>
     </section>
 
-    <details class="card settings-card" id="googleSettingsPanel">
-      <summary class="settings-summary">
+    <details class='card settings-card' id='googleSettingsPanel'>
+      <summary class='settings-summary'>
         <span>
           <strong>Google Calendar 連携 (β)</strong>
-          <span class="micro-note">接続設定・Google予定の読込・単発予定の同期を管理</span>
+          <span class='micro-note'>接続設定・Google予定の読込・単発予定の同期を管理</span>
         </span>
-        <span id="googleConnectionBadge" class="calendar-badge">未接続</span>
+        <span id='googleConnectionBadge' class='calendar-badge'>未接続</span>
       </summary>
 
-      <div class="settings-body">
-        <div class="form-grid">
-          <label class="full-span">
+      <div class='settings-body'>
+        <div class='form-grid'>
+          <label class='full-span'>
             OAuth Client ID
-            <input id="googleClientId" type="text" placeholder="例: 1234567890-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com" />
+            <input id='googleClientId' type='text' placeholder='例: 1234567890-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com' />
           </label>
-          <label class="full-span">
+          <label class='full-span'>
             API Key
-            <input id="googleApiKey" type="text" placeholder="例: AIza..." />
+            <input id='googleApiKey' type='text' placeholder='例: AIza...' />
           </label>
         </div>
 
-        <div class="calendar-actions">
-          <button id="saveGoogleConfigBtn" class="primary" type="button">連携設定を保存</button>
-          <button id="clearGoogleConfigBtn" type="button">保存内容を削除</button>
-          <button id="connectGoogleBtn" type="button">Googleで接続</button>
-          <button id="disconnectGoogleBtn" class="ghost" type="button">接続解除</button>
-          <button id="reloadGoogleEventsBtn" class="ghost" type="button">対象日のGoogle予定を再読込</button>
-          <button id="importGoogleToLocalBtn" class="ghost" type="button">Google予定を取込</button>
-          <a href="./calendar-test.html" class="file-label subtle-link">連携テスト画面</a>
+        <div class='calendar-actions'>
+          <button id='saveGoogleConfigBtn' class='primary' type='button'>連携設定を保存</button>
+          <button id='clearGoogleConfigBtn' type='button'>保存内容を削除</button>
+          <button id='connectGoogleBtn' type='button'>Googleで接続</button>
+          <button id='disconnectGoogleBtn' class='ghost' type='button'>接続解除</button>
+          <button id='reloadGoogleEventsBtn' class='ghost' type='button'>対象日のGoogle予定を再読込</button>
+          <button id='importGoogleToLocalBtn' class='ghost' type='button'>Google予定を取込</button>
+          <a href='./calendar-test.html' class='file-label subtle-link'>連携テスト画面</a>
         </div>
 
-        <div id="googleStatusBox" class="calendar-status">未接続です。Client ID と API Key を保存してから Google で接続してください。</div>
-        <p class="calendar-note">対象日を切り替えると、その日の Google 予定を読み直します。単発予定を Google に同期したい場合は、下のチェックボックスを有効にしてください。</p>
+        <div id='googleStatusBox' class='calendar-status'>未接続です。Client ID と API Key を保存してから Google で接続してください。</div>
+        <p class='calendar-note'>対象日を切り替えると、その日の Google 予定を読み直します。単発予定を Google に同期したい場合は、下のチェックボックスを有効にしてください。</p>
 
-        <div class="card-header compact nested-header">
-          <div>
-            <h2>対象日の Google 予定</h2>
-            <p>Googleカレンダーから直接読み込んだ予定一覧</p>
+        <details class='subsection-fold' id='googleEventListPanel'>
+          <summary class='subsection-summary'>対象日の Google 予定</summary>
+          <div class='subsection-body'>
+            <p class='micro-note'>Googleカレンダーから直接読み込んだ予定一覧</p>
+            <div id='googleEventList' class='list-wrap empty'>まだありません</div>
           </div>
-        </div>
-        <div id="googleEventList" class="list-wrap empty">まだありません</div>
+        </details>
       </div>
     </details>
 
-    <section class="grid two-col">
-      <section class="card">
-        <div class="card-header compact">
+    <section class='grid two-col'>
+      <section class='card'>
+        <div class='card-header compact'>
           <div>
             <h2>固定予定</h2>
             <p>毎週くり返す授業・通学・食事など</p>
           </div>
         </div>
 
-        <form id="fixedForm" class="form-grid">
-          <input name="editId" type="hidden" />
-          <label>
-            タイトル
-            <input name="title" type="text" required placeholder="例: 応用数学I" />
-          </label>
-          <label>
-            曜日
-            <select name="weekday">
-              <option value="0">日</option>
-              <option value="1">月</option>
-              <option value="2">火</option>
-              <option value="3">水</option>
-              <option value="4">木</option>
-              <option value="5">金</option>
-              <option value="6">土</option>
-            </select>
-          </label>
-          <label>
-            開始
-            <input name="start" type="time" required />
-          </label>
-          <label>
-            終了
-            <input name="end" type="time" required />
-          </label>
-          <label class="full-span">
-            補足
-            <input name="note" type="text" placeholder="例: 移動込み / 教室情報" />
-          </label>
-          <div class="form-actions full-span">
-            <button id="fixedSubmitBtn" class="primary" type="submit">固定予定を追加</button>
-            <button id="fixedCancelBtn" type="button" class="ghost" hidden>編集を取り消す</button>
+        <details class='subsection-fold' id='fixedFormPanel'>
+          <summary class='subsection-summary'>固定予定を追加 / 編集</summary>
+          <div class='subsection-body'>
+            <form id='fixedForm' class='form-grid'>
+              <input name='editId' type='hidden' />
+              <label>
+                タイトル
+                <input name='title' type='text' required placeholder='例: 応用数学I' />
+              </label>
+              <label>
+                曜日
+                <select name='weekday'>
+                  <option value='0'>日</option>
+                  <option value='1'>月</option>
+                  <option value='2'>火</option>
+                  <option value='3'>水</option>
+                  <option value='4'>木</option>
+                  <option value='5'>金</option>
+                  <option value='6'>土</option>
+                </select>
+              </label>
+              <label>
+                開始
+                <input name='start' type='time' required />
+              </label>
+              <label>
+                終了
+                <input name='end' type='time' required />
+              </label>
+              <label class='full-span'>
+                補足
+                <input name='note' type='text' placeholder='例: 移動込み / 教室情報' />
+              </label>
+              <div class='form-actions full-span'>
+                <button id='fixedSubmitBtn' class='primary' type='submit'>固定予定を追加</button>
+                <button id='fixedCancelBtn' type='button' class='ghost' hidden>編集を取り消す</button>
+              </div>
+            </form>
           </div>
-        </form>
+        </details>
 
-        <div id="fixedList" class="list-wrap empty">まだありません</div>
+        <div id='fixedList' class='list-wrap empty'>まだありません</div>
       </section>
 
-      <section class="card">
-        <div class="card-header compact">
+      <section class='card'>
+        <div class='card-header compact'>
           <div>
             <h2>単発予定</h2>
             <p>その日だけの予定・締切・外出など</p>
           </div>
         </div>
 
-        <form id="eventForm" class="form-grid">
-          <input name="editId" type="hidden" />
-          <label>
-            タイトル
-            <input name="title" type="text" required placeholder="例: 面談 / 提出期限" />
-          </label>
-          <label>
-            日付
-            <input name="date" type="date" required />
-          </label>
-          <label class="full-span sync-option">
-            <input id="eventAllDay" name="allDay" type="checkbox" />
-            <span>
-              終日予定
-              <span class="micro-note">オンにすると開始・終了時刻は使わず、Googleにも終日予定として登録します。</span>
-            </span>
-          </label>
-          <label>
-            開始
-            <input name="start" type="time" />
-          </label>
-          <label>
-            終了
-            <input name="end" type="time" />
-          </label>
-          <label class="full-span">
-            補足
-            <input name="note" type="text" placeholder="例: 16:00までに提出 / 移動30分" />
-          </label>
-          <label class="sync-option full-span">
-            <input id="syncEventToGoogle" name="syncToGoogle" type="checkbox" checked />
-            <span>
-              Google Calendar にも追加する
-              <span class="micro-note">接続中ならローカル保存と同時に Google 側にも予定を作成します。未接続ならローカル保存のみです。</span>
-            </span>
-          </label>
-          <div class="form-actions full-span">
-            <button id="eventSubmitBtn" class="primary" type="submit">単発予定を追加</button>
-            <button id="eventCancelBtn" type="button" class="ghost" hidden>編集を取り消す</button>
+        <details class='subsection-fold' id='eventFormPanel'>
+          <summary class='subsection-summary'>単発予定を追加 / 編集</summary>
+          <div class='subsection-body'>
+            <form id='eventForm' class='form-grid'>
+              <input name='editId' type='hidden' />
+              <label>
+                タイトル
+                <input name='title' type='text' required placeholder='例: 面談 / 提出期限' />
+              </label>
+              <label>
+                日付
+                <input name='date' type='date' required />
+              </label>
+              <label class='full-span sync-option'>
+                <input id='eventAllDay' name='allDay' type='checkbox' />
+                <span>
+                  終日予定
+                  <span class='micro-note'>オンにすると開始・終了時刻は使わず、Googleにも終日予定として登録します。</span>
+                </span>
+              </label>
+              <label>
+                開始
+                <input name='start' type='time' />
+              </label>
+              <label>
+                終了
+                <input name='end' type='time' />
+              </label>
+              <label class='full-span'>
+                補足
+                <input name='note' type='text' placeholder='例: 16:00までに提出 / 移動30分' />
+              </label>
+              <label class='sync-option full-span'>
+                <input id='syncEventToGoogle' name='syncToGoogle' type='checkbox' checked />
+                <span>
+                  Google Calendar にも追加する
+                  <span class='micro-note'>接続中ならローカル保存と同時に Google 側にも予定を作成します。未接続ならローカル保存のみです。</span>
+                </span>
+              </label>
+              <div class='form-actions full-span'>
+                <button id='eventSubmitBtn' class='primary' type='submit'>単発予定を追加</button>
+                <button id='eventCancelBtn' type='button' class='ghost' hidden>編集を取り消す</button>
+              </div>
+            </form>
           </div>
-        </form>
+        </details>
 
-        <div id="eventList" class="list-wrap empty">まだありません</div>
+        <div id='eventList' class='list-wrap empty'>まだありません</div>
       </section>
     </section>
 
-    <section class="card">
-      <div class="card-header compact">
+    <section class='card'>
+      <div class='card-header compact'>
         <div>
           <h2>タスク</h2>
           <p>課題・復習・生活タスクなど。締切と見積時間を持たせる</p>
         </div>
       </div>
 
-      <form id="taskForm" class="form-grid task-grid">
-        <input name="editId" type="hidden" />
-        <label>
-          タスク名
-          <input name="title" type="text" required placeholder="例: 微分積分レポート" />
-        </label>
-        <label>
-          分類
-          <input name="category" type="text" placeholder="例: 数学 / 生活 / 英語" />
-        </label>
-        <label>
-          締切日
-          <input name="deadlineDate" type="date" />
-        </label>
-        <label>
-          締切時刻
-          <input name="deadlineTime" type="time" />
-        </label>
-        <label>
-          見積時間(分)
-          <input name="estimate" type="number" min="0" step="10" placeholder="例: 60" />
-        </label>
-        <label>
-          優先度
-          <select name="priority">
-            <option value="高">高</option>
-            <option value="中" selected>中</option>
-            <option value="低">低</option>
-          </select>
-        </label>
-        <label>
-          重要度
-          <select name="importance">
-            <option value="必須">必須</option>
-            <option value="できれば" selected>できれば</option>
-            <option value="後回し">後回し</option>
-          </select>
-        </label>
-        <label>
-          状態
-          <select name="status">
-            <option value="未着手" selected>未着手</option>
-            <option value="進行中">進行中</option>
-            <option value="完了">完了</option>
-          </select>
-        </label>
-        <label>
-          着手保留日
-          <input name="deferUntilDate" type="date" />
-        </label>
-        <label class="full-span sync-option">
-          <input name="protectTimeBlock" type="checkbox" />
-          <span>
-            守るべき時間ブロック
-            <span class="micro-note">このタスクは自動時間割で優先的に守ります。重要で動かしたくない課題向け。</span>
-          </span>
-        </label>
-        <label class="full-span">
-          メモ
-          <input name="note" type="text" placeholder="例: 問題3まで / 提出形式PDF" />
-        </label>
-        <div class="form-actions full-span">
-          <button id="taskSubmitBtn" class="primary" type="submit">タスクを追加</button>
-          <button id="taskCancelBtn" type="button" class="ghost" hidden>編集を取り消す</button>
+      <details class='subsection-fold' id='taskFormPanel'>
+        <summary class='subsection-summary'>タスクを追加 / 編集</summary>
+        <div class='subsection-body'>
+          <form id='taskForm' class='form-grid task-grid'>
+            <input name='editId' type='hidden' />
+            <label>
+              タスク名
+              <input name='title' type='text' required placeholder='例: 微分積分レポート' />
+            </label>
+            <label>
+              分類
+              <input name='category' type='text' placeholder='例: 数学 / 生活 / 英語' />
+            </label>
+            <label>
+              締切日
+              <input name='deadlineDate' type='date' />
+            </label>
+            <label>
+              締切時刻
+              <input name='deadlineTime' type='time' />
+            </label>
+            <label>
+              見積時間(分)
+              <input name='estimate' type='number' min='0' step='10' placeholder='例: 60' />
+            </label>
+            <label>
+              優先度
+              <select name='priority'>
+                <option value='高'>高</option>
+                <option value='中' selected>中</option>
+                <option value='低'>低</option>
+              </select>
+            </label>
+            <label>
+              重要度
+              <select name='importance'>
+                <option value='必須'>必須</option>
+                <option value='できれば' selected>できれば</option>
+                <option value='後回し'>後回し</option>
+              </select>
+            </label>
+            <label>
+              状態
+              <select name='status'>
+                <option value='未着手' selected>未着手</option>
+                <option value='進行中'>進行中</option>
+                <option value='完了'>完了</option>
+              </select>
+            </label>
+            <label>
+              着手保留日
+              <input name='deferUntilDate' type='date' />
+            </label>
+            <label class='full-span sync-option'>
+              <input name='protectTimeBlock' type='checkbox' />
+              <span>
+                守るべき時間ブロック
+                <span class='micro-note'>このタスクは自動時間割で優先的に守ります。重要で動かしたくない課題向け。</span>
+              </span>
+            </label>
+            <label class='full-span'>
+              メモ
+              <input name='note' type='text' placeholder='例: 問題3まで / 提出形式PDF' />
+            </label>
+            <div class='form-actions full-span'>
+              <button id='taskSubmitBtn' class='primary' type='submit'>タスクを追加</button>
+              <button id='taskCancelBtn' type='button' class='ghost' hidden>編集を取り消す</button>
+            </div>
+          </form>
         </div>
-      </form>
+      </details>
 
-      <div id="taskList" class="list-wrap empty">まだありません</div>
+      <div id='taskList' class='list-wrap empty'>まだありません</div>
     </section>
   </main>
 
-  <template id="listItemTemplate">
-    <article class="list-item">
-      <div class="list-main">
-        <strong class="item-title"></strong>
-        <p class="item-meta"></p>
-        <p class="item-note"></p>
+  <template id='listItemTemplate'>
+    <article class='list-item'>
+      <div class='list-main'>
+        <strong class='item-title'></strong>
+        <p class='item-meta'></p>
+        <p class='item-note'></p>
       </div>
-      <div class="list-actions"></div>
+      <div class='list-actions'></div>
     </article>
   </template>
 
-  <script src="app.js"></script>
-  <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-  <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+  <script src='app.js'></script>
+  <script async defer src='https://apis.google.com/js/api.js' onload='gapiLoaded()'></script>
+  <script async defer src='https://accounts.google.com/gsi/client' onload='gisLoaded()'></script>
 </body>
 </html>
