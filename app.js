@@ -38,6 +38,9 @@
 
     googleApi = googleModule;
 
+    await import('./js/product-ui-tune.js');
+    await import('./js/main-screen-layout.js');
+
     googleModule.configureGoogleUi({
       renderAll: renderModule.renderAll,
       updateGoogleStatus: renderModule.updateGoogleStatus,
