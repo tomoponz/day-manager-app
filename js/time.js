@@ -90,3 +90,41 @@ export function addDays(dateStr, days) {
   date.setDate(date.getDate() + days);
   return formatDateInput(date);
 }
+
+export function getStartOfWeek(dateStr, weekStartsOn = 1) {
+  const date = new Date(`${dateStr}T00:00:00`);
+  const currentDay = date.getDay();
+  const diff = (currentDay - weekStartsOn + 7) % 7;
+  date.setDate(date.getDate() - diff);
+  return formatDateInput(date);
+}
+
+export function getEndOfWeek(dateStr, weekStartsOn = 1) {
+  return addDays(getStartOfWeek(dateStr, weekStartsOn), 6);
+}
+
+export function getWeekDates(dateStr, weekStartsOn = 1) {
+  const start = getStartOfWeek(dateStr, weekStartsOn);
+  return Array.from({ length: 7 }, (_, index) => addDays(start, index));
+}
+
+export function getWeekKey(dateStr, weekStartsOn = 1) {
+  const start = getStartOfWeek(dateStr, weekStartsOn);
+  return `${start}_${getEndOfWeek(dateStr, weekStartsOn)}`;
+}
+
+export function getWeekLabel(dateStr, weekStartsOn = 1) {
+  const start = getStartOfWeek(dateStr, weekStartsOn);
+  const end = getEndOfWeek(dateStr, weekStartsOn);
+  return `${start} - ${end}`;
+}
+
+export function isDateInRange(dateStr, startDate, endDate) {
+  if (!dateStr || !startDate || !endDate) return false;
+  return dateStr >= startDate && dateStr <= endDate;
+}
+
+export function getMonthKey(dateStr) {
+  const safeDate = dateStr || formatDateInput(new Date());
+  return safeDate.slice(0, 7);
+}

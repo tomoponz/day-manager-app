@@ -6,6 +6,9 @@ export const INITIAL_STATE = {
   oneOffEvents: [],
   tasks: [],
   dayConditions: {},
+  weeklyPlans: {},
+  milestones: [],
+  planningDrafts: [],
   settings: {
     focusMinutesTarget: 180,
     bufferMinutes: 10
@@ -27,6 +30,9 @@ export function loadState() {
       oneOffEvents: (parsed.oneOffEvents || []).map(normalizeOneOffEvent),
       tasks: (parsed.tasks || []).map(normalizeTask),
       dayConditions: parsed.dayConditions || {},
+      weeklyPlans: normalizeWeeklyPlans(parsed.weeklyPlans),
+      milestones: (parsed.milestones || []).map(normalizeMilestone),
+      planningDrafts: (parsed.planningDrafts || []).map(normalizePlanningDraft),
       settings: {
         focusMinutesTarget: Number(parsed.settings?.focusMinutesTarget ?? INITIAL_STATE.settings.focusMinutesTarget),
         bufferMinutes: Number(parsed.settings?.bufferMinutes ?? INITIAL_STATE.settings.bufferMinutes)
@@ -101,5 +107,71 @@ export function normalizeTask(item) {
     status: item.status || "未着手",
     deferUntilDate: item.deferUntilDate || "",
     protectTimeBlock: Boolean(item.protectTimeBlock)
+  };
+}
+
+export function normalizeWeeklyPlans(source) {
+  if (!source || typeof source !== "object" || Array.isArray(source)) return {};
+  return Object.fromEntries(
+    Object.entries(source)
+      .filter(([weekKey]) => Boolean(weekKey))
+      .map(([weekKey, value]) => [weekKey, normalizeWeeklyPlan({ weekKey, ...(value || {}) })])
+  );
+}
+
+export function normalizeWeeklyPlan(item) {
+  return {
+    weekKey: item.weekKey || "",
+    focus: Array.isArray(item.focus) ? item.focus.map((line) => String(line).trim()).filter(Boolean) : [],
+    notes: item.notes || "",
+    draftBlocks: Array.isArray(item.draftBlocks) ? item.draftBlocks.map(normalizeDraftBlock) : [],
+    generatedAt: item.generatedAt || ""
+  };
+}
+
+export function normalizeDraftBlock(item) {
+  return {
+    id: item.id || crypto.randomUUID(),
+    title: item.title || "",
+    date: item.date || "",
+    start: item.start || "",
+    end: item.end || "",
+    allDay: Boolean(item.allDay),
+    note: item.note || "",
+    source: item.source || "manual",
+    locked: Boolean(item.locked),
+    taskId: item.taskId || ""
+  };
+}
+
+export function normalizeMilestone(item) {
+  return {
+    id: item.id || crypto.randomUUID(),
+    title: item.title || "",
+    type: item.type || "milestone",
+    date: item.date || "",
+    startDate: item.startDate || "",
+    endDate: item.endDate || "",
+    scope: item.scope || "year",
+    note: item.note || "",
+    status: item.status || "planned"
+  };
+}
+
+export function normalizePlanningDraft(item) {
+  return {
+    id: item.id || crypto.randomUUID(),
+    draftType: item.draftType || "calendar-event",
+    title: item.title || "",
+    targetDate: item.targetDate || "",
+    targetWeekKey: item.targetWeekKey || "",
+    start: item.start || "",
+    end: item.end || "",
+    allDay: Boolean(item.allDay),
+    note: item.note || "",
+    reason: item.reason || "",
+    status: item.status || "draft",
+    source: item.source || "ai",
+    createdAt: item.createdAt || ""
   };
 }
