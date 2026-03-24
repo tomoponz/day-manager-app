@@ -385,6 +385,46 @@
     <section class='card'>
       <div class='card-header'>
         <div>
+          <h2>今日の一覧</h2>
+          <p>固定予定・単発予定・タスクの本体一覧を、主画面で直接確認します。</p>
+        </div>
+      </div>
+
+      <div class='grid two-col'>
+        <section class='card'>
+          <div class='card-header compact'>
+            <div>
+              <h2>固定予定</h2>
+              <p>毎週くり返す授業・通学・食事など</p>
+            </div>
+          </div>
+          <div id='fixedList' class='list-wrap empty'>まだありません</div>
+        </section>
+        <section class='card'>
+          <div class='card-header compact'>
+            <div>
+              <h2>単発予定</h2>
+              <p>その日だけの予定・締切・外出など</p>
+            </div>
+          </div>
+          <div id='eventList' class='list-wrap empty'>まだありません</div>
+        </section>
+      </div>
+
+      <section class='card'>
+        <div class='card-header compact'>
+          <div>
+            <h2>タスク</h2>
+            <p>課題・復習・生活タスクなど。締切と見積時間を持たせます。</p>
+          </div>
+        </div>
+        <div id='taskList' class='list-wrap empty'>まだありません</div>
+      </section>
+    </section>
+
+    <section class='card'>
+      <div class='card-header'>
+        <div>
           <h2>今日の状態</h2>
           <p>今の状態と注意点だけを先に見ます。詰まっている場所を一目で確認するための面です。</p>
         </div>
@@ -607,7 +647,6 @@
               </div>
             </details>
 
-            <div id='fixedList' class='list-wrap empty'>まだありません</div>
           </section>
 
           <section class='card'>
@@ -665,7 +704,6 @@
               </div>
             </details>
 
-            <div id='eventList' class='list-wrap empty'>まだありません</div>
           </section>
         </section>
 
@@ -749,7 +787,6 @@
             </div>
           </details>
 
-          <div id='taskList' class='list-wrap empty'>まだありません</div>
         </section>
       </div>
     </details>
@@ -759,7 +796,8 @@
     <article class='list-item'>
       <div class='list-main'>
         <strong class='item-title'></strong>
-        <p class='item-meta'></p>
+        <div class='item-meta'></div>
+        <p class='item-detail'></p>
         <p class='item-note'></p>
       </div>
       <div class='list-actions'></div>

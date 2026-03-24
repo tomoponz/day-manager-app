@@ -1,6 +1,7 @@
 import { GOOGLE_CONFIG_KEY, loadGoogleConfig, saveGoogleConfig, state, saveState, normalizeOneOffEvent } from "./state.js";
 import { $, getFormValue } from "./utils.js";
 import { addDays, formatDateInput, formatTimeOnly } from "./time.js";
+import { confirmDialog } from "./ui-feedback.js";
 
 export const DISCOVERY_DOC = "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest";
 export const SCOPES = "https://www.googleapis.com/auth/calendar.events";
@@ -378,11 +379,23 @@ export async function deleteLocalEvent(localEventId) {
       try {
         await deleteGoogleEventById(item.googleEventId, { removeLocalMirror: false, silent: true });
       } catch (error) {
-        const proceed = confirm(`Google 側の削除に失敗しました。ローカルだけ削除しますか？\n\n${getErrorMessage(error)}`);
+        const proceed = await confirmDialog({
+          title: "Google側の削除に失敗",
+          message: `Google 側の削除に失敗しました。ローカルだけ削除しますか？\n\n${getErrorMessage(error)}`,
+          confirmText: "ローカルだけ削除",
+          cancelText: "キャンセル",
+          danger: true
+        });
         if (!proceed) return;
       }
     } else {
-      const proceed = confirm("この予定は Google Calendar と同期されています。現在は未接続なので、ローカルだけ削除されます。続けますか？");
+      const proceed = await confirmDialog({
+        title: "Google未接続",
+        message: "この予定は Google Calendar と同期されています。現在は未接続なので、ローカルだけ削除されます。続けますか？",
+        confirmText: "ローカルだけ削除",
+        cancelText: "キャンセル",
+        danger: true
+      });
       if (!proceed) return;
     }
   }
