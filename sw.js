@@ -1,4 +1,4 @@
-const CACHE_NAME = "day-manager-cache-v5";
+const CACHE_NAME = "day-manager-cache-v6";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -8,7 +8,22 @@ const CORE_ASSETS = [
   "./calendar-test.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
-  "./icons/icon-512.png"
+  "./icons/icon-512.png",
+  "./js/actions.js",
+  "./js/ai-drafts.js",
+  "./js/ai-gemini-assist.js",
+  "./js/date-nav-ui.js",
+  "./js/google-calendar.js",
+  "./js/main-screen-layout.js",
+  "./js/planner.js",
+  "./js/product-ui-tune.js",
+  "./js/prompt.js",
+  "./js/quick-add.js",
+  "./js/render.js",
+  "./js/state.js",
+  "./js/time.js",
+  "./js/ui-feedback.js",
+  "./js/utils.js"
 ];
 
 self.addEventListener("install", (event) => {
@@ -41,7 +56,7 @@ async function networkFirst(request) {
   const cache = await caches.open(CACHE_NAME);
   try {
     const fresh = await fetch(request);
-    cache.put(request, fresh.clone());
+    if (fresh.ok) cache.put(request, fresh.clone());
     return fresh;
   } catch {
     const cached = await cache.match(request);
@@ -54,7 +69,7 @@ async function staleWhileRevalidate(request) {
   const cached = await cache.match(request);
   const fetchPromise = fetch(request)
     .then((response) => {
-      cache.put(request, response.clone());
+      if (response.ok) cache.put(request, response.clone());
       return response;
     })
     .catch(() => null);
