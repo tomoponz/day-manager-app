@@ -126,7 +126,9 @@ export function onClearGoogleConfig() {
 }
 
 export function onConnectGoogle() {
-  const returnTo = encodeURIComponent(window.location.href);
+  const returnTo = encodeURIComponent(
+    `${window.location.pathname}${window.location.search}${window.location.hash}`
+  );
   window.location.href = `/auth/google/start?returnTo=${returnTo}`;
 }
 
