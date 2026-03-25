@@ -1,20 +1,16 @@
-この zip は「Googleの Client ID / API Key をユーザー入力させず、見た目上は Google で接続するだけ」にするための差し替え用ファイルです。
+この zip は、前回の内部固定版で起きた起動エラーを直した修正版です。
 
-入っているファイル:
-- index.html
-- js/actions.js
-- js/google-calendar.js
-- js/google-config.js
-- sw.js
+原因:
+- index.html から固定予定/単発予定/タスクのフォーム群を落としてしまい、
+  actions.js が存在しない要素へ addEventListener して落ちていました。
 
-使い方:
-1. 既存リポジトリの同名ファイルをこの zip のファイルで置き換える
-2. js/google-config.js を開く
-3. YOUR_GOOGLE_OAUTH_CLIENT_ID と YOUR_GOOGLE_API_KEY を実値に置き換える
-4. アプリをブラウザ経由で開く
-5. 「Googleで接続」を押して認可する
+この修正版で直したこと:
+- 元のフォーム群は残す
+- Google資格情報の入力欄だけを消す
+- 見た目上は「Googleで接続」だけにする
+- js/google-config.js に Client ID / API Key を固定する方式を維持
 
-重要:
-- これは「入力欄をなくす」だけで、資格情報そのものが不要になるわけではありません
-- どのカレンダーに接続されるかは、ログインした Google アカウントで決まります
-- あなたのアクセストークンを埋め込むわけではありません
+やること:
+1. 同名ファイルを置き換える
+2. js/google-config.js に実際の Client ID / API Key を入れる
+3. ブラウザで再起動する
