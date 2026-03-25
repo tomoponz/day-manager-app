@@ -1,16 +1,20 @@
-この zip は、前回の内部固定版で起きた起動エラーを直した修正版です。
+この zip は起動時の `Cannot read properties of null (reading 'addEventListener')` を止めるためのガード版です。
 
-原因:
-- index.html から固定予定/単発予定/タスクのフォーム群を落としてしまい、
-  actions.js が存在しない要素へ addEventListener して落ちていました。
+入っているもの:
+- js/actions.js
 
-この修正版で直したこと:
-- 元のフォーム群は残す
-- Google資格情報の入力欄だけを消す
-- 見た目上は「Googleで接続」だけにする
-- js/google-config.js に Client ID / API Key を固定する方式を維持
+直した内容:
+- すべての addEventListener を安全バインド化
+- 要素が無いときはスキップする
+- そのため、UI差分や古いキャッシュが混ざっても起動時に落ちにくくなる
 
-やること:
-1. 同名ファイルを置き換える
-2. js/google-config.js に実際の Client ID / API Key を入れる
-3. ブラウザで再起動する
+重要:
+このエラーは Service Worker の古いキャッシュで新旧ファイルが混ざっているときにも起こりやすいです。
+反映後はブラウザ側でも以下をしてください。
+
+1. DevTools を開く
+2. Application
+3. Service Workers
+4. Unregister
+5. Clear storage
+6. Hard Reload
