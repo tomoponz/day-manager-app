@@ -1,4 +1,7 @@
 (() => {
+  window.gapiLoaded = () => {};
+  window.gisLoaded = () => {};
+
   bootstrap().catch((error) => {
     console.error('Day Manager bootstrap failed:', error);
     showBootstrapError(error);
@@ -52,7 +55,7 @@
     await import('./js/ai-gemini-assist.js');
     await googleModule.initializeGoogleBackgroundSync();
 
-    timeModule.startClock(async () => {
+    timeModule.startClock(() => {
       renderModule.renderCurrentClock();
       if (timeModule.isSelectedDateToday(utilsModule.$('selectedDate')?.value)) {
         renderModule.renderCurrentState();
@@ -90,7 +93,7 @@
   }
 
   function formatBootstrapError(error) {
-    return error?.message || '初期化に失敗しました。再読み込みするか、サーバー側の設定を見直してください。';
+    return error?.message || '初期化に失敗しました。再読み込みするか、Cloudflare Worker の設定を見直してください。';
   }
 
   function escapeHtml(text) {

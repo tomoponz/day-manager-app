@@ -1,38 +1,32 @@
-この zip は「放っておいても毎日自動同期」に近づけるための**サーバー付き版**です。
+この zip は、Cloudflare Workers 構成に移すための差し替え用ファイルです。
 
-重要:
-- GitHub Pages のような静的公開だけでは、アプリを閉じている間の毎日自動同期はできません
-- この版は Node サーバーを常時起動して、そこで Google OAuth と定期同期を持ちます
+構成:
+- 既存の静的フロントはそのまま使う
+- Google OAuth / Google Calendar API / 自動同期を Cloudflare Worker に持たせる
+- Worker が静的アセットも同じ origin で配信する
 
 入っているファイル:
-- index.html
 - app.js
-- js/actions.js
 - js/google-calendar.js
-- server/package.json
-- server/.env.example
-- server/server.js
+- cloudflare-worker/wrangler.toml
+- cloudflare-worker/package.json
+- cloudflare-worker/.dev.vars.example
+- cloudflare-worker/.assetsignore
+- cloudflare-worker/src/index.js
 
-できること:
-- Google で接続
-- 接続ユーザーごとにセッション保持
-- サーバー側で定期的に Google Calendar を自動取得
-- アプリを開いたときに最新状態へ寄せる
-- ローカル単発予定を Google へ追加 / 更新 / 削除
-
-制約:
-- 「アプリを閉じている間にローカル localStorage 内の予定が勝手に Google に反映」まではしません
-- それを本当にやるには、ローカル予定自体もサーバー保存に寄せる必要があります
-
-導入手順:
+やること:
 1. 同名ファイルを置き換える
-2. server/.env.example を .env にコピーして値を入れる
-3. Google Cloud で Web OAuth Client を作り、Authorized redirect URI に
-   http://localhost:3000/auth/google/callback
+2. Cloudflare で KV を作る
+3. wrangler.toml の KV id を埋める
+4. .dev.vars.example を .dev.vars にコピーして secret を埋める
+5. Google Cloud の OAuth redirect URI に
+   https://YOUR_WORKER_DOMAIN/auth/google/callback
    を入れる
-4. 端末で:
-   cd server
+6. cloudflare-worker ディレクトリで
    npm install
-   npm run start
-5. http://localhost:3000 を開く
-6. Googleで接続を押す
+   npm run deploy
+
+注意:
+- この版は Cloudflare Worker が 15 分ごとに全ユーザーを同期します
+- 無料枠の KV は 1日 100,000 read / 1,000 write です。個人利用なら現実的ですが、多人数運用には向きません
+- 本当に「ローカルだけにある新規予定を、アプリ未起動でも Google に勝手に反映」までやるなら、予定データ自体をローカル保存から Worker/KV 保存へ寄せる必要があります
