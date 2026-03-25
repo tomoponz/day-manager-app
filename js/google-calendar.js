@@ -2,20 +2,11 @@ import { state, saveState, normalizeOneOffEvent } from "./state.js";
 import { $ } from "./utils.js";
 import { addDays, formatDateInput, formatTimeOnly } from "./time.js";
 import { confirmDialog, showToast } from "./ui-feedback.js";
-import { GOOGLE_OAUTH_CONFIG, hasConfiguredGoogleKeys } from "./google-config.js";
-
-export const DISCOVERY_DOC = "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest";
-export const SCOPES = "https://www.googleapis.com/auth/calendar.events";
 
 export const googleState = {
-  config: {
-    clientId: GOOGLE_OAUTH_CONFIG.clientId || "",
-    apiKey: GOOGLE_OAUTH_CONFIG.apiKey || ""
-  },
-  gapiLibraryLoaded: false,
-  gapiReady: false,
-  gisReady: false,
-  tokenClient: null,
+  connected: false,
+  email: "",
+  lastBackgroundSyncAt: "",
   eventsByDate: {}
 };
 
@@ -40,66 +31,86 @@ function rerender() {
   ui.updateGoogleConnectionBadge?.();
 }
 
-export async function gapiLoaded() {
-  googleState.gapiLibraryLoaded = true;
-  gapi.load("client", async () => {
-    await maybeInitializeGoogleClient();
+async function api(path, options = {}) {
+  const response = await fetch(path, {
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    },
+    ...options
+  });
+
+  if (!response.ok) {
+    let message = `${response.status} ${response.statusText}`;
+    try {
+      const data = await response.json();
+      message = data.error || data.message || message;
+    } catch {}
+    throw new Error(message);
+  }
+
+  if (response.status === 204) return null;
+  return response.json();
+}
+
+export async function initializeGoogleBackgroundSync() {
+  await refreshGoogleStatus({ silent: false });
+
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState === "visible" && googleState.connected) {
+      await refreshGoogleStatus({ silent: true });
+      await loadGoogleEventsForSelectedDate({ silent: true });
+    }
+  });
+
+  window.addEventListener("focus", async () => {
+    if (googleState.connected) {
+      await refreshGoogleStatus({ silent: true });
+      await loadGoogleEventsForSelectedDate({ silent: true });
+    }
   });
 }
 
-export function gisLoaded() {
-  googleState.gisReady = true;
-  maybePrepareTokenClient();
-}
-
-export async function maybeInitializeGoogleClient() {
-  googleState.config = {
-    clientId: GOOGLE_OAUTH_CONFIG.clientId || "",
-    apiKey: GOOGLE_OAUTH_CONFIG.apiKey || ""
-  };
-
-  if (!googleState.gapiLibraryLoaded) return;
-  if (!hasConfiguredGoogleKeys()) {
-    googleState.gapiReady = false;
-    notifyStatus("js/google-config.js に Client ID / API Key を入れてください。", "warn");
-    return;
-  }
-
+export async function refreshGoogleStatus({ silent = false } = {}) {
   try {
-    await gapi.client.init({
-      apiKey: googleState.config.apiKey,
-      discoveryDocs: [DISCOVERY_DOC]
-    });
-    googleState.gapiReady = true;
-    notifyStatus(
-      hasValidGoogleToken()
-        ? "Google Calendar に接続中です。"
-        : "Google で接続できます。",
-      hasValidGoogleToken() ? "ok" : ""
-    );
+    const data = await api("/api/google/status");
+    googleState.connected = Boolean(data.connected);
+    googleState.email = data.email || "";
+    googleState.lastBackgroundSyncAt = data.lastBackgroundSyncAt || "";
+    rerender();
+
+    if (!silent) {
+      if (googleState.connected) {
+        const tail = googleState.lastBackgroundSyncAt ? ` / 最終自動同期: ${new Date(googleState.lastBackgroundSyncAt).toLocaleString("ja-JP")}` : "";
+        notifyStatus(`Google Calendar 接続済み${googleState.email ? ` (${googleState.email})` : ""}${tail}`, "ok");
+      } else {
+        notifyStatus("Googleで接続すると、このサーバーが定期的に同期します。");
+      }
+    }
+    return data;
   } catch (error) {
-    googleState.gapiReady = false;
-    notifyStatus(`Google API 初期化に失敗しました: ${getErrorMessage(error)}`, "warn");
+    googleState.connected = false;
+    rerender();
+    if (!silent) notifyStatus(`Google状態の取得に失敗しました: ${getErrorMessage(error)}`, "warn");
+    return null;
   }
 }
 
 export function maybePrepareTokenClient() {
-  googleState.config = {
-    clientId: GOOGLE_OAUTH_CONFIG.clientId || "",
-    apiKey: GOOGLE_OAUTH_CONFIG.apiKey || ""
-  };
+  // backend modeでは不要
+}
 
-  if (!googleState.gisReady || !hasConfiguredGoogleKeys()) return;
+export async function gapiLoaded() {
+  // backend modeでは不要
+}
 
-  googleState.tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: googleState.config.clientId,
-    scope: SCOPES,
-    callback: ""
-  });
+export function gisLoaded() {
+  // backend modeでは不要
 }
 
 export function hasValidGoogleToken() {
-  return Boolean(gapi?.client?.getToken()?.access_token);
+  return googleState.connected;
 }
 
 export function getCachedGoogleEvents(dateStr) {
@@ -107,62 +118,36 @@ export function getCachedGoogleEvents(dateStr) {
 }
 
 export async function onSaveGoogleConfig() {
-  notifyStatus("この版では入力保存を使いません。js/google-config.js に固定してください。", "warn");
+  notifyStatus("この版ではブラウザ入力を使いません。サーバー側 .env を設定してください。", "warn");
 }
 
 export function onClearGoogleConfig() {
-  notifyStatus("この版では入力保存を使いません。js/google-config.js を編集してください。", "warn");
+  notifyStatus("この版ではブラウザ入力を使いません。サーバー側 .env を設定してください。", "warn");
 }
 
 export function onConnectGoogle() {
-  if (!hasConfiguredGoogleKeys()) {
-    notifyStatus("js/google-config.js に Client ID / API Key を入れてください。", "warn");
-    return;
-  }
-  if (!googleState.gapiReady) {
-    notifyStatus("Google API の初期化がまだ終わっていません。少し待ってから再試行してください。", "warn");
-    return;
-  }
-  if (!googleState.tokenClient) {
-    maybePrepareTokenClient();
-    if (!googleState.tokenClient) {
-      notifyStatus("OAuth クライアントを準備できませんでした。js/google-config.js を確認してください。", "warn");
-      return;
-    }
-  }
+  const returnTo = encodeURIComponent(window.location.href);
+  window.location.href = `/auth/google/start?returnTo=${returnTo}`;
+}
 
-  googleState.tokenClient.callback = async (response) => {
-    if (response.error) {
-      notifyStatus(`Google接続に失敗しました: ${response.error}`, "warn");
-      return;
-    }
-    notifyStatus("Google Calendar に接続しました。対象日の予定を読み込みます。", "ok");
+export async function onDisconnectGoogle() {
+  try {
+    await api("/api/google/disconnect", { method: "POST", body: "{}" });
+    googleState.connected = false;
+    googleState.eventsByDate = {};
     rerender();
-    await loadGoogleEventsForSelectedDate();
-  };
-
-  const currentToken = gapi.client.getToken();
-  if (!currentToken) googleState.tokenClient.requestAccessToken({ prompt: "consent" });
-  else googleState.tokenClient.requestAccessToken({ prompt: "" });
-}
-
-export function onDisconnectGoogle() {
-  const token = gapi?.client?.getToken();
-  if (token?.access_token) {
-    google.accounts.oauth2.revoke(token.access_token);
-    gapi.client.setToken(null);
+    notifyStatus("Google との接続を解除しました。");
+  } catch (error) {
+    notifyStatus(`接続解除に失敗しました: ${getErrorMessage(error)}`, "warn");
   }
-  googleState.eventsByDate = {};
-  rerender();
-  notifyStatus("Google との接続を解除しました。");
 }
 
-export async function loadGoogleEventsForSelectedDate() {
-  return loadGoogleEventsForDate($("selectedDate")?.value || "");
+export async function loadGoogleEventsForSelectedDate(options = {}) {
+  return loadGoogleEventsForDate($("selectedDate")?.value || "", options);
 }
 
 export async function loadGoogleEventsForDate(dateStr, { silent = false } = {}) {
-  if (!hasValidGoogleToken()) {
+  if (!googleState.connected) {
     if (!silent) notifyStatus("先に Google で接続してください。", "warn");
     rerender();
     return [];
@@ -174,24 +159,11 @@ export async function loadGoogleEventsForDate(dateStr, { silent = false } = {}) 
 
   try {
     if (!silent) notifyStatus("Google予定を読み込んでいます...");
-    const timeMin = new Date(`${dateStr}T00:00:00`).toISOString();
-    const timeMax = new Date(`${dateStr}T23:59:59`).toISOString();
-
-    const response = await gapi.client.calendar.events.list({
-      calendarId: "primary",
-      timeMin,
-      timeMax,
-      showDeleted: false,
-      singleEvents: true,
-      orderBy: "startTime"
-    });
-
-    googleState.eventsByDate[dateStr] = response.result.items || [];
+    const data = await api(`/api/google/events?date=${encodeURIComponent(dateStr)}`);
+    googleState.eventsByDate[dateStr] = data.items || [];
+    if (data.lastBackgroundSyncAt) googleState.lastBackgroundSyncAt = data.lastBackgroundSyncAt;
     rerender();
-
-    if (!silent) {
-      notifyStatus(`${googleState.eventsByDate[dateStr].length} 件の Google 予定を読み込みました。`, "ok");
-    }
+    if (!silent) notifyStatus(`${googleState.eventsByDate[dateStr].length} 件の Google 予定を読み込みました。`, "ok");
     return googleState.eventsByDate[dateStr];
   } catch (error) {
     if (!silent) notifyStatus(`Google予定の読込に失敗しました: ${getErrorMessage(error)}`, "warn");
@@ -212,7 +184,13 @@ export function importGoogleEventsToLocal(dateStr = $("selectedDate")?.value || 
   events.forEach((event) => {
     const candidate = mapGoogleEventToLocal(event, dateStr);
     const alreadyLinked = state.oneOffEvents.some((item) => item.googleEventId === event.id);
-    const duplicateLocal = state.oneOffEvents.some((item) => item.date === candidate.date && item.title === candidate.title && (item.start || "") === (candidate.start || "") && (item.end || "") === (candidate.end || "") && Boolean(item.allDay) === Boolean(candidate.allDay));
+    const duplicateLocal = state.oneOffEvents.some((item) =>
+      item.date === candidate.date &&
+      item.title === candidate.title &&
+      (item.start || "") === (candidate.start || "") &&
+      (item.end || "") === (candidate.end || "") &&
+      Boolean(item.allDay) === Boolean(candidate.allDay)
+    );
 
     if (alreadyLinked || duplicateLocal) {
       skipped += 1;
@@ -261,54 +239,25 @@ function mapGoogleEventToLocal(event, fallbackDate) {
 }
 
 export async function createGoogleEventFromLocal(localEvent) {
-  if (!hasValidGoogleToken()) throw new Error("Google に接続していません");
-
-  const resource = buildGoogleEventResource(localEvent);
-  const response = await gapi.client.calendar.events.insert({ calendarId: "primary", resource });
-  return response.result;
+  const result = await api("/api/google/local-event-upsert", {
+    method: "POST",
+    body: JSON.stringify({ localEvent })
+  });
+  return result.event;
 }
 
 export async function updateGoogleEventFromLocal(localEvent) {
-  if (!hasValidGoogleToken()) throw new Error("Google に接続していません");
-  if (!localEvent.googleEventId) throw new Error("Google Event ID がありません");
-
-  const resource = buildGoogleEventResource(localEvent);
-  const response = await gapi.client.calendar.events.update({
-    calendarId: "primary",
-    eventId: localEvent.googleEventId,
-    resource
+  const result = await api("/api/google/local-event-upsert", {
+    method: "POST",
+    body: JSON.stringify({ localEvent })
   });
-
-  Object.keys(googleState.eventsByDate).forEach((dateKey) => {
-    googleState.eventsByDate[dateKey] = googleState.eventsByDate[dateKey].filter((event) => event.id !== localEvent.googleEventId);
-  });
-  cacheGoogleEvent(response.result, localEvent.date);
-  return response.result;
-}
-
-function buildGoogleEventResource(localEvent) {
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const resource = { summary: localEvent.title, description: localEvent.note || "" };
-
-  if (localEvent.allDay) {
-    resource.start = { date: localEvent.date };
-    resource.end = { date: addDays(localEvent.date, 1) };
-    return resource;
-  }
-
-  if (!localEvent.start || !localEvent.end) {
-    throw new Error("Google同期する単発予定は、終日予定にするか、開始・終了時刻の両方を入れてください。");
-  }
-
-  resource.start = { dateTime: `${localEvent.date}T${localEvent.start}:00`, timeZone };
-  resource.end = { dateTime: `${localEvent.date}T${localEvent.end}:00`, timeZone };
-  return resource;
+  return result.event;
 }
 
 export async function syncLocalEventToGoogle(localEventId) {
   const item = state.oneOffEvents.find((event) => event.id === localEventId);
   if (!item) return;
-  if (!hasValidGoogleToken()) {
+  if (!googleState.connected) {
     notifyStatus("Google に接続してから『Google追加』を押してください。", "warn");
     return;
   }
@@ -333,16 +282,17 @@ export async function syncLocalEventToGoogle(localEventId) {
 export async function syncUpdatedLocalEventToGoogle(localEventId) {
   const item = state.oneOffEvents.find((event) => event.id === localEventId);
   if (!item || !item.googleEventId) return;
-  if (!hasValidGoogleToken()) {
+  if (!googleState.connected) {
     notifyStatus("Google に接続してから『Google更新』を押してください。", "warn");
     return;
   }
 
   try {
     notifyStatus("Google Calendar の予定を更新しています...");
-    await updateGoogleEventFromLocal(item);
+    const updated = await updateGoogleEventFromLocal(item);
     item.googleSyncStatus = "synced";
     saveState();
+    cacheGoogleEvent(updated, item.date);
     rerender();
     notifyStatus("Google Calendar の予定を更新しました。", "ok");
   } catch (error) {
@@ -367,15 +317,13 @@ export async function deleteLocalEvent(localEventId) {
   const index = state.oneOffEvents.findIndex((event) => event.id === localEventId);
 
   if (item.googleEventId) {
-    if (hasValidGoogleToken()) {
+    if (googleState.connected) {
       try {
         await deleteGoogleEventById(item.googleEventId, { removeLocalMirror: false, silent: true });
       } catch (error) {
         const proceed = await confirmDialog({
           title: "Google 側の削除に失敗",
-          message: `Google 側の削除に失敗しました。ローカルだけ削除しますか？
-
-${getErrorMessage(error)}`,
+          message: `Google 側の削除に失敗しました。ローカルだけ削除しますか？\n\n${getErrorMessage(error)}`,
           confirmText: "ローカルだけ削除",
           danger: true
         });
@@ -412,9 +360,9 @@ ${getErrorMessage(error)}`,
 }
 
 export async function deleteGoogleEventById(eventId, { removeLocalMirror = true, silent = false } = {}) {
-  if (!hasValidGoogleToken()) throw new Error("Google に接続していません");
-
-  await gapi.client.calendar.events.delete({ calendarId: "primary", eventId });
+  const result = await api(`/api/google/events/${encodeURIComponent(eventId)}`, {
+    method: "DELETE"
+  });
 
   Object.keys(googleState.eventsByDate).forEach((dateKey) => {
     googleState.eventsByDate[dateKey] = googleState.eventsByDate[dateKey].filter((event) => event.id !== eventId);
@@ -427,6 +375,7 @@ export async function deleteGoogleEventById(eventId, { removeLocalMirror = true,
 
   rerender();
   if (!silent) notifyStatus("Google Calendar の予定を削除しました。", "ok");
+  return result;
 }
 
 export function formatGoogleEventTime(event) {
@@ -440,5 +389,5 @@ export function formatGoogleEventTime(event) {
 }
 
 export function getErrorMessage(error) {
-  return error?.result?.error?.message || error?.message || String(error);
+  return error?.message || String(error);
 }
