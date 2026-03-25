@@ -24,6 +24,7 @@
 
   bootstrap().catch((error) => {
     console.error('Day Manager bootstrap failed:', error);
+    showBootstrapError(error);
   });
 
   async function bootstrap() {
@@ -105,5 +106,39 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').catch(() => {});
     }
+  }
+
+  function showBootstrapError(error) {
+    const existing = document.getElementById('bootstrapErrorBanner');
+    if (existing) {
+      existing.hidden = false;
+      const message = existing.querySelector('.bootstrap-error-banner__message');
+      if (message) message.textContent = formatBootstrapError(error);
+      return;
+    }
+
+    const banner = document.createElement('section');
+    banner.id = 'bootstrapErrorBanner';
+    banner.className = 'bootstrap-error-banner';
+    banner.innerHTML = `
+      <strong>起動エラー</strong>
+      <p class="bootstrap-error-banner__message">${escapeHtml(formatBootstrapError(error))}</p>
+      <button type="button" class="primary">再読み込み</button>
+    `;
+    banner.querySelector('button')?.addEventListener('click', () => window.location.reload());
+    document.body.prepend(banner);
+  }
+
+  function formatBootstrapError(error) {
+    return error?.message || '初期化に失敗しました。再読み込みするか、直前に追加した設定を見直してください。';
+  }
+
+  function escapeHtml(text) {
+    return String(text)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
   }
 })();
