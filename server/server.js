@@ -1,5 +1,6 @@
 import path from "node:path";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import session from "express-session";
@@ -21,6 +22,7 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
 const SYNC_INTERVAL_MINUTES = Math.max(5, Number(process.env.SYNC_INTERVAL_MINUTES || 15));
 const SYNC_LOOKAHEAD_DAYS = Math.max(1, Number(process.env.SYNC_LOOKAHEAD_DAYS || 30));
+const COOKIE_SECURE = process.env.COOKIE_SECURE === "true";
 const GOOGLE_SCOPES = [
   "openid",
   "email",
@@ -61,6 +63,13 @@ function getSessionUser(store, req) {
   const userKey = req.session.userKey;
   if (!userKey) return null;
   return store.users[userKey] || null;
+}
+
+function sanitizeReturnTo(value) {
+  if (typeof value !== "string" || !value) return "/";
+  if (!value.startsWith("/")) return "/";
+  if (value.startsWith("//")) return "/";
+  return value;
 }
 
 async function refreshAndPersistUser(store, userKey) {
@@ -155,20 +164,27 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    sameSite: "lax"
+    sameSite: "lax",
+    secure: COOKIE_SECURE
   }
 }));
 
 app.get("/auth/google/start", (req, res) => {
   if (!requireGoogleConfig(res)) return;
   const oauth2Client = createOAuthClient();
-  const returnTo = typeof req.query.returnTo === "string" ? req.query.returnTo : BASE_URL;
+  const returnTo = sanitizeReturnTo(
+    typeof req.query.returnTo === "string" ? req.query.returnTo : "/"
+  );
+  const state = crypto.randomBytes(16).toString("hex");
+
   req.session.returnTo = returnTo;
+  req.session.oauthState = state;
 
   const url = oauth2Client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
-    scope: GOOGLE_SCOPES
+    scope: GOOGLE_SCOPES,
+    state
   });
 
   res.redirect(url);
@@ -177,8 +193,15 @@ app.get("/auth/google/start", (req, res) => {
 app.get("/auth/google/callback", async (req, res) => {
   if (!requireGoogleConfig(res)) return;
   const code = typeof req.query.code === "string" ? req.query.code : "";
+  const state = typeof req.query.state === "string" ? req.query.state : "";
+
   if (!code) {
     res.status(400).send("OAuth code がありません。");
+    return;
+  }
+
+  if (!req.session.oauthState || state !== req.session.oauthState) {
+    res.status(400).send("OAuth state の検証に失敗しました。");
     return;
   }
 
@@ -220,8 +243,9 @@ app.get("/auth/google/callback", async (req, res) => {
       console.error("Initial background sync failed:", syncError);
     }
 
-    const returnTo = req.session.returnTo || BASE_URL;
+    const returnTo = sanitizeReturnTo(req.session.returnTo || "/");
     delete req.session.returnTo;
+    delete req.session.oauthState;
     res.redirect(returnTo);
   } catch (error) {
     console.error("OAuth callback failed:", error);
