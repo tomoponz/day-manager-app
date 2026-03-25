@@ -7,7 +7,11 @@ export const googleState = {
   connected: false,
   email: "",
   lastBackgroundSyncAt: "",
-  eventsByDate: {}
+  eventsByDate: {},
+  config: {
+    clientId: "",
+    apiKey: ""
+  }
 };
 
 const ui = {
@@ -33,7 +37,6 @@ function rerender() {
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
-    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
       ...(options.headers || {})
@@ -82,10 +85,12 @@ export async function refreshGoogleStatus({ silent = false } = {}) {
 
     if (!silent) {
       if (googleState.connected) {
-        const tail = googleState.lastBackgroundSyncAt ? ` / 最終自動同期: ${new Date(googleState.lastBackgroundSyncAt).toLocaleString("ja-JP")}` : "";
+        const tail = googleState.lastBackgroundSyncAt
+          ? ` / 最終自動同期: ${new Date(googleState.lastBackgroundSyncAt).toLocaleString("ja-JP")}`
+          : "";
         notifyStatus(`Google Calendar 接続済み${googleState.email ? ` (${googleState.email})` : ""}${tail}`, "ok");
       } else {
-        notifyStatus("Googleで接続すると、このサーバーが定期的に同期します。");
+        notifyStatus("Googleで接続すると、この Worker が定期的に同期します。");
       }
     }
     return data;
@@ -97,17 +102,9 @@ export async function refreshGoogleStatus({ silent = false } = {}) {
   }
 }
 
-export function maybePrepareTokenClient() {
-  // backend modeでは不要
-}
-
-export async function gapiLoaded() {
-  // backend modeでは不要
-}
-
-export function gisLoaded() {
-  // backend modeでは不要
-}
+export function maybePrepareTokenClient() {}
+export async function gapiLoaded() {}
+export function gisLoaded() {}
 
 export function hasValidGoogleToken() {
   return googleState.connected;
@@ -118,17 +115,15 @@ export function getCachedGoogleEvents(dateStr) {
 }
 
 export async function onSaveGoogleConfig() {
-  notifyStatus("この版ではブラウザ入力を使いません。サーバー側 .env を設定してください。", "warn");
+  notifyStatus("Cloudflare Workers 版ではブラウザ入力を使いません。Worker secrets を設定してください。", "warn");
 }
 
 export function onClearGoogleConfig() {
-  notifyStatus("この版ではブラウザ入力を使いません。サーバー側 .env を設定してください。", "warn");
+  notifyStatus("Cloudflare Workers 版ではブラウザ入力を使いません。Worker secrets を設定してください。", "warn");
 }
 
 export function onConnectGoogle() {
-  const returnTo = encodeURIComponent(
-    `${window.location.pathname}${window.location.search}${window.location.hash}`
-  );
+  const returnTo = encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
   window.location.href = `/auth/google/start?returnTo=${returnTo}`;
 }
 
@@ -362,7 +357,7 @@ export async function deleteLocalEvent(localEventId) {
 }
 
 export async function deleteGoogleEventById(eventId, { removeLocalMirror = true, silent = false } = {}) {
-  const result = await api(`/api/google/events/${encodeURIComponent(eventId)}`, {
+  await api(`/api/google/events/${encodeURIComponent(eventId)}`, {
     method: "DELETE"
   });
 
@@ -377,7 +372,6 @@ export async function deleteGoogleEventById(eventId, { removeLocalMirror = true,
 
   rerender();
   if (!silent) notifyStatus("Google Calendar の予定を削除しました。", "ok");
-  return result;
 }
 
 export function formatGoogleEventTime(event) {
