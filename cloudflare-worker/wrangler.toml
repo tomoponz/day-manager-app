@@ -1,0 +1,20 @@
+name = "day-manager-worker"
+main = "src/index.js"
+compatibility_date = "2026-03-25"
+
+[assets]
+directory = ".."
+binding = "ASSETS"
+run_worker_first = ["/api/*", "/auth/*"]
+
+[[kv_namespaces]]
+binding = "DM_STORE"
+id = "YOUR_KV_NAMESPACE_ID"
+preview_id = "YOUR_KV_NAMESPACE_PREVIEW_ID"
+
+[vars]
+SYNC_INTERVAL_MINUTES = "15"
+SYNC_LOOKAHEAD_DAYS = "30"
+
+[triggers]
+crons = ["*/15 * * * *"]
