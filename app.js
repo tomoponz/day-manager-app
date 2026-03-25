@@ -1,24 +1,14 @@
 (() => {
-  const pendingGoogleSignals = {
-    gapi: false,
-    gis: false
-  };
-
+  const pendingGoogleSignals = { gapi: false, gis: false };
   let googleApi = null;
 
   window.gapiLoaded = () => {
-    if (googleApi?.gapiLoaded) {
-      googleApi.gapiLoaded();
-      return;
-    }
+    if (googleApi?.gapiLoaded) { googleApi.gapiLoaded(); return; }
     pendingGoogleSignals.gapi = true;
   };
 
   window.gisLoaded = () => {
-    if (googleApi?.gisLoaded) {
-      googleApi.gisLoaded();
-      return;
-    }
+    if (googleApi?.gisLoaded) { googleApi.gisLoaded(); return; }
     pendingGoogleSignals.gis = true;
   };
 
@@ -38,7 +28,6 @@
     ]);
 
     googleApi = googleModule;
-
     await import('./js/product-ui-tune.js');
     await import('./js/main-screen-layout.js');
 
@@ -53,15 +42,18 @@
       onEditFixed: actionsModule.populateFixedForm,
       onDuplicateFixed: actionsModule.duplicateFixedSchedule,
       onDeleteFixed: actionsModule.deleteFixedSchedule,
+      onCreateFixed: actionsModule.openFixedFormForCreate,
       onEditEvent: actionsModule.populateEventForm,
       onDuplicateEvent: actionsModule.duplicateOneOffEvent,
       onSyncEvent: actionsModule.syncEvent,
       onSyncUpdatedEvent: actionsModule.syncUpdatedEvent,
       onDeleteEvent: actionsModule.deleteEvent,
+      onCreateEvent: actionsModule.openEventFormForCreate,
       onQuickSetTaskStatus: actionsModule.quickSetTaskStatus,
       onDeferTaskToTomorrow: actionsModule.deferTaskToTomorrow,
       onEditTask: actionsModule.populateTaskForm,
       onDeleteTask: actionsModule.deleteTask,
+      onCreateTask: actionsModule.openTaskFormForCreate,
       onDeleteGoogleEvent: actionsModule.deleteGoogleEvent
     });
 
@@ -92,20 +84,12 @@
       }
     });
 
-    if (pendingGoogleSignals.gapi) {
-      pendingGoogleSignals.gapi = false;
-      googleModule.gapiLoaded();
-    }
-    if (pendingGoogleSignals.gis) {
-      pendingGoogleSignals.gis = false;
-      googleModule.gisLoaded();
-    }
+    if (pendingGoogleSignals.gapi) { pendingGoogleSignals.gapi = false; googleModule.gapiLoaded(); }
+    if (pendingGoogleSignals.gis) { pendingGoogleSignals.gis = false; googleModule.gisLoaded(); }
   }
 
   function registerServiceWorker() {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(() => {});
-    }
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 
   function showBootstrapError(error) {
@@ -134,11 +118,6 @@
   }
 
   function escapeHtml(text) {
-    return String(text)
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;');
+    return String(text).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
   }
 })();

@@ -1,29 +1,9 @@
-const CACHE_NAME = "day-manager-cache-v6";
+const CACHE_NAME = "day-manager-cache-v7";
 const CORE_ASSETS = [
-  "./",
-  "./index.html",
-  "./style.css",
-  "./app.js",
-  "./calendar-test.html",
-  "./calendar-test.js",
-  "./manifest.webmanifest",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
-  "./js/actions.js",
-  "./js/ai-drafts.js",
-  "./js/ai-gemini-assist.js",
-  "./js/date-nav-ui.js",
-  "./js/google-calendar.js",
-  "./js/main-screen-layout.js",
-  "./js/planner.js",
-  "./js/product-ui-tune.js",
-  "./js/prompt.js",
-  "./js/quick-add.js",
-  "./js/render.js",
-  "./js/state.js",
-  "./js/time.js",
-  "./js/ui-feedback.js",
-  "./js/utils.js"
+  "./", "./index.html", "./style.css", "./app.js", "./calendar-test.html", "./calendar-test.js", "./manifest.webmanifest",
+  "./icons/icon-192.png", "./icons/icon-512.png", "./js/actions.js", "./js/ai-drafts.js", "./js/ai-gemini-assist.js",
+  "./js/date-nav-ui.js", "./js/google-calendar.js", "./js/main-screen-layout.js", "./js/planner.js", "./js/product-ui-tune.js",
+  "./js/prompt.js", "./js/quick-add.js", "./js/render.js", "./js/state.js", "./js/time.js", "./js/ui-feedback.js", "./js/utils.js"
 ];
 
 self.addEventListener("install", (event) => {
@@ -48,7 +28,6 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(networkFirst(event.request));
     return;
   }
-
   event.respondWith(staleWhileRevalidate(event.request));
 });
 
@@ -67,12 +46,9 @@ async function networkFirst(request) {
 async function staleWhileRevalidate(request) {
   const cache = await caches.open(CACHE_NAME);
   const cached = await cache.match(request);
-  const fetchPromise = fetch(request)
-    .then((response) => {
-      if (response.ok) cache.put(request, response.clone());
-      return response;
-    })
-    .catch(() => null);
-
+  const fetchPromise = fetch(request).then((response) => {
+    if (response.ok) cache.put(request, response.clone());
+    return response;
+  }).catch(() => null);
   return cached || fetchPromise || Response.error();
 }
