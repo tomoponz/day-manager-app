@@ -1,0 +1,24 @@
+今回確認した結果、現時点の問題は主に次の3つです。
+
+1. README が旧仕様のまま
+- 現在の実装は Cloudflare Worker 前提なのに、README は
+  「index.html を直接開く」「OAuth Client ID と API Key を入力する」
+  という旧構成の説明になっています。
+
+2. UI文言が旧仕様のまま
+- index.html の Google 連携欄に
+  `js/google-config.js` に固定します
+  とありますが、今の実装は Worker secrets 前提です。
+
+3. Cloudflare Worker 用の補助ファイルが足りない
+- `.dev.vars.example`
+- `.assetsignore`
+- Worker 専用 README
+があると導入がかなり安定します。
+
+この zip に入っているもの:
+- README.md（置換推奨）
+- cloudflare-worker/.assetsignore（新規）
+- cloudflare-worker/.dev.vars.example（新規）
+- cloudflare-worker/README.md（新規）
+- google-note-replacement.html（index.html の Google説明差し替え用断片）

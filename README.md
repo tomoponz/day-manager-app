@@ -2,6 +2,18 @@
 
 予定・タスク・体調メモを1か所にまとめ、**現在時刻ベースの実行案**と ChatGPT に貼るための「1日設計」テキストを生成する無料の Web アプリです。
 
+## 現在の構成
+
+このリポジトリは、**Cloudflare Workers を使う Google Calendar 連携版**に寄っています。
+
+- フロント本体: 静的ファイル
+- Google 認証 / Google Calendar API / 定期同期: `cloudflare-worker/`
+- 保存の中心: ブラウザ `localStorage`
+- Google 側の定期取得キャッシュ: Cloudflare KV
+
+そのため、**`index.html` をローカルで直接開くだけでは Google 連携は動きません。**
+Google 連携を使う場合は、Cloudflare Workers 側の設定とデプロイが必要です。
+
 ## できること
 
 - 固定予定（毎週くり返す授業・通学など）の登録
@@ -22,51 +34,56 @@
 - JSON バックアップの書き出し / 読み込み
 - PWA 対応
 - Google Calendar 連携（β）
+  - Google アカウントで接続
   - 指定日の Google 予定の読込
   - 単発予定の Google 追加・更新・削除
-  - 同期状態の表示
+  - Worker による定期同期
 
-## 使い方
+## 重要な注意
 
-1. `index.html` をブラウザで開く
-2. 対象日・睡眠・体力を入れる
-3. 現在地点 / 危険アラート / 今日切る候補を確認する
-4. 実行案を確認する
-5. 必要なら予定・タスクを追加、編集、複製する
-6. 「今日を設計する文章を生成」を押す
-7. 「コピー」を押して ChatGPT に貼る
+### 1. 「放置しても毎日自動同期」の意味
+この構成で自動同期されるのは、**Worker が Google Calendar から定期的に予定を取り直す部分**です。
 
-## モード
+一方で、**ブラウザの `localStorage` にしか存在しない新規ローカル予定**は、
+アプリを閉じている間に勝手に Google へ送られません。
 
-- **朝モード**: 大きいタスクを先に取りに行く
-- **再設計モード**: 進行中タスクや締切を優先し、崩れた1日を立て直す
-- **夜モード**: 短い必須タスクと翌日の初手を意識する
-- **自動**: 現在時刻からモードを自動で切り替える
+そこまでやるには、予定データ自体を `localStorage` から Worker / DB 側へ寄せる必要があります。
 
-## Google Calendar 連携の使い方
+### 2. Google 連携に必要なもの
+ブラウザ入力欄はありません。
+代わりに、Cloudflare Worker 側で次を設定します。
 
-1. Google Cloud で `OAuth Client ID` と `API Key` を作成する
-2. アプリ上の Google Calendar 連携欄に入力して保存する
-3. `Googleで接続` を押す
-4. 対象日を切り替えると、その日の Google 予定を読み込む
-5. 単発予定の追加時に `Google Calendar にも追加する` を有効にすると、ローカル保存と同時に Google 側にも予定を作成する
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `COOKIE_SIGNING_SECRET`
 
-## GitHub Pages で公開する
+## ローカル確認
 
-1. このリポジトリにファイルを配置する
-2. GitHub の **Settings → Pages** を開く
-3. **Build and deployment** で `Deploy from a branch` を選ぶ
-4. Branch を `main` / `/ (root)` に設定して保存する
+Google 連携なしなら、静的ファイルとして確認できます。
+
+Google 連携込みで確認する場合は、Cloudflare Worker 側を起動してください。
+
+## Cloudflare Workers セットアップ
+
+1. Cloudflare KV namespace を作る
+2. `cloudflare-worker/wrangler.toml` の `id` / `preview_id` を埋める
+3. `cloudflare-worker/.dev.vars.example` を `.dev.vars` にコピー
+4. `.dev.vars` に secret を入れる
+5. Google Cloud 側で OAuth Web Client を作る
+6. Redirect URI に  
+   `https://YOUR_WORKER_DOMAIN/auth/google/callback`  
+   を追加する
+7. `cloudflare-worker` ディレクトリで:
+   - `npm install`
+   - `npm run dev` または `npm run deploy`
 
 ## 保存先
 
-- 予定・タスク・体調メモ・モード設定はブラウザの `localStorage` に保存されます
-- Google 連携用の `Client ID` と `API Key` もこのブラウザの `localStorage` にだけ保存されます
-- 別端末へ移す場合は「バックアップ書き出し」で JSON を保存してから、「バックアップ読込」で復元してください
+- 予定・タスク・体調メモ・モード設定はブラウザの `localStorage`
+- Google 連携ユーザー情報・トークン・取得済み Google 予定キャッシュは Cloudflare KV
 
-## 注意
+## 補足
 
 - Google Calendar 連携は最初は **単発予定のみ** を同期対象にしています
 - 固定予定とタスクは Google Calendar へ自動同期しません
 - Google 側で直接作成した予定は、接続後に対象日ごとに読み込みます
-- API キーは Google Cloud 側で **HTTP referrer 制限** と **Google Calendar API 制限** をかけた状態で使う前提です
