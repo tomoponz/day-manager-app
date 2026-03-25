@@ -75,7 +75,46 @@ function parseDate(text, fallbackDate) {
   if (/明後日/.test(text)) return { date: addDays(fallbackDate, 2), explicit: true };
   if (/明日/.test(text)) return { date: addDays(fallbackDate, 1), explicit: true };
   if (/今日/.test(text) || /今日中|今夜/.test(text)) return { date: fallbackDate, explicit: true };
+
+  const iso = text.match(/(20\d{2})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (iso) {
+    const [, y, m, d] = iso;
+    return {
+      date: `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+      explicit: true
+    };
+  }
+
+  const md = text.match(/(\d{1,2})[\/\-](\d{1,2})/);
+  if (md) {
+    const year = fallbackDate.slice(0, 4);
+    const [, m, d] = md;
+    return {
+      date: `${year}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+      explicit: true
+    };
+  }
+
+  const weekday = text.match(/(今週|来週)?([日月火水木金土])曜?/);
+  if (weekday) {
+    const [, prefix = "今週", dayChar] = weekday;
+    return {
+      date: resolveWeekdayDate(fallbackDate, WEEKDAY_MAP[dayChar], prefix === "来週"),
+      explicit: true
+    };
+  }
+
   return { date: "", explicit: false };
+}
+
+function resolveWeekdayDate(baseDateStr, targetWeekday, forceNextWeek = false) {
+  const date = new Date(`${baseDateStr}T00:00:00`);
+  const current = date.getDay();
+  let diff = targetWeekday - current;
+  if (diff < 0 || forceNextWeek) diff += 7;
+  if (diff === 0 && forceNextWeek) diff = 7;
+  date.setDate(date.getDate() + diff);
+  return formatDateInput(date);
 }
 
 function parseTime(text) {
@@ -107,31 +146,48 @@ function parseDuration(text) {
 }
 
 function parsePriority(text) {
+  const explicit = text.match(/優先度[:：]?\s*(高|中|低)/);
+  if (explicit) return explicit[1];
   if (/必須/.test(text)) return "高";
   return "中";
 }
+
 function parseImportance(text) {
   if (/必須/.test(text)) return "必須";
   if (/後回し/.test(text)) return "後回し";
   return "できれば";
 }
+
 function parseCategory(text) {
   const match = text.match(/分類[:：]\s*([^\s]+)/);
   return match ? match[1].trim() : "";
 }
+
 function cleanupTitle(text) {
-  return text.replace(/(今夜|今日中|午前|午後|必須|後回し|\d+(?:\.\d+)?\s*h|\d+\s*m|\d+\s*分|\d+(?:\.\d+)?\s*時間)/gi, " ").replace(/\s+/g, " ").trim();
+  let title = text;
+  title = title.replace(/^(タスク|task|課題|todo)[:：]\s*/i, "");
+  title = title.replace(/(20\d{2}[\/\-]\d{1,2}[\/\-]\d{1,2})|(\d{1,2}[\/\-]\d{1,2})|(明後日|明日|今日)|(今週|来週)?[日月火水木金土]曜?/g, " ");
+  title = title.replace(/\d{1,2}(?::\d{2})?\s*[〜~\-]\s*\d{1,2}(?::\d{2})?/g, " ");
+  title = title.replace(/\d{1,2}(?::\d{2})?\s*(時半|時)?/g, " ");
+  title = title.replace(/(今夜|今日中|午前|午後|必須|後回し|\d+(?:\.\d+)?\s*h|\d+\s*m|\d+\s*分|\d+(?:\.\d+)?\s*時間)/gi, " ");
+  title = title.replace(/優先度[:：]?(高|中|低)|進行中|完了|保護|守る|固定/g, " ");
+  title = title.replace(/分類[:：]\s*[^\s]+/g, " ");
+  title = title.replace(/[()（）]/g, " ");
+  return title.replace(/\s+/g, " ").trim();
 }
+
 function inferTaskDeadlineDate(baseDate, timeInfo, raw) {
   if (/今日中|今夜/.test(raw)) return baseDate;
   return timeInfo.start ? baseDate : "";
 }
+
 function inferTaskDeadlineTime(timeInfo, raw) {
   if (timeInfo.start) return timeInfo.start;
   if (/今日中/.test(raw)) return "23:59";
   if (/今夜/.test(raw)) return "21:00";
   return "";
 }
+
 function inferEventStartTime(timeInfo, raw) {
   if (timeInfo.start) return timeInfo.start;
   if (/午前/.test(raw)) return "09:00";
@@ -139,11 +195,20 @@ function inferEventStartTime(timeInfo, raw) {
   if (/今夜/.test(raw)) return "19:00";
   return "";
 }
-function buildQuickNote(text) { return `クイック追加: ${text.trim()}`; }
-function formatTime(h, m) { return `${String(Number(h)).padStart(2, "0")}:${String(Number(m)).padStart(2, "0")}`; }
+
+function buildQuickNote(text) {
+  return `クイック追加: ${text.trim()}`;
+}
+
+function formatTime(h, m) {
+  return `${String(Number(h)).padStart(2, "0")}:${String(Number(m)).padStart(2, "0")}`;
+}
+
 function addMinutesToTime(timeStr, minutesToAdd) {
   const [h, m] = timeStr.split(":").map(Number);
   const total = h * 60 + m + minutesToAdd;
   const safe = ((total % (24 * 60)) + (24 * 60)) % (24 * 60);
-  return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(safe % 60).padStart(2, "0")}`;
+  const hours = Math.floor(safe / 60);
+  const minutes = safe % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }

@@ -92,8 +92,13 @@ export function renderFixedSchedules() {
   wrap.className = "list-wrap";
   items.forEach((item) => {
     wrap.appendChild(createListItem({
-      title: `${WEEKDAY_NAMES[item.weekday]} ${item.start} - ${item.end} / ${item.title}`,
-      meta: "毎週固定",
+      title: item.title,
+      badges: [
+        makeBadge("毎週固定"),
+        makeBadge(`${WEEKDAY_NAMES[item.weekday]}`),
+        makeBadge(`${item.start} - ${item.end}`)
+      ],
+      detail: "",
       note: item.note,
       actions: [
         makeActionButton("編集", () => handlers.onEditFixed?.(item.id)),
@@ -130,8 +135,13 @@ export function renderOneOffEvents() {
     }
     actions.push(makeDeleteButton(() => handlers.onDeleteEvent?.(item.id)));
     wrap.appendChild(createListItem({
-      title: `${item.date} / ${item.title}`,
-      meta: `${timeLabel} / ${syncLabel}`,
+      title: item.title,
+      badges: [
+        makeBadge(item.date),
+        makeBadge(timeLabel),
+        makeBadge(syncLabel, syncLabel.includes("失敗") ? "danger" : syncLabel.includes("同期済") ? "ok" : syncLabel.includes("要更新") ? "warn" : "")
+      ],
+      detail: "",
       note: item.note,
       actions
     }));
@@ -158,6 +168,8 @@ export function renderTasks() {
     return;
   }
   wrap.className = "list-wrap";
+  const now = new Date();
+  const today = formatDateInput(now);
   items.forEach((item) => {
     const actions = [];
     const statusSelect = document.createElement("select");
@@ -176,22 +188,38 @@ export function renderTasks() {
     actions.push(makeActionButton("明日", () => handlers.onDeferTaskToTomorrow?.(item.id)));
     actions.push(makeActionButton("編集", () => handlers.onEditTask?.(item.id)));
     actions.push(makeDeleteButton(() => handlers.onDeleteTask?.(item.id)));
+
     const deadlineText = item.deadlineDate ? `${item.deadlineDate}${item.deadlineTime ? ` ${item.deadlineTime}` : ""}` : "締切未設定";
-    const deferText = item.deferUntilDate ? ` / 保留:${item.deferUntilDate}` : "";
-    const protectText = item.protectTimeBlock ? " / 保護" : "";
-    const meta = [
-      item.category || "分類なし",
-      `重要度:${item.importance}`,
-      `優先度:${item.priority}`,
-      `見積:${item.estimate || "?"}分`,
-      `締切:${deadlineText}`,
-      `状態:${item.status}`
-    ].join(" / ") + deferText + protectText;
+    const itemClasses = ["task-item"];
+    let deadlineVariant = "";
+    if (item.status === "完了") itemClasses.push("is-completed");
+    if (item.deadlineDate) {
+      const overdue = item.deadlineDate < today || (item.deadlineDate === today && item.deadlineTime && item.deadlineTime < `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}` && item.status !== "完了");
+      if (overdue) {
+        itemClasses.push("is-overdue");
+        deadlineVariant = "danger";
+      } else if (item.deadlineDate <= today && item.status !== "完了") {
+        itemClasses.push("is-deadline-soon");
+        deadlineVariant = "warn";
+      }
+    }
+
     wrap.appendChild(createListItem({
       title: item.title,
-      meta,
+      badges: [
+        makeBadge(item.category || "分類なし"),
+        makeBadge(`重要度:${item.importance}`, item.importance === "必須" ? "warn" : ""),
+        makeBadge(`優先度:${item.priority}`, item.priority === "高" ? "warn" : ""),
+        makeBadge(`状態:${item.status}`, item.status === "完了" ? "ok" : item.status === "進行中" ? "warn" : ""),
+        makeBadge(`締切:${deadlineText}`, deadlineVariant),
+        makeBadge(`見積:${item.estimate || "?"}分`),
+        ...(item.protectTimeBlock ? [makeBadge("保護", "ok")] : []),
+        ...(item.deferUntilDate ? [makeBadge(`保留:${item.deferUntilDate}`)] : [])
+      ],
+      detail: "",
       note: item.note,
-      actions
+      actions,
+      itemClassName: itemClasses.join(" ")
     }));
   });
 }
@@ -215,7 +243,11 @@ export function renderGoogleEventList() {
   events.forEach((event) => {
     wrap.appendChild(createListItem({
       title: event.summary || "タイトルなし",
-      meta: `Google Calendar / ${formatGoogleEventTime(event)}`,
+      badges: [
+        makeBadge("Google Calendar", "ok"),
+        makeBadge(formatGoogleEventTime(event))
+      ],
+      detail: "",
       note: event.description || "",
       actions: [makeDeleteButton(() => handlers.onDeleteGoogleEvent?.(event.id))]
     }));
@@ -319,14 +351,33 @@ function getLocalEventSyncLabel(item) {
   return "ローカルのみ";
 }
 
-function createListItem({ title, meta, note, actions }) {
+function createListItem({ title, badges = [], detail = "", note, actions, itemClassName = "" }) {
   const tpl = $("listItemTemplate").content.cloneNode(true);
+  const item = tpl.querySelector(".list-item");
+  if (itemClassName) item.className += ` ${itemClassName}`;
   tpl.querySelector(".item-title").textContent = title;
-  tpl.querySelector(".item-meta").textContent = meta || "";
+
+  const meta = tpl.querySelector(".item-meta");
+  meta.innerHTML = "";
+  badges.forEach((badge) => {
+    if (!badge) return;
+    const span = document.createElement("span");
+    span.className = `item-badge${badge.variant ? ` is-${badge.variant}` : ""}`;
+    span.textContent = badge.text;
+    meta.appendChild(span);
+  });
+
+  const detailEl = tpl.querySelector(".item-detail");
+  if (detailEl) detailEl.textContent = detail || "";
+
   tpl.querySelector(".item-note").textContent = note || "";
   const actionWrap = tpl.querySelector(".list-actions");
   (actions || []).forEach((el) => actionWrap.appendChild(el));
   return tpl;
+}
+
+function makeBadge(text, variant = "") {
+  return { text, variant };
 }
 
 function makeDeleteButton(onClick) {

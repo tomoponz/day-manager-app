@@ -102,6 +102,29 @@ button.danger { background: var(--danger); color:#fff; border:none; }
 .task-item.is-completed { opacity: 0.62; }
 .task-item.is-overdue { border-color: rgba(185, 28, 28, 0.45); background: #fff8f8; }
 .task-item.is-deadline-soon:not(.is-overdue) { border-color: rgba(192, 83, 58, 0.35); }
+.bootstrap-error-banner {
+  position: sticky;
+  top: 0;
+  z-index: 1001;
+  margin: 1rem auto 0;
+  width: min(1100px, calc(100% - 2rem));
+  background: #fff8f8;
+  color: var(--danger);
+  border: 1px solid rgba(185, 28, 28, 0.24);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-sm);
+  padding: 0.9rem 1rem;
+  display: grid;
+  gap: 0.5rem;
+}
+.bootstrap-error-banner__message {
+  margin: 0;
+  color: var(--danger);
+}
+@media (max-width: 640px) {
+  .feedback-toast-region { left: 12px; right: 12px; bottom: 12px; }
+  .feedback-toast { max-width: none; }
+}
 `;
   document.head.appendChild(style);
 }
