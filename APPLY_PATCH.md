@@ -1,29 +1,31 @@
-# 適用方法
+# Day Manager 大学生向けMVPパッチ
 
-今使うべき作業フォルダ:
+今使うべき作業フォルダはこれです。  
 `day-manager-app-git`
 
-## 上書きするファイル
-- `.assetsignore`
-- `sw.js`
-- `js/render.js`
-- `js/google-calendar.js`
-- `cloudflare-worker/src/index.js`
+## 追加 / 上書きするファイル
+- 上書き
+  - `index.html`
+  - `app.js`
+  - `js/state.js`
+  - `js/actions.js`
+  - `js/prompt.js`
+- 新規追加
+  - `js/study-manager.js`
 
-## 手順
-1. `day-manager-app-git` をバックアップする
-2. このフォルダ構成のまま、同じ相対パスへ上書きコピーする
-3. `day-manager-app-git/cloudflare-worker` で再 deploy する
+## 機能
+- 科目管理
+- 教材管理
+- 教材ごとの進度記録
+- 理解度 / 復習必要 / 次にやる場所の記録
+- AI用プロンプトへの科目・教材進度の自動差し込み
+
+## 適用後
+Cloudflare Worker 側のコードは今回は触っていません。  
+フロント変更だけなので、通常はそのまま再 deploy で反映できます。
 
 ```bash
+cd cloudflare-worker
 npm install
 npm run deploy
 ```
-
-## このパッチで入る修正
-- 不要ファイルの静的配信除外を強化
-- `calendar-test.*` を PWA のコアキャッシュから外す
-- `calendar-ui.js` を PWA のコアキャッシュへ追加
-- `render.js` を可読性重視で整形
-- Google refresh token 失効時に、再接続が必要だとフロントへ明示する
-- フロント側でも 401 を受けたときに「再接続してください」と出す

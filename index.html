@@ -192,8 +192,6 @@
       </div>
     </section>
 
-
-
     <section class='card calendar-app-shell' id='proCalendarSection'>
       <div class='card-header'>
         <div>
@@ -234,6 +232,151 @@
             </ul>
           </div>
         </aside>
+      </div>
+    </section>
+
+    <section class='card' id='studyManagerSection'>
+      <div class='card-header'>
+        <div>
+          <h2>大学学習管理</h2>
+          <p>科目・教材・進度を記録して、AIが今日の学習計画に使える材料を増やします。</p>
+        </div>
+      </div>
+
+      <article class='summary-box'>
+        <h3>学習状況の要約</h3>
+        <div id='studyOverview' class='summary-list empty'>まだありません</div>
+      </article>
+
+      <div class='grid two-col' style='margin-top: 1rem;'>
+        <section class='card inner-card'>
+          <div class='card-header compact'>
+            <div>
+              <h2>科目</h2>
+              <p>授業ごとの危険度や評価方式を管理します。</p>
+            </div>
+          </div>
+
+          <details class='subsection-fold' id='courseFormPanel'>
+            <summary class='subsection-summary'>科目を追加 / 編集</summary>
+            <div class='subsection-body'>
+              <form id='courseForm' class='form-grid'>
+                <input name='editId' type='hidden' />
+                <label>
+                  科目名
+                  <input name='title' type='text' required placeholder='例: 微分積分学II' />
+                </label>
+                <label>
+                  教員
+                  <input name='instructor' type='text' placeholder='例: ○○先生' />
+                </label>
+                <label>
+                  単位数
+                  <input name='credits' type='number' min='0' step='1' placeholder='例: 2' />
+                </label>
+                <label>
+                  危険度
+                  <select name='riskStatus'>
+                    <option value='low'>安定</option>
+                    <option value='medium' selected>要注意</option>
+                    <option value='high'>危険</option>
+                  </select>
+                </label>
+                <label class='full-span'>
+                  授業情報
+                  <input name='scheduleMemo' type='text' placeholder='例: 金3 / 章末レポあり' />
+                </label>
+                <label class='full-span'>
+                  評価方式メモ
+                  <input name='gradingMemo' type='text' placeholder='例: 期末70 / レポ30' />
+                </label>
+                <label class='full-span'>
+                  メモ
+                  <input name='note' type='text' placeholder='例: 抽象度が高く、証明理解が重い' />
+                </label>
+                <div class='form-actions full-span'>
+                  <button id='courseSubmitBtn' class='primary' type='submit'>科目を追加</button>
+                  <button id='courseCancelBtn' type='button' class='ghost' hidden>編集を取り消す</button>
+                </div>
+              </form>
+            </div>
+          </details>
+
+          <div id='courseList' class='list-wrap empty'>まだありません</div>
+        </section>
+
+        <section class='card inner-card'>
+          <div class='card-header compact'>
+            <div>
+              <h2>教材と進度</h2>
+              <p>教科書・配布資料・問題集の現在地を記録します。</p>
+            </div>
+          </div>
+
+          <details class='subsection-fold' id='materialFormPanel'>
+            <summary class='subsection-summary'>教材を追加 / 編集</summary>
+            <div class='subsection-body'>
+              <form id='materialForm' class='form-grid'>
+                <input name='editId' type='hidden' />
+                <label>
+                  科目
+                  <select name='courseId' required>
+                    <option value=''>先に科目を追加</option>
+                  </select>
+                </label>
+                <label>
+                  教材名
+                  <input name='title' type='text' required placeholder='例: 教科書第1巻' />
+                </label>
+                <label>
+                  種類
+                  <select name='kind'>
+                    <option value='textbook'>教科書</option>
+                    <option value='handout'>配布資料</option>
+                    <option value='slides'>スライド</option>
+                    <option value='workbook'>問題集</option>
+                    <option value='video'>動画教材</option>
+                    <option value='other'>その他</option>
+                  </select>
+                </label>
+                <label>
+                  単位ラベル
+                  <input name='unitLabel' type='text' placeholder='例: p / 章 / 節' value='p' />
+                </label>
+                <label>
+                  総量
+                  <input name='totalUnits' type='number' min='0' step='1' placeholder='例: 200' />
+                </label>
+                <label>
+                  現在地
+                  <input name='currentUnits' type='number' min='0' step='1' placeholder='例: 58' />
+                </label>
+                <label>
+                  理解度 (0-10)
+                  <input name='understanding' type='number' min='0' max='10' step='1' placeholder='例: 6' />
+                </label>
+                <label class='full-span'>
+                  次にやる場所
+                  <input name='nextTarget' type='text' placeholder='例: 4章 p.59 から / 演習3-2' />
+                </label>
+                <label class='sync-option full-span'>
+                  <input name='reviewNeeded' type='checkbox' />
+                  <span>復習必要</span>
+                </label>
+                <label class='full-span'>
+                  メモ
+                  <input name='note' type='text' placeholder='例: 定義は追えるが、証明が曖昧' />
+                </label>
+                <div class='form-actions full-span'>
+                  <button id='materialSubmitBtn' class='primary' type='submit'>教材を追加</button>
+                  <button id='materialCancelBtn' type='button' class='ghost' hidden>編集を取り消す</button>
+                </div>
+              </form>
+            </div>
+          </details>
+
+          <div id='materialList' class='list-wrap empty'>まだありません</div>
+        </section>
       </div>
     </section>
 
