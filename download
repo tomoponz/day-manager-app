@@ -1,0 +1,10 @@
+**/node_modules
+**/.wrangler
+**/.git
+*.zip
+*.md
+*.txt
+.gitignore
+.assetsignore
+legacy-server/**
+cloudflare-worker/**
