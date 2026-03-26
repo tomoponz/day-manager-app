@@ -7,6 +7,14 @@ const GOOGLE_SCOPES = [
 
 const APP_TIME_ZONE = "Asia/Tokyo";
 
+class GoogleAuthError extends Error {
+  constructor(message, code = "GOOGLE_REAUTH_REQUIRED") {
+    super(message);
+    this.name = "GoogleAuthError";
+    this.code = code;
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -51,11 +59,9 @@ async function handleGoogleStart(request, env) {
   const returnTo = sanitizeReturnTo(url.searchParams.get("returnTo"));
   const state = crypto.randomUUID();
 
-  await env.DM_STORE.put(
-    `oauth_state:${state}`,
-    JSON.stringify({ returnTo }),
-    { expirationTtl: 600 }
-  );
+  await env.DM_STORE.put(`oauth_state:${state}`, JSON.stringify({ returnTo }), {
+    expirationTtl: 600
+  });
 
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.searchParams.set("client_id", env.GOOGLE_CLIENT_ID);
@@ -84,6 +90,7 @@ async function handleGoogleCallback(request, env) {
   if (!stateRaw) {
     return text("OAuth state が不正か期限切れです。", 400);
   }
+
   await env.DM_STORE.delete(`oauth_state:${state}`);
   const stateData = JSON.parse(stateRaw);
 
@@ -133,7 +140,7 @@ async function handleGoogleCallback(request, env) {
 
   const cookieValue = await makeSignedSession(userKey, env.COOKIE_SIGNING_SECRET);
   const headers = new Headers({
-    "Location": stateData.returnTo || "/"
+    Location: stateData.returnTo || "/"
   });
   headers.append("Set-Cookie", buildSessionCookie(cookieValue));
   return new Response(null, { status: 302, headers });
@@ -145,11 +152,19 @@ async function handleGoogleStatus(request, env) {
     return json({ connected: false });
   }
 
-  return json({
-    connected: true,
-    email: session.user.email || "",
-    lastBackgroundSyncAt: session.user.lastBackgroundSyncAt || ""
-  });
+  try {
+    const user = await ensureFreshAccessToken(env, session.userKey, session.user);
+    return json({
+      connected: true,
+      email: user.email || "",
+      lastBackgroundSyncAt: user.lastBackgroundSyncAt || ""
+    });
+  } catch (error) {
+    if (error instanceof GoogleAuthError) {
+      return buildReauthResponse(request, error);
+    }
+    throw error;
+  }
 }
 
 async function handleGoogleDisconnect(request, env) {
@@ -162,6 +177,7 @@ async function handleGoogleDisconnect(request, env) {
         });
       }
     } catch {}
+
     await env.DM_STORE.delete(`user:${session.userKey}`);
   }
 
@@ -174,141 +190,170 @@ async function handleGetEvents(request, env) {
   const session = await requireSessionUser(request, env);
   if (session.error) return session.error;
 
-  const url = new URL(request.url);
-  const date = url.searchParams.get("date") || "";
-  if (!date) return json({ error: "date が必要です。" }, 400);
+  try {
+    const url = new URL(request.url);
+    const date = url.searchParams.get("date") || "";
+    if (!date) return json({ error: "date が必要です。" }, 400);
 
-  let user = session.user;
-  const today = getTodayDateInAppTimeZone();
-  const stale = isCacheStale(user.lastBackgroundSyncAt, Number(env.SYNC_INTERVAL_MINUTES || 15));
+    let user = session.user;
+    const today = getTodayDateInAppTimeZone();
+    const stale = isCacheStale(user.lastBackgroundSyncAt, Number(env.SYNC_INTERVAL_MINUTES || 15));
 
-  if (date <= today) {
-    user = await refreshSingleDateCache(env, session.userKey, user, date);
-  } else {
-    if (!user.cacheByDate?.[date] || stale) {
-      user = await syncOneUser(env, session.userKey, user);
-    }
-    if (!user.cacheByDate?.[date]) {
+    if (date <= today) {
       user = await refreshSingleDateCache(env, session.userKey, user, date);
+    } else {
+      if (!user.cacheByDate?.[date] || stale) {
+        user = await syncOneUser(env, session.userKey, user);
+      }
+      if (!user.cacheByDate?.[date]) {
+        user = await refreshSingleDateCache(env, session.userKey, user, date);
+      }
     }
+
+    return json({
+      items: user.cacheByDate?.[date] || [],
+      lastBackgroundSyncAt: user.lastBackgroundSyncAt || ""
+    });
+  } catch (error) {
+    if (error instanceof GoogleAuthError) {
+      return buildReauthResponse(request, error);
+    }
+    throw error;
   }
-
-  return json({
-    items: user.cacheByDate?.[date] || [],
-    lastBackgroundSyncAt: user.lastBackgroundSyncAt || ""
-  });
 }
-
-
 
 async function handleGetEventsRange(request, env) {
   const session = await requireSessionUser(request, env);
   if (session.error) return session.error;
 
-  const url = new URL(request.url);
-  const start = url.searchParams.get("start") || "";
-  const end = url.searchParams.get("end") || "";
-  if (!start || !end) return json({ error: "start と end が必要です。" }, 400);
-  if (end < start) return json({ error: "end は start 以降にしてください。" }, 400);
+  try {
+    const url = new URL(request.url);
+    const start = url.searchParams.get("start") || "";
+    const end = url.searchParams.get("end") || "";
+    if (!start || !end) return json({ error: "start と end が必要です。" }, 400);
+    if (end < start) return json({ error: "end は start 以降にしてください。" }, 400);
 
-  let user = session.user;
-  user = await ensureFreshAccessToken(env, session.userKey, user);
-  const items = await fetchEventsForDateRange(user, start, end);
+    let user = session.user;
+    user = await ensureFreshAccessToken(env, session.userKey, user);
+    const items = await fetchEventsForDateRange(user, start, end);
 
-  const rangeCache = {};
-  for (const dateKey of enumerateDateRange(start, end)) {
-    rangeCache[dateKey] = [];
+    const rangeCache = {};
+    for (const dateKey of enumerateDateRange(start, end)) {
+      rangeCache[dateKey] = [];
+    }
+    for (const event of items) {
+      const dateKey = event.start?.date || event.start?.dateTime?.slice(0, 10);
+      if (!dateKey) continue;
+      if (!rangeCache[dateKey]) rangeCache[dateKey] = [];
+      rangeCache[dateKey].push(event);
+    }
+    for (const dateKey of Object.keys(rangeCache)) {
+      rangeCache[dateKey].sort((a, b) => eventSortKey(a).localeCompare(eventSortKey(b)));
+    }
+
+    const nextUser = {
+      ...user,
+      cacheByDate: {
+        ...(user.cacheByDate || {}),
+        ...rangeCache
+      },
+      lastBackgroundSyncAt: new Date().toISOString()
+    };
+    await writeUser(env, session.userKey, nextUser);
+
+    return json({
+      items,
+      start,
+      end,
+      lastBackgroundSyncAt: nextUser.lastBackgroundSyncAt || ""
+    });
+  } catch (error) {
+    if (error instanceof GoogleAuthError) {
+      return buildReauthResponse(request, error);
+    }
+    throw error;
   }
-  for (const event of items) {
-    const dateKey = event.start?.date || event.start?.dateTime?.slice(0, 10);
-    if (!dateKey) continue;
-    if (!rangeCache[dateKey]) rangeCache[dateKey] = [];
-    rangeCache[dateKey].push(event);
-  }
-  for (const dateKey of Object.keys(rangeCache)) {
-    rangeCache[dateKey].sort((a, b) => eventSortKey(a).localeCompare(eventSortKey(b)));
-  }
-
-  const nextUser = {
-    ...user,
-    cacheByDate: {
-      ...(user.cacheByDate || {}),
-      ...rangeCache
-    },
-    lastBackgroundSyncAt: new Date().toISOString()
-  };
-  await writeUser(env, session.userKey, nextUser);
-
-  return json({
-    items,
-    start,
-    end,
-    lastBackgroundSyncAt: nextUser.lastBackgroundSyncAt || ""
-  });
 }
 
 async function handleLocalEventUpsert(request, env) {
   const session = await requireSessionUser(request, env);
   if (session.error) return session.error;
 
-  const body = await request.json().catch(() => ({}));
-  const localEvent = body.localEvent;
-  if (!localEvent?.title || !localEvent?.date) {
-    return json({ error: "localEvent.title と localEvent.date が必要です。" }, 400);
+  try {
+    const body = await request.json().catch(() => ({}));
+    const localEvent = body.localEvent;
+    if (!localEvent?.title || !localEvent?.date) {
+      return json({ error: "localEvent.title と localEvent.date が必要です。" }, 400);
+    }
+
+    let user = session.user;
+    user = await ensureFreshAccessToken(env, session.userKey, user);
+
+    const resource = buildGoogleResource(localEvent);
+    const path = localEvent.googleEventId
+      ? `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(localEvent.googleEventId)}`
+      : `https://www.googleapis.com/calendar/v3/calendars/primary/events`;
+    const method = localEvent.googleEventId ? "PUT" : "POST";
+
+    const response = await fetch(path, {
+      method,
+      headers: {
+        Authorization: `Bearer ${user.tokens.access_token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(resource)
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      return json({ error: `Google同期に失敗しました: ${err}` }, 500);
+    }
+
+    const event = await response.json();
+    user = await syncOneUser(env, session.userKey, user);
+    return json({ ok: true, event, lastBackgroundSyncAt: user.lastBackgroundSyncAt || "" });
+  } catch (error) {
+    if (error instanceof GoogleAuthError) {
+      return buildReauthResponse(request, error);
+    }
+    throw error;
   }
-
-  let user = session.user;
-  user = await ensureFreshAccessToken(env, session.userKey, user);
-
-  const resource = buildGoogleResource(localEvent);
-  const path = localEvent.googleEventId
-    ? `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(localEvent.googleEventId)}`
-    : `https://www.googleapis.com/calendar/v3/calendars/primary/events`;
-  const method = localEvent.googleEventId ? "PUT" : "POST";
-
-  const response = await fetch(path, {
-    method,
-    headers: {
-      "Authorization": `Bearer ${user.tokens.access_token}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(resource)
-  });
-
-  if (!response.ok) {
-    const err = await response.text();
-    return json({ error: `Google同期に失敗しました: ${err}` }, 500);
-  }
-
-  const event = await response.json();
-  user = await syncOneUser(env, session.userKey, user);
-  return json({ ok: true, event, lastBackgroundSyncAt: user.lastBackgroundSyncAt || "" });
 }
 
 async function handleDeleteEvent(request, env) {
   const session = await requireSessionUser(request, env);
   if (session.error) return session.error;
 
-  const eventId = decodeURIComponent(new URL(request.url).pathname.split("/").pop() || "");
-  if (!eventId) return json({ error: "eventId が必要です。" }, 400);
+  try {
+    const eventId = decodeURIComponent(new URL(request.url).pathname.split("/").pop() || "");
+    if (!eventId) return json({ error: "eventId が必要です。" }, 400);
 
-  let user = session.user;
-  user = await ensureFreshAccessToken(env, session.userKey, user);
+    let user = session.user;
+    user = await ensureFreshAccessToken(env, session.userKey, user);
 
-  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`, {
-    method: "DELETE",
-    headers: {
-      "Authorization": `Bearer ${user.tokens.access_token}`
+    const response = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${user.tokens.access_token}`
+        }
+      }
+    );
+
+    if (!response.ok && response.status !== 404) {
+      const err = await response.text();
+      return json({ error: `Google予定の削除に失敗しました: ${err}` }, 500);
     }
-  });
 
-  if (!response.ok && response.status !== 404) {
-    const err = await response.text();
-    return json({ error: `Google予定の削除に失敗しました: ${err}` }, 500);
+    user = await syncOneUser(env, session.userKey, user);
+    return json({ ok: true, lastBackgroundSyncAt: user.lastBackgroundSyncAt || "" });
+  } catch (error) {
+    if (error instanceof GoogleAuthError) {
+      return buildReauthResponse(request, error);
+    }
+    throw error;
   }
-
-  user = await syncOneUser(env, session.userKey, user);
-  return json({ ok: true, lastBackgroundSyncAt: user.lastBackgroundSyncAt || "" });
 }
 
 async function syncAllUsers(env) {
@@ -320,12 +365,18 @@ async function syncAllUsers(env) {
       const userKey = key.name.replace(/^user:/, "");
       const user = await readUser(env, userKey);
       if (!user) continue;
+
       try {
         await syncOneUser(env, userKey, user);
       } catch (error) {
+        if (error instanceof GoogleAuthError) {
+          console.warn("[cron sync skipped: reconnect required]", userKey);
+          continue;
+        }
         console.error("[cron sync failed]", userKey, String(error));
       }
     }
+
     if (page.list_complete) break;
     cursor = page.cursor;
   }
@@ -336,7 +387,6 @@ async function syncOneUser(env, userKey, user) {
 
   const today = getTodayDateInAppTimeZone();
   const { timeMin } = buildDateRangeForGoogleApi(today);
-
   const max = new Date(Date.now() + Number(env.SYNC_LOOKAHEAD_DAYS || 30) * 24 * 60 * 60 * 1000);
 
   const items = await fetchEventsList(user, {
@@ -345,7 +395,6 @@ async function syncOneUser(env, userKey, user) {
   });
 
   const cacheByDate = {};
-
   for (const event of items) {
     const dateKey = event.start?.date || event.start?.dateTime?.slice(0, 10);
     if (!dateKey) continue;
@@ -372,12 +421,14 @@ async function syncOneUser(env, userKey, user) {
 async function refreshSingleDateCache(env, userKey, user, dateStr) {
   user = await ensureFreshAccessToken(env, userKey, user);
   const items = await fetchEventsForDate(user, dateStr);
+
   const nextUser = {
     ...user,
     cacheByDate: {
       ...(user.cacheByDate || {}),
       [dateStr]: items
-    }
+    },
+    lastBackgroundSyncAt: new Date().toISOString()
   };
   await writeUser(env, userKey, nextUser);
   return nextUser;
@@ -403,7 +454,7 @@ async function fetchEventsList(user, { timeMin, timeMax }) {
 
   const response = await fetch(listUrl.toString(), {
     headers: {
-      "Authorization": `Bearer ${user.tokens.access_token}`
+      Authorization: `Bearer ${user.tokens.access_token}`
     }
   });
 
@@ -421,7 +472,11 @@ async function ensureFreshAccessToken(env, userKey, user) {
   const expiry = Number(user?.tokens?.expiry_date || 0);
   const stillValid = user?.tokens?.access_token && expiry > Date.now() + 60_000;
   if (stillValid) return user;
-  if (!refreshToken) throw new Error("refresh_token がありません。再接続が必要です。");
+
+  if (!refreshToken) {
+    await env.DM_STORE.delete(`user:${userKey}`);
+    throw new GoogleAuthError("Google の接続期限が切れました。もう一度接続してください。");
+  }
 
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -436,6 +491,13 @@ async function ensureFreshAccessToken(env, userKey, user) {
 
   if (!response.ok) {
     const err = await response.text();
+    const shouldRequireReconnect = response.status === 400 && err.includes("invalid_grant");
+
+    if (shouldRequireReconnect) {
+      await env.DM_STORE.delete(`user:${userKey}`);
+      throw new GoogleAuthError("Google の接続期限が切れました。もう一度接続してください。");
+    }
+
     throw new Error(`アクセストークン更新失敗: ${err}`);
   }
 
@@ -479,7 +541,7 @@ function buildGoogleResource(localEvent) {
 
 async function fetchGoogleUserInfo(accessToken) {
   const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
-    headers: { "Authorization": `Bearer ${accessToken}` }
+    headers: { Authorization: `Bearer ${accessToken}` }
   });
   if (!response.ok) {
     const err = await response.text();
@@ -505,13 +567,15 @@ function eventSortKey(event) {
 
 function isCacheStale(lastSyncAt, minutes) {
   if (!lastSyncAt) return true;
-  return (Date.now() - new Date(lastSyncAt).getTime()) > minutes * 60 * 1000;
+  return Date.now() - new Date(lastSyncAt).getTime() > minutes * 60 * 1000;
 }
 
 async function requireSessionUser(request, env) {
   const session = await getSessionUser(request, env);
   if (!session) {
-    return { error: json({ error: "Google に接続していません。" }, 401) };
+    return {
+      error: buildReauthResponse(request, new GoogleAuthError("Google に接続していません。", "GOOGLE_NOT_CONNECTED"))
+    };
   }
   return session;
 }
@@ -544,6 +608,29 @@ function buildSessionCookie(value) {
 
 function clearSessionCookie() {
   return `dm_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
+}
+
+function buildReauthResponse(request, error) {
+  const headers = new Headers({
+    "Content-Type": "application/json; charset=utf-8"
+  });
+  headers.append("Set-Cookie", clearSessionCookie());
+
+  const url = new URL(request.url);
+  const returnTo = sanitizeReturnTo(`${url.pathname}${url.search}`);
+  const reconnectUrl = `/auth/google/start?returnTo=${encodeURIComponent(returnTo)}`;
+
+  return new Response(
+    JSON.stringify({
+      error: error.message,
+      code: error.code || "GOOGLE_REAUTH_REQUIRED",
+      reconnectUrl
+    }),
+    {
+      status: 401,
+      headers
+    }
+  );
 }
 
 async function signValue(value, secret) {
@@ -630,10 +717,19 @@ function enumerateDateRange(startDateStr, endDateStr) {
   const result = [];
   const cursor = new Date(`${startDateStr}T00:00:00+09:00`);
   const end = new Date(`${endDateStr}T00:00:00+09:00`);
+
   while (cursor <= end) {
-    result.push(new Intl.DateTimeFormat("en-CA", { timeZone: APP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(cursor));
+    result.push(
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: APP_TIME_ZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }).format(cursor)
+    );
     cursor.setDate(cursor.getDate() + 1);
   }
+
   return result;
 }
 
