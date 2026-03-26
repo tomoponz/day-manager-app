@@ -1,7 +1,8 @@
-import { state, saveState, normalizeOneOffEvent, normalizeFixedSchedule, normalizeTask } from './state.js';
+import { state, saveState, normalizeOneOffEvent, normalizeFixedSchedule, normalizeTask, normalizeCourse, normalizeMaterial } from './state.js';
 import { $, debounce, getFormValue } from './utils.js';
 import { addDays, formatDateInput, formatTimeOnly, isSelectedDateToday, isValidTimeRange, roundToFiveMinutes } from './time.js';
 import { renderAll, renderCurrentState, renderAutoPlan, updateStateNote, loadConditionInputsForDate } from './render.js';
+import { renderStudyManager } from './study-manager.js';
 import {
   loadGoogleEventsForDate,
   hasValidGoogleToken,
@@ -611,6 +612,8 @@ function importData(e) {
       state.fixedSchedules = (parsed.fixedSchedules || []).map(normalizeFixedSchedule);
       state.oneOffEvents = (parsed.oneOffEvents || []).map(normalizeOneOffEvent);
       state.tasks = (parsed.tasks || []).map(normalizeTask);
+      state.courses = (parsed.courses || []).map(normalizeCourse);
+      state.materials = (parsed.materials || []).map(normalizeMaterial);
       state.dayConditions = parsed.dayConditions || {};
       state.settings = {
         focusMinutesTarget: Number(parsed.settings?.focusMinutesTarget ?? state.settings.focusMinutesTarget),
@@ -622,6 +625,7 @@ function importData(e) {
       if ($('selectedDate')) loadConditionInputsForDate($('selectedDate').value);
       hydrateSettingsInputs();
       renderAll();
+      renderStudyManager();
       showToast('バックアップを読み込みました。', { variant: 'ok', duration: 2200 });
     } catch {
       showToast('JSONの読み込みに失敗しました。', { variant: 'warn' });

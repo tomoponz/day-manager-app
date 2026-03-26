@@ -5,6 +5,8 @@ export const INITIAL_STATE = {
   fixedSchedules: [],
   oneOffEvents: [],
   tasks: [],
+  courses: [],
+  materials: [],
   dayConditions: {},
   weeklyPlans: {},
   milestones: [],
@@ -29,6 +31,8 @@ export function loadState() {
       fixedSchedules: (parsed.fixedSchedules || []).map(normalizeFixedSchedule),
       oneOffEvents: (parsed.oneOffEvents || []).map(normalizeOneOffEvent),
       tasks: (parsed.tasks || []).map(normalizeTask),
+      courses: (parsed.courses || []).map(normalizeCourse),
+      materials: (parsed.materials || []).map(normalizeMaterial),
       dayConditions: parsed.dayConditions || {},
       weeklyPlans: normalizeWeeklyPlans(parsed.weeklyPlans),
       milestones: (parsed.milestones || []).map(normalizeMilestone),
@@ -107,6 +111,41 @@ export function normalizeTask(item) {
     status: item.status || "未着手",
     deferUntilDate: item.deferUntilDate || "",
     protectTimeBlock: Boolean(item.protectTimeBlock)
+  };
+}
+
+function normalizeOptionalNumber(value) {
+  if (value === "" || value === null || typeof value === "undefined") return "";
+  const number = Number(value);
+  return Number.isFinite(number) ? number : "";
+}
+
+export function normalizeCourse(item) {
+  return {
+    id: item.id || crypto.randomUUID(),
+    title: item.title || "",
+    instructor: item.instructor || "",
+    credits: normalizeOptionalNumber(item.credits),
+    scheduleMemo: item.scheduleMemo || "",
+    gradingMemo: item.gradingMemo || "",
+    riskStatus: item.riskStatus || "medium",
+    note: item.note || ""
+  };
+}
+
+export function normalizeMaterial(item) {
+  return {
+    id: item.id || crypto.randomUUID(),
+    courseId: item.courseId || "",
+    title: item.title || "",
+    kind: item.kind || "textbook",
+    totalUnits: normalizeOptionalNumber(item.totalUnits),
+    currentUnits: normalizeOptionalNumber(item.currentUnits),
+    unitLabel: item.unitLabel || "p",
+    understanding: normalizeOptionalNumber(item.understanding),
+    nextTarget: item.nextTarget || "",
+    reviewNeeded: Boolean(item.reviewNeeded),
+    note: item.note || ""
   };
 }
 

@@ -12,6 +12,7 @@ import {
   buildRiskAlerts,
   formatScheduleLine
 } from "./planner.js";
+import { buildStudyPromptSection } from "./study-manager.js";
 
 export function generatePrompt() {
   const selectedDate = $("selectedDate").value;
@@ -24,6 +25,7 @@ export function generatePrompt() {
   const autoPlan = buildAutoPlan(selectedDate, ctx, true);
   const split = splitSchedulesByNow(schedules, ctx);
   const risks = buildRiskAlerts(selectedDate, ctx, schedules);
+  const study = buildStudyPromptSection();
 
   const text = [
     "今日の1日を設計して。",
@@ -32,6 +34,12 @@ export function generatePrompt() {
     `対象日：${selectedDate} (${WEEKDAY_NAMES[new Date(`${selectedDate}T00:00:00`).getDay()]})`,
     `運用モード：${ctx.effectiveModeLabel}`,
     `睡眠・体調：睡眠 ${dayData.sleepHours || "未入力"} 時間 / 体力 ${dayData.fatigue || "未入力"} / メモ ${dayData.note || "なし"}`,
+    "科目の状況：",
+    study.courseLines.join("\n"),
+    "教材進度：",
+    study.materialLines.join("\n"),
+    "今日進める教材候補：",
+    study.focusLines.join("\n"),
     "現在地点：",
     split.current.length ? split.current.map((item) => `- 進行中 / ${formatScheduleLine(item)}`).join("\n") : "- 進行中予定なし",
     split.upcoming.length ? split.upcoming.slice(0, 5).map((item) => `- これから / ${formatScheduleLine(item)}`).join("\n") : "- これからの予定少なめ",
