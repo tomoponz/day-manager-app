@@ -44,15 +44,42 @@ async function api(path, options = {}) {
 
   if (!response.ok) {
     let message = `${response.status} ${response.statusText}`;
+    let code = "";
+    let reconnectUrl = "";
+
     try {
       const data = await response.json();
       message = data.error || data.message || message;
+      code = data.code || "";
+      reconnectUrl = data.reconnectUrl || "";
     } catch {}
-    throw new Error(message);
+
+    const error = new Error(message);
+    error.status = response.status;
+    error.code = code;
+    error.reconnectUrl = reconnectUrl;
+    throw error;
   }
 
   if (response.status === 204) return null;
   return response.json();
+}
+
+function isReconnectRequiredError(error) {
+  return error?.status === 401 || error?.code === "GOOGLE_REAUTH_REQUIRED";
+}
+
+function handleReconnectRequired(error, fallbackMessage) {
+  googleState.connected = false;
+  clearGoogleCache();
+  rerender();
+
+  const message =
+    fallbackMessage ||
+    "Google の接続期限が切れました。もう一度『Googleで接続』を押して再接続してください。";
+
+  notifyStatus(message, "warn");
+  return error?.reconnectUrl || "";
 }
 
 export async function initializeGoogleBackgroundSync() {
@@ -86,7 +113,10 @@ export async function refreshGoogleStatus({ silent = false } = {}) {
         const tail = googleState.lastBackgroundSyncAt
           ? ` / 最終自動同期: ${new Date(googleState.lastBackgroundSyncAt).toLocaleString("ja-JP")}`
           : "";
-        notifyStatus(`Google Calendar 接続済み${googleState.email ? ` (${googleState.email})` : ""}${tail}`, "ok");
+        notifyStatus(
+          `Google Calendar 接続済み${googleState.email ? ` (${googleState.email})` : ""}${tail}`,
+          "ok"
+        );
       } else {
         clearGoogleCache();
         notifyStatus("Googleで接続すると、この Worker が Google Calendar と同期します。");
@@ -94,6 +124,11 @@ export async function refreshGoogleStatus({ silent = false } = {}) {
     }
     return data;
   } catch (error) {
+    if (isReconnectRequiredError(error)) {
+      if (!silent) handleReconnectRequired(error);
+      return null;
+    }
+
     googleState.connected = false;
     rerender();
     if (!silent) notifyStatus(`Google状態の取得に失敗しました: ${getErrorMessage(error)}`, "warn");
@@ -113,15 +148,16 @@ export function getCachedGoogleEvents(dateStr) {
   return googleState.eventsByDate[dateStr] || [];
 }
 
-
 export function getCachedGoogleEventsInRange(startDate, endDate) {
   const result = [];
   if (!startDate || !endDate) return result;
+
   for (const dateKey of Object.keys(googleState.eventsByDate || {})) {
     if (dateKey >= startDate && dateKey <= endDate) {
       result.push(...(googleState.eventsByDate[dateKey] || []));
     }
   }
+
   return result;
 }
 
@@ -132,24 +168,31 @@ function clearGoogleCache() {
 
 function setCachedGoogleEventsForRange(startDate, endDate, items = []) {
   if (!startDate || !endDate) return;
+
   for (const dateKey of enumerateDateKeys(startDate, endDate)) {
     googleState.eventsByDate[dateKey] = [];
   }
+
   for (const event of items) {
     const dateKey = event.start?.date || event.start?.dateTime?.slice(0, 10);
     if (!dateKey) continue;
     if (!googleState.eventsByDate[dateKey]) googleState.eventsByDate[dateKey] = [];
     googleState.eventsByDate[dateKey].push(event);
   }
+
   for (const dateKey of Object.keys(googleState.eventsByDate)) {
-    googleState.eventsByDate[dateKey].sort((a, b) => formatGoogleEventTime(a).localeCompare(formatGoogleEventTime(b)));
+    googleState.eventsByDate[dateKey].sort((a, b) =>
+      formatGoogleEventTime(a).localeCompare(formatGoogleEventTime(b))
+    );
   }
+
   googleState.rangeLoaded = { start: startDate, end: endDate };
 }
 
 function enumerateDateKeys(startDate, endDate) {
   const values = [];
   if (!startDate || !endDate) return values;
+
   const cursor = new Date(`${startDate}T00:00:00`);
   const end = new Date(`${endDate}T00:00:00`);
   while (cursor <= end) {
@@ -205,17 +248,28 @@ export async function loadGoogleEventsForDate(dateStr, { silent = false } = {}) 
     setCachedGoogleEventsForRange(dateStr, dateStr, data.items || []);
     if (data.lastBackgroundSyncAt) googleState.lastBackgroundSyncAt = data.lastBackgroundSyncAt;
     rerender();
-    if (!silent) notifyStatus(`${googleState.eventsByDate[dateStr].length} 件の Google 予定を読み込みました。`, "ok");
+
+    if (!silent) {
+      notifyStatus(`${googleState.eventsByDate[dateStr].length} 件の Google 予定を読み込みました。`, "ok");
+    }
+
     return googleState.eventsByDate[dateStr];
   } catch (error) {
+    if (isReconnectRequiredError(error)) {
+      if (!silent) handleReconnectRequired(error);
+      return [];
+    }
+
     if (!silent) notifyStatus(`Google予定の読込に失敗しました: ${getErrorMessage(error)}`, "warn");
     return [];
   }
 }
 
-
-
-export async function loadGoogleEventsRange(startDate, endDate, { silent = false, skipRerender = false } = {}) {
+export async function loadGoogleEventsRange(
+  startDate,
+  endDate,
+  { silent = false, skipRerender = false } = {}
+) {
   if (!googleState.connected) {
     if (!silent) notifyStatus("先に Google で接続してください。", "warn");
     if (!skipRerender) rerender();
@@ -225,13 +279,24 @@ export async function loadGoogleEventsRange(startDate, endDate, { silent = false
 
   try {
     if (!silent) notifyStatus("表示範囲の Google 予定を読み込んでいます...");
-    const data = await api(`/api/google/events-range?start=${encodeURIComponent(startDate)}&end=${encodeURIComponent(endDate)}`);
+    const data = await api(
+      `/api/google/events-range?start=${encodeURIComponent(startDate)}&end=${encodeURIComponent(endDate)}`
+    );
     setCachedGoogleEventsForRange(startDate, endDate, data.items || []);
     if (data.lastBackgroundSyncAt) googleState.lastBackgroundSyncAt = data.lastBackgroundSyncAt;
     if (!skipRerender) rerender();
-    if (!silent) notifyStatus(`表示範囲の Google 予定を ${data.items?.length || 0} 件読み込みました。`, "ok");
+
+    if (!silent) {
+      notifyStatus(`表示範囲の Google 予定を ${data.items?.length || 0} 件読み込みました。`, "ok");
+    }
+
     return data.items || [];
   } catch (error) {
+    if (isReconnectRequiredError(error)) {
+      if (!silent) handleReconnectRequired(error);
+      return [];
+    }
+
     if (!silent) notifyStatus(`Google予定の読込に失敗しました: ${getErrorMessage(error)}`, "warn");
     return [];
   }
@@ -250,12 +315,13 @@ export function importGoogleEventsToLocal(dateStr = $("selectedDate")?.value || 
   events.forEach((event) => {
     const candidate = mapGoogleEventToLocal(event, dateStr);
     const alreadyLinked = state.oneOffEvents.some((item) => item.googleEventId === event.id);
-    const duplicateLocal = state.oneOffEvents.some((item) =>
-      item.date === candidate.date &&
-      item.title === candidate.title &&
-      (item.start || "") === (candidate.start || "") &&
-      (item.end || "") === (candidate.end || "") &&
-      Boolean(item.allDay) === Boolean(candidate.allDay)
+    const duplicateLocal = state.oneOffEvents.some(
+      (item) =>
+        item.date === candidate.date &&
+        item.title === candidate.title &&
+        (item.start || "") === (candidate.start || "") &&
+        (item.end || "") === (candidate.end || "") &&
+        Boolean(item.allDay) === Boolean(candidate.allDay)
     );
 
     if (alreadyLinked || duplicateLocal) {
@@ -269,7 +335,10 @@ export function importGoogleEventsToLocal(dateStr = $("selectedDate")?.value || 
 
   saveState();
   rerender();
-  notifyStatus(`Google 予定をローカルへ ${imported} 件取り込みました。重複候補 ${skipped} 件はスキップしました。`, imported ? "ok" : "warn");
+  notifyStatus(
+    `Google 予定をローカルへ ${imported} 件取り込みました。重複候補 ${skipped} 件はスキップしました。`,
+    imported ? "ok" : "warn"
+  );
   return { imported, skipped };
 }
 
@@ -341,6 +410,12 @@ export async function syncLocalEventToGoogle(localEventId) {
     item.googleSyncStatus = "failed";
     saveState();
     rerender();
+
+    if (isReconnectRequiredError(error)) {
+      handleReconnectRequired(error);
+      return;
+    }
+
     notifyStatus(`Google Calendar への追加に失敗しました: ${getErrorMessage(error)}`, "warn");
   }
 }
@@ -365,6 +440,12 @@ export async function syncUpdatedLocalEventToGoogle(localEventId) {
     item.googleSyncStatus = "failed";
     saveState();
     rerender();
+
+    if (isReconnectRequiredError(error)) {
+      handleReconnectRequired(error);
+      return;
+    }
+
     notifyStatus(`Google Calendar の更新に失敗しました: ${getErrorMessage(error)}`, "warn");
   }
 }
@@ -387,6 +468,11 @@ export async function deleteLocalEvent(localEventId) {
       try {
         await deleteGoogleEventById(item.googleEventId, { removeLocalMirror: false, silent: true });
       } catch (error) {
+        if (isReconnectRequiredError(error)) {
+          handleReconnectRequired(error);
+          return;
+        }
+
         const proceed = await confirmDialog({
           title: "Google 側の削除に失敗",
           message: `Google 側の削除に失敗しました。ローカルだけ削除しますか？\n\n${getErrorMessage(error)}`,
@@ -398,7 +484,8 @@ export async function deleteLocalEvent(localEventId) {
     } else {
       const proceed = await confirmDialog({
         title: "ローカルだけ削除",
-        message: "この予定は Google Calendar と同期されています。現在は未接続なので、ローカルだけ削除されます。続けますか？",
+        message:
+          "この予定は Google Calendar と同期されています。現在は未接続なので、ローカルだけ削除されます。続けますか？",
         confirmText: "続ける",
         danger: true
       });
@@ -445,9 +532,11 @@ export async function deleteGoogleEventById(eventId, { removeLocalMirror = true,
 
 export function formatGoogleEventTime(event) {
   if (event.start?.date && !event.start?.dateTime) return `${event.start.date} / 終日`;
+
   const start = event.start?.dateTime ? new Date(event.start.dateTime) : null;
   const end = event.end?.dateTime ? new Date(event.end.dateTime) : null;
   if (!start) return "時刻不明";
+
   const startText = `${formatDateInput(start)} ${formatTimeOnly(start)}`;
   const endText = end ? formatTimeOnly(end) : "--:--";
   return `${startText} - ${endText}`;
