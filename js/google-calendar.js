@@ -1,6 +1,6 @@
 import { state, saveState, normalizeOneOffEvent } from "./state.js";
 import { $ } from "./utils.js";
-import { addDays, formatDateInput, formatTimeOnly } from "./time.js";
+import { formatDateInput, formatTimeOnly } from "./time.js";
 import { confirmDialog, showToast } from "./ui-feedback.js";
 
 export const googleState = {
@@ -8,17 +8,16 @@ export const googleState = {
   email: "",
   lastBackgroundSyncAt: "",
   eventsByDate: {},
-  config: {
-    clientId: "",
-    apiKey: ""
+  rangeLoaded: {
+    start: "",
+    end: ""
   }
 };
 
 const ui = {
   renderAll: null,
   updateGoogleStatus: null,
-  updateGoogleConnectionBadge: null,
-  hydrateGoogleConfigInputs: null
+  updateGoogleConnectionBadge: null
 };
 
 export function configureGoogleUi(callbacks = {}) {
@@ -30,7 +29,6 @@ function notifyStatus(message, variant = "") {
 }
 
 function rerender() {
-  ui.hydrateGoogleConfigInputs?.();
   ui.renderAll?.();
   ui.updateGoogleConnectionBadge?.();
 }
@@ -90,7 +88,8 @@ export async function refreshGoogleStatus({ silent = false } = {}) {
           : "";
         notifyStatus(`Google Calendar 接続済み${googleState.email ? ` (${googleState.email})` : ""}${tail}`, "ok");
       } else {
-        notifyStatus("Googleで接続すると、この Worker が定期的に同期します。");
+        clearGoogleCache();
+        notifyStatus("Googleで接続すると、この Worker が Google Calendar と同期します。");
       }
     }
     return data;
@@ -114,6 +113,52 @@ export function getCachedGoogleEvents(dateStr) {
   return googleState.eventsByDate[dateStr] || [];
 }
 
+
+export function getCachedGoogleEventsInRange(startDate, endDate) {
+  const result = [];
+  if (!startDate || !endDate) return result;
+  for (const dateKey of Object.keys(googleState.eventsByDate || {})) {
+    if (dateKey >= startDate && dateKey <= endDate) {
+      result.push(...(googleState.eventsByDate[dateKey] || []));
+    }
+  }
+  return result;
+}
+
+function clearGoogleCache() {
+  googleState.eventsByDate = {};
+  googleState.rangeLoaded = { start: "", end: "" };
+}
+
+function setCachedGoogleEventsForRange(startDate, endDate, items = []) {
+  if (!startDate || !endDate) return;
+  for (const dateKey of enumerateDateKeys(startDate, endDate)) {
+    googleState.eventsByDate[dateKey] = [];
+  }
+  for (const event of items) {
+    const dateKey = event.start?.date || event.start?.dateTime?.slice(0, 10);
+    if (!dateKey) continue;
+    if (!googleState.eventsByDate[dateKey]) googleState.eventsByDate[dateKey] = [];
+    googleState.eventsByDate[dateKey].push(event);
+  }
+  for (const dateKey of Object.keys(googleState.eventsByDate)) {
+    googleState.eventsByDate[dateKey].sort((a, b) => formatGoogleEventTime(a).localeCompare(formatGoogleEventTime(b)));
+  }
+  googleState.rangeLoaded = { start: startDate, end: endDate };
+}
+
+function enumerateDateKeys(startDate, endDate) {
+  const values = [];
+  if (!startDate || !endDate) return values;
+  const cursor = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  while (cursor <= end) {
+    values.push(formatDateInput(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return values;
+}
+
 export async function onSaveGoogleConfig() {
   notifyStatus("Cloudflare Workers 版ではブラウザ入力を使いません。Worker secrets を設定してください。", "warn");
 }
@@ -131,7 +176,7 @@ export async function onDisconnectGoogle() {
   try {
     await api("/api/google/disconnect", { method: "POST", body: "{}" });
     googleState.connected = false;
-    googleState.eventsByDate = {};
+    clearGoogleCache();
     rerender();
     notifyStatus("Google との接続を解除しました。");
   } catch (error) {
@@ -157,11 +202,35 @@ export async function loadGoogleEventsForDate(dateStr, { silent = false } = {}) 
   try {
     if (!silent) notifyStatus("Google予定を読み込んでいます...");
     const data = await api(`/api/google/events?date=${encodeURIComponent(dateStr)}`);
-    googleState.eventsByDate[dateStr] = data.items || [];
+    setCachedGoogleEventsForRange(dateStr, dateStr, data.items || []);
     if (data.lastBackgroundSyncAt) googleState.lastBackgroundSyncAt = data.lastBackgroundSyncAt;
     rerender();
     if (!silent) notifyStatus(`${googleState.eventsByDate[dateStr].length} 件の Google 予定を読み込みました。`, "ok");
     return googleState.eventsByDate[dateStr];
+  } catch (error) {
+    if (!silent) notifyStatus(`Google予定の読込に失敗しました: ${getErrorMessage(error)}`, "warn");
+    return [];
+  }
+}
+
+
+
+export async function loadGoogleEventsRange(startDate, endDate, { silent = false, skipRerender = false } = {}) {
+  if (!googleState.connected) {
+    if (!silent) notifyStatus("先に Google で接続してください。", "warn");
+    if (!skipRerender) rerender();
+    return [];
+  }
+  if (!startDate || !endDate) return [];
+
+  try {
+    if (!silent) notifyStatus("表示範囲の Google 予定を読み込んでいます...");
+    const data = await api(`/api/google/events-range?start=${encodeURIComponent(startDate)}&end=${encodeURIComponent(endDate)}`);
+    setCachedGoogleEventsForRange(startDate, endDate, data.items || []);
+    if (data.lastBackgroundSyncAt) googleState.lastBackgroundSyncAt = data.lastBackgroundSyncAt;
+    if (!skipRerender) rerender();
+    if (!silent) notifyStatus(`表示範囲の Google 予定を ${data.items?.length || 0} 件読み込みました。`, "ok");
+    return data.items || [];
   } catch (error) {
     if (!silent) notifyStatus(`Google予定の読込に失敗しました: ${getErrorMessage(error)}`, "warn");
     return [];

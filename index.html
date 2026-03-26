@@ -8,6 +8,7 @@
   <link rel='icon' href='icons/icon-192.png' />
   <title>Day Manager</title>
   <link rel='stylesheet' href='style.css' />
+  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js'></script>
 </head>
 <body>
   <header class='topbar'>
@@ -188,6 +189,51 @@
 
         <p class='quick-add-note'>押せる例をそのまま使えます。入力のしかたを覚えなくても追加できます。</p>
         <div id='quickAddResult' class='quick-add-result'></div>
+      </div>
+    </section>
+
+
+
+    <section class='card calendar-app-shell' id='proCalendarSection'>
+      <div class='card-header'>
+        <div>
+          <h2>カレンダー</h2>
+          <p>ローカル予定と Google 予定を、月・週・日表示でまとめて見ます。</p>
+        </div>
+        <div class='calendar-shell-meta'>
+          <span id='calendarConnectionMeta' class='micro-note'>Google未接続</span>
+          <span id='calendarViewMeta' class='mode-chip'>週表示</span>
+        </div>
+      </div>
+
+      <div class='calendar-shell-grid'>
+        <div class='calendar-main-card'>
+          <div class='calendar-legend-row'>
+            <span class='legend-pill legend-pill-fixed'>固定予定</span>
+            <span class='legend-pill legend-pill-local'>ローカル単発予定</span>
+            <span class='legend-pill legend-pill-google'>Google予定</span>
+            <span class='legend-pill legend-pill-linked'>Google同期済みローカル</span>
+          </div>
+          <div id='calendarLoadingHint' class='calendar-inline-note'>表示範囲の Google 予定を読み込みながら描画します。</div>
+          <div id='calendarView' class='calendar-view'></div>
+        </div>
+
+        <aside class='calendar-side-card'>
+          <div class='calendar-side-block'>
+            <h3>選択中の予定</h3>
+            <div id='calendarDetail' class='calendar-detail empty'>予定をクリックすると詳細を表示します。</div>
+          </div>
+
+          <div class='calendar-side-block'>
+            <h3>操作のしかた</h3>
+            <ul class='calendar-help-list'>
+              <li>上部の表示切替で月 / 週 / 日 / 一覧を切り替えます。</li>
+              <li>日付クリックで対象日を切り替えます。</li>
+              <li>ローカル単発予定はドラッグ・リサイズで動かせます。</li>
+              <li>時間帯をドラッグすると、その時間で単発予定フォームを開きます。</li>
+            </ul>
+          </div>
+        </aside>
       </div>
     </section>
 
@@ -501,13 +547,13 @@
                   <a href='./calendar-test.html' class='file-label subtle-link'>連携テスト画面</a>
                 </div>
 
-                <div id='googleStatusBox' class='calendar-status'>内部設定が入っていれば、Googleで接続するだけで使えます。</div>
-                <p class='calendar-note'>資格情報の入力欄は出しません。接続に必要な値は <code>js/google-config.js</code> に固定します。</p>
+                <div id='googleStatusBox' class='calendar-status'>Cloudflare Worker 側の secret が入っていれば、Googleで接続するだけで使えます。</div>
+                <p class='calendar-note'>資格情報の入力欄は出しません。接続に必要な値は <code>Cloudflare Worker secrets</code> と <code>cloudflare-worker/wrangler.toml</code> に設定します。</p>
 
                 <details class='subsection-fold' id='googleEventListPanel'>
                   <summary class='subsection-summary'>対象日の Google 予定</summary>
                   <div class='subsection-body'>
-                    <p class='micro-note'>Googleカレンダーから直接読み込んだ予定一覧</p>
+                    <p class='micro-note'>Googleカレンダーから Worker 経由で読み込んだ予定一覧</p>
                     <div id='googleEventList' class='list-wrap empty'>まだありません</div>
                   </div>
                 </details>

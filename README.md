@@ -1,18 +1,20 @@
 # Day Manager
 
-予定・タスク・体調メモを1か所にまとめ、**現在時刻ベースの実行案**と ChatGPT に貼るための「1日設計」テキストを生成する無料の Web アプリです。
+予定・タスク・体調メモを 1 か所にまとめ、**現在時刻ベースの実行案**と ChatGPT に貼るための「1日設計」テキストを生成する無料の Web アプリです。
 
 ## 現在の構成
 
-このリポジトリは、**Cloudflare Workers を使う Google Calendar 連携版**に寄っています。
+このリポジトリは、**Cloudflare Workers を使う Google Calendar 連携版**です。
 
 - フロント本体: 静的ファイル
 - Google 認証 / Google Calendar API / 定期同期: `cloudflare-worker/`
 - 保存の中心: ブラウザ `localStorage`
 - Google 側の定期取得キャッシュ: Cloudflare KV
 
-そのため、**`index.html` をローカルで直接開くだけでは Google 連携は動きません。**
+そのため、**`index.html` をローカルで直接開くだけでは Google 連携は動きません。**  
 Google 連携を使う場合は、Cloudflare Workers 側の設定とデプロイが必要です。
+
+---
 
 ## できること
 
@@ -35,55 +37,138 @@ Google 連携を使う場合は、Cloudflare Workers 側の設定とデプロイ
 - PWA 対応
 - Google Calendar 連携（β）
   - Google アカウントで接続
-  - 指定日の Google 予定の読込
+  - 対象日の Google 予定の読込
   - 単発予定の Google 追加・更新・削除
   - Worker による定期同期
 
-## 重要な注意
+---
 
-### 1. 「放置しても毎日自動同期」の意味
-この構成で自動同期されるのは、**Worker が Google Calendar から定期的に予定を取り直す部分**です。
+## 実運用上の完成度
 
-一方で、**ブラウザの `localStorage` にしか存在しない新規ローカル予定**は、
-アプリを閉じている間に勝手に Google へ送られません。
+### すでに実用に入っている部分
+
+- Worker URL を開ける
+- Google ログインが通る
+- 接続状態を画面で確認できる
+- 対象日の Google 予定を読む
+- 単発予定を Google Calendar に追加・更新・削除する
+- Worker の cron で Google 側の予定キャッシュを定期更新する
+
+### まだ未完成の部分
+
+- ブラウザの `localStorage` にしか存在しない新規ローカル予定を、**アプリ未起動のまま自動で Google に送る機能**
+- 固定予定の Google 連携
+- タスクの Google 連携
+- Google 側の予定変更をローカル単発予定へ自動マージする機能
+- 複数カレンダー選択
+- 競合解決ルールの明文化
+
+### 重要な注意
+
+この構成で自動同期されるのは、**Worker が Google Calendar から定期的に予定を取り直す部分**です。  
+一方で、**ブラウザの `localStorage` にしか存在しない新規ローカル予定**は、アプリを閉じている間に勝手に Google へ送られません。
 
 そこまでやるには、予定データ自体を `localStorage` から Worker / DB 側へ寄せる必要があります。
 
-### 2. Google 連携に必要なもの
-ブラウザ入力欄はありません。
+---
+
+## Google 連携に必要なもの
+
+ブラウザ入力欄はありません。  
 代わりに、Cloudflare Worker 側で次を設定します。
 
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `COOKIE_SIGNING_SECRET`
 
+---
+
+## どのフォルダを使うか
+
+初心者向けに先に明示します。
+
+### 普段見る本体フォルダ
+`day-manager-app-main`
+
+この中に少なくとも次がそろっているものを使ってください。
+
+- `index.html`
+- `style.css`
+- `app.js`
+- `js/`
+- `cloudflare-worker/`
+
+### Worker の作業フォルダ
+`day-manager-app-main/cloudflare-worker`
+
+`npm install` や `wrangler deploy` は **必ずこのフォルダで実行** します。
+
+---
+
 ## ローカル確認
 
-Google 連携なしなら、静的ファイルとして確認できます。
+### Google 連携なしで画面確認したい場合
+本体フォルダを静的に開く
 
-Google 連携込みで確認する場合は、Cloudflare Worker 側を起動してください。
+### Google 連携込みで確認したい場合
+Worker を起動または deploy した URL で確認する
+
+---
 
 ## Cloudflare Workers セットアップ
 
-1. Cloudflare KV namespace を作る
-2. `cloudflare-worker/wrangler.toml` の `id` / `preview_id` を埋める
-3. `cloudflare-worker/.dev.vars.example` を `.dev.vars` にコピー
-4. `.dev.vars` に secret を入れる
-5. Google Cloud 側で OAuth Web Client を作る
-6. Redirect URI に  
-   `https://YOUR_WORKER_DOMAIN/auth/google/callback`  
-   を追加する
-7. `cloudflare-worker` ディレクトリで:
-   - `npm install`
-   - `npm run dev` または `npm run deploy`
+1. **使う本体フォルダを確認する**  
+   `day-manager-app-main`
+
+2. **Worker 用フォルダへ入る**  
+   `day-manager-app-main/cloudflare-worker`
+
+3. **Cloudflare KV namespace を作る**
+
+4. **`cloudflare-worker/wrangler.toml` の `id` / `preview_id` を埋める**
+
+5. **Worker secrets を設定する**
+
+```bash
+npx wrangler secret put GOOGLE_CLIENT_ID
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+npx wrangler secret put COOKIE_SIGNING_SECRET
+```
+
+6. **Google Cloud 側で OAuth Web Client を設定する**
+
+- Authorized JavaScript origins  
+  `https://YOUR_WORKER_DOMAIN`
+- Authorized redirect URIs  
+  `https://YOUR_WORKER_DOMAIN/auth/google/callback`
+
+7. **Worker を deploy する**
+
+```bash
+npm install
+npm run deploy
+```
+
+---
 
 ## 保存先
 
 - 予定・タスク・体調メモ・モード設定はブラウザの `localStorage`
 - Google 連携ユーザー情報・トークン・取得済み Google 予定キャッシュは Cloudflare KV
 
+---
+
 ## 補足
 
 - Google Calendar 連携は最初は **単発予定のみ** を同期対象にしています
 - 固定予定とタスクは Google Calendar へ自動同期しません
 - Google 側で直接作成した予定は、接続後に対象日ごとに読み込みます
+- `calendar-test.html` は **Worker OAuth 版の疎通確認ページ** として使います
+
+
+## 本格カレンダーUI（追加）
+
+- FullCalendar ベースで、月 / 週 / 日 / 一覧表示を追加
+- ローカル単発予定・固定予定・Google予定を同じカレンダー上で表示
+- ローカル単発予定はドラッグ移動 / リサイズに対応
+- 週 / 月表示に必要な Google 予定は `GET /api/google/events-range` で範囲取得

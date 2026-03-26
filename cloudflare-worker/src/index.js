@@ -5,6 +5,8 @@ const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar.events"
 ];
 
+const APP_TIME_ZONE = "Asia/Tokyo";
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -23,6 +25,9 @@ export default {
     }
     if (url.pathname === "/api/google/events" && request.method === "GET") {
       return handleGetEvents(request, env);
+    }
+    if (url.pathname === "/api/google/events-range" && request.method === "GET") {
+      return handleGetEventsRange(request, env);
     }
     if (url.pathname === "/api/google/local-event-upsert" && request.method === "POST") {
       return handleLocalEventUpsert(request, env);
@@ -174,14 +179,71 @@ async function handleGetEvents(request, env) {
   if (!date) return json({ error: "date が必要です。" }, 400);
 
   let user = session.user;
+  const today = getTodayDateInAppTimeZone();
   const stale = isCacheStale(user.lastBackgroundSyncAt, Number(env.SYNC_INTERVAL_MINUTES || 15));
-  if (!user.cacheByDate?.[date] || stale) {
-    user = await syncOneUser(env, session.userKey, user);
+
+  if (date <= today) {
+    user = await refreshSingleDateCache(env, session.userKey, user, date);
+  } else {
+    if (!user.cacheByDate?.[date] || stale) {
+      user = await syncOneUser(env, session.userKey, user);
+    }
+    if (!user.cacheByDate?.[date]) {
+      user = await refreshSingleDateCache(env, session.userKey, user, date);
+    }
   }
 
   return json({
     items: user.cacheByDate?.[date] || [],
     lastBackgroundSyncAt: user.lastBackgroundSyncAt || ""
+  });
+}
+
+
+
+async function handleGetEventsRange(request, env) {
+  const session = await requireSessionUser(request, env);
+  if (session.error) return session.error;
+
+  const url = new URL(request.url);
+  const start = url.searchParams.get("start") || "";
+  const end = url.searchParams.get("end") || "";
+  if (!start || !end) return json({ error: "start と end が必要です。" }, 400);
+  if (end < start) return json({ error: "end は start 以降にしてください。" }, 400);
+
+  let user = session.user;
+  user = await ensureFreshAccessToken(env, session.userKey, user);
+  const items = await fetchEventsForDateRange(user, start, end);
+
+  const rangeCache = {};
+  for (const dateKey of enumerateDateRange(start, end)) {
+    rangeCache[dateKey] = [];
+  }
+  for (const event of items) {
+    const dateKey = event.start?.date || event.start?.dateTime?.slice(0, 10);
+    if (!dateKey) continue;
+    if (!rangeCache[dateKey]) rangeCache[dateKey] = [];
+    rangeCache[dateKey].push(event);
+  }
+  for (const dateKey of Object.keys(rangeCache)) {
+    rangeCache[dateKey].sort((a, b) => eventSortKey(a).localeCompare(eventSortKey(b)));
+  }
+
+  const nextUser = {
+    ...user,
+    cacheByDate: {
+      ...(user.cacheByDate || {}),
+      ...rangeCache
+    },
+    lastBackgroundSyncAt: new Date().toISOString()
+  };
+  await writeUser(env, session.userKey, nextUser);
+
+  return json({
+    items,
+    start,
+    end,
+    lastBackgroundSyncAt: nextUser.lastBackgroundSyncAt || ""
   });
 }
 
@@ -272,12 +334,69 @@ async function syncAllUsers(env) {
 async function syncOneUser(env, userKey, user) {
   user = await ensureFreshAccessToken(env, userKey, user);
 
-  const now = new Date();
-  const max = new Date(now.getTime() + Number(env.SYNC_LOOKAHEAD_DAYS || 30) * 24 * 60 * 60 * 1000);
+  const today = getTodayDateInAppTimeZone();
+  const { timeMin } = buildDateRangeForGoogleApi(today);
 
+  const max = new Date(Date.now() + Number(env.SYNC_LOOKAHEAD_DAYS || 30) * 24 * 60 * 60 * 1000);
+
+  const items = await fetchEventsList(user, {
+    timeMin,
+    timeMax: max.toISOString()
+  });
+
+  const cacheByDate = {};
+
+  for (const event of items) {
+    const dateKey = event.start?.date || event.start?.dateTime?.slice(0, 10);
+    if (!dateKey) continue;
+    if (!cacheByDate[dateKey]) cacheByDate[dateKey] = [];
+    cacheByDate[dateKey].push(event);
+  }
+
+  for (const dateKey of Object.keys(cacheByDate)) {
+    cacheByDate[dateKey].sort((a, b) => eventSortKey(a).localeCompare(eventSortKey(b)));
+  }
+
+  const nextUser = {
+    ...user,
+    cacheByDate: {
+      ...(user.cacheByDate || {}),
+      ...cacheByDate
+    },
+    lastBackgroundSyncAt: new Date().toISOString()
+  };
+  await writeUser(env, userKey, nextUser);
+  return nextUser;
+}
+
+async function refreshSingleDateCache(env, userKey, user, dateStr) {
+  user = await ensureFreshAccessToken(env, userKey, user);
+  const items = await fetchEventsForDate(user, dateStr);
+  const nextUser = {
+    ...user,
+    cacheByDate: {
+      ...(user.cacheByDate || {}),
+      [dateStr]: items
+    }
+  };
+  await writeUser(env, userKey, nextUser);
+  return nextUser;
+}
+
+async function fetchEventsForDate(user, dateStr) {
+  const { timeMin, timeMax } = buildDateRangeForGoogleApi(dateStr);
+  return fetchEventsList(user, { timeMin, timeMax });
+}
+
+async function fetchEventsForDateRange(user, startDate, endDate) {
+  const { timeMin, timeMax } = buildDateRangeForGoogleApiRange(startDate, endDate);
+  return fetchEventsList(user, { timeMin, timeMax });
+}
+
+async function fetchEventsList(user, { timeMin, timeMax }) {
   const listUrl = new URL("https://www.googleapis.com/calendar/v3/calendars/primary/events");
-  listUrl.searchParams.set("timeMin", now.toISOString());
-  listUrl.searchParams.set("timeMax", max.toISOString());
+  listUrl.searchParams.set("timeMin", timeMin);
+  listUrl.searchParams.set("timeMax", timeMax);
   listUrl.searchParams.set("showDeleted", "false");
   listUrl.searchParams.set("singleEvents", "true");
   listUrl.searchParams.set("orderBy", "startTime");
@@ -294,27 +413,7 @@ async function syncOneUser(env, userKey, user) {
   }
 
   const data = await response.json();
-  const items = data.items || [];
-  const cacheByDate = {};
-
-  for (const event of items) {
-    const dateKey = event.start?.date || event.start?.dateTime?.slice(0, 10);
-    if (!dateKey) continue;
-    if (!cacheByDate[dateKey]) cacheByDate[dateKey] = [];
-    cacheByDate[dateKey].push(event);
-  }
-
-  for (const dateKey of Object.keys(cacheByDate)) {
-    cacheByDate[dateKey].sort((a, b) => eventSortKey(a).localeCompare(eventSortKey(b)));
-  }
-
-  const nextUser = {
-    ...user,
-    cacheByDate,
-    lastBackgroundSyncAt: new Date().toISOString()
-  };
-  await writeUser(env, userKey, nextUser);
-  return nextUser;
+  return (data.items || []).sort((a, b) => eventSortKey(a).localeCompare(eventSortKey(b)));
 }
 
 async function ensureFreshAccessToken(env, userKey, user) {
@@ -373,8 +472,8 @@ function buildGoogleResource(localEvent) {
     throw new Error("Google同期する単発予定は、終日予定にするか、開始・終了時刻の両方を入れてください。");
   }
 
-  resource.start = { dateTime: `${localEvent.date}T${localEvent.start}:00`, timeZone: "Asia/Tokyo" };
-  resource.end = { dateTime: `${localEvent.date}T${localEvent.end}:00`, timeZone: "Asia/Tokyo" };
+  resource.start = { dateTime: `${localEvent.date}T${localEvent.start}:00`, timeZone: APP_TIME_ZONE };
+  resource.end = { dateTime: `${localEvent.date}T${localEvent.end}:00`, timeZone: APP_TIME_ZONE };
   return resource;
 }
 
@@ -506,6 +605,45 @@ function ensureGoogleConfig(env) {
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || !env.COOKIE_SIGNING_SECRET) {
     throw new Error("Cloudflare Worker secrets が未設定です。");
   }
+}
+
+function buildDateRangeForGoogleApi(dateStr) {
+  const start = new Date(`${dateStr}T00:00:00+09:00`);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return {
+    timeMin: start.toISOString(),
+    timeMax: end.toISOString()
+  };
+}
+
+function buildDateRangeForGoogleApiRange(startDateStr, endDateStr) {
+  const start = new Date(`${startDateStr}T00:00:00+09:00`);
+  const end = new Date(`${endDateStr}T00:00:00+09:00`);
+  end.setDate(end.getDate() + 1);
+  return {
+    timeMin: start.toISOString(),
+    timeMax: end.toISOString()
+  };
+}
+
+function enumerateDateRange(startDateStr, endDateStr) {
+  const result = [];
+  const cursor = new Date(`${startDateStr}T00:00:00+09:00`);
+  const end = new Date(`${endDateStr}T00:00:00+09:00`);
+  while (cursor <= end) {
+    result.push(new Intl.DateTimeFormat("en-CA", { timeZone: APP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return result;
+}
+
+function getTodayDateInAppTimeZone() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: APP_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date());
 }
 
 function json(data, status = 200) {

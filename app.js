@@ -8,12 +8,13 @@
   });
 
   async function bootstrap() {
-    const [utilsModule, timeModule, renderModule, actionsModule, googleModule] = await Promise.all([
+    const [utilsModule, timeModule, renderModule, actionsModule, googleModule, calendarModule] = await Promise.all([
       import('./js/utils.js'),
       import('./js/time.js'),
       import('./js/render.js'),
       import('./js/actions.js'),
-      import('./js/google-calendar.js')
+      import('./js/google-calendar.js'),
+      import('./js/calendar-ui.js')
     ]);
 
     await import('./js/product-ui-tune.js');
@@ -49,6 +50,7 @@
     actionsModule.bindEvents();
     renderModule.hydratePlannerMode();
     renderModule.renderCurrentClock();
+    calendarModule.initializeCalendarUi();
     renderModule.renderAll();
 
     registerServiceWorker();

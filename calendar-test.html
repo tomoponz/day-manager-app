@@ -80,9 +80,9 @@
 <body>
   <header class="topbar">
     <div>
-      <p class="eyebrow">Google Calendar / OAuth test</p>
+      <p class="eyebrow">Google Calendar / Worker OAuth test</p>
       <h1>Calendar Connection Test</h1>
-      <p class="sub">本体を壊さずに、Googleカレンダーの接続・一覧取得・追加・削除だけを確認するテスト画面</p>
+      <p class="sub">Cloudflare Worker 経由の Google Calendar 連携だけを、本体から切り離して確認するテスト画面</p>
     </div>
     <div class="header-actions">
       <a href="./index.html"><button class="ghost" type="button">本体に戻る</button></a>
@@ -93,30 +93,24 @@
     <section class="card">
       <div class="card-header">
         <div>
-          <h2>1. 認証情報を入力</h2>
-          <p>Google Cloud で作成した <span class="code-note">Client ID</span> と <span class="code-note">API Key</span> を入れてください。入力値はこのブラウザの localStorage にだけ保存されます。</p>
+          <h2>1. 接続状態</h2>
+          <p>この画面では <span class="code-note">Client ID</span> や <span class="code-note">API Key</span> をブラウザ入力しません。Cloudflare Worker 側の設定で動かします。</p>
         </div>
       </div>
 
-      <form id="configForm" class="form-grid">
-        <label class="full-span">
-          OAuth Client ID
-          <input id="clientIdInput" type="text" placeholder="例: 1234567890-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com" />
-        </label>
-        <label class="full-span">
-          API Key
-          <input id="apiKeyInput" type="text" placeholder="例: AIza..." />
-        </label>
-      </form>
-
       <div class="inline-actions">
-        <button id="saveConfigBtn" class="primary" type="button">入力内容を保存</button>
-        <button id="clearConfigBtn" type="button">保存内容を削除</button>
-        <button id="connectBtn" type="button">Googleで接続</button>
+        <button id="connectBtn" class="primary" type="button">Googleで接続</button>
         <button id="signoutBtn" class="ghost" type="button">接続解除</button>
+        <button id="refreshStatusBtn" type="button">状態を更新</button>
       </div>
 
-      <div id="statusBox" class="status-box" style="margin-top: 1rem;">未接続です。まず Client ID と API Key を保存してください。</div>
+      <div id="statusBox" class="status-box" style="margin-top: 1rem;">接続状態を確認しています...</div>
+
+      <ul class="helper-list" style="margin-top: 1rem;">
+        <li>Google Cloud の値はブラウザではなく Worker secrets に入れる</li>
+        <li>この画面が動けば、本体の Google Calendar 連携もほぼ同じ API で動く</li>
+        <li>この画面は Worker URL 上で開いて使う</li>
+      </ul>
     </section>
 
     <section class="test-grid">
@@ -124,7 +118,7 @@
         <div class="card-header compact">
           <div>
             <h2>2. 指定日の予定を読む</h2>
-            <p>まずは一覧取得ができるか確認する</p>
+            <p>Worker 経由で Google 予定を取得する</p>
           </div>
         </div>
 
@@ -146,7 +140,7 @@
         <div class="card-header compact">
           <div>
             <h2>3. 予定を1件追加</h2>
-            <p>最小構成の単発予定だけ作成する</p>
+            <p>Worker API で Google Calendar に 1 件作成する</p>
           </div>
         </div>
 
@@ -175,9 +169,9 @@
         </form>
 
         <ul class="helper-list" style="margin-top: 1rem;">
-          <li>最初は自分で作ったテスト予定だけを追加して確認する</li>
+          <li>追加後は左の一覧を再読込して確認する</li>
           <li>削除は左の一覧から行う</li>
-          <li>Google接続に失敗したら、Cloud Console の JavaScript origin 設定を確認する</li>
+          <li>接続に失敗したら OAuth redirect URI と Worker secrets を確認する</li>
         </ul>
       </section>
     </section>
@@ -196,8 +190,6 @@
     </article>
   </template>
 
-  <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-  <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
   <script src="calendar-test.js"></script>
 </body>
 </html>

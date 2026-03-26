@@ -3,15 +3,16 @@ import { googleState, hasValidGoogleToken, getCachedGoogleEvents, formatGoogleEv
 import { $ } from "./utils.js";
 import { WEEKDAY_NAMES, getNowContext, formatDateInput } from "./time.js";
 import { getSchedulesForDate, getUpcomingTasks, getPendingTasks, computeFreeSlots, buildAutoPlan, splitSchedulesByNow, buildCurrentStateLines, buildRiskAlerts, buildCutCandidates, formatScheduleLine } from "./planner.js";
+import { refreshCalendarUi, renderCalendarConnectionMeta } from "./calendar-ui.js";
 
 const handlers = { onEditFixed:null,onDuplicateFixed:null,onDeleteFixed:null,onCreateFixed:null,onEditEvent:null,onDuplicateEvent:null,onSyncEvent:null,onSyncUpdatedEvent:null,onDeleteEvent:null,onCreateEvent:null,onQuickSetTaskStatus:null,onDeferTaskToTomorrow:null,onEditTask:null,onDeleteTask:null,onCreateTask:null,onDeleteGoogleEvent:null };
 export function configureRenderHandlers(nextHandlers={}){ Object.assign(handlers,nextHandlers); }
-export function hydrateGoogleConfigInputs(){ const c=$("googleClientId"); const a=$("googleApiKey"); if(c)c.value=googleState.config.clientId||""; if(a)a.value=googleState.config.apiKey||""; }
+export function hydrateGoogleConfigInputs(){}
 export function hydratePlannerMode(){ const s=$("plannerMode"); if(s)s.value=state.uiState?.plannerMode||"auto"; }
 export function hydrateSettingsInputs(){ if($("focusMinutesTarget")) $("focusMinutesTarget").value=String(state.settings?.focusMinutesTarget??180); if($("bufferMinutes")) $("bufferMinutes").value=String(state.settings?.bufferMinutes??10); }
 export function loadConditionInputsForDate(date){ const d=state.dayConditions[date]||{sleepHours:"",fatigue:"",note:""}; $("sleepHours").value=d.sleepHours||""; $("fatigue").value=d.fatigue||""; $("conditionNote").value=d.note||""; }
 export function renderCurrentClock(){ const ctx=getNowContext($("selectedDate")?.value||formatDateInput(new Date()),state.uiState?.plannerMode||"auto"); $("currentDateTime").textContent=ctx.currentDateLabel; $("currentDateMeta").textContent=`${ctx.timeZone} / ${WEEKDAY_NAMES[ctx.now.getDay()]}曜日 / 現在時刻を基準に再設計`; updateActiveModeChip(ctx); }
-export function renderAll(){ renderCurrentClock(); hydrateSettingsInputs(); renderFixedSchedules(); renderOneOffEvents(); renderTasks(); renderGoogleEventList(); renderCurrentState(); renderSummaries(); renderAutoPlan(); updateGoogleConnectionBadge(); }
+export function renderAll(){ renderCurrentClock(); hydrateSettingsInputs(); renderFixedSchedules(); renderOneOffEvents(); renderTasks(); renderGoogleEventList(); renderCurrentState(); renderSummaries(); renderAutoPlan(); updateGoogleConnectionBadge(); renderCalendarConnectionMeta(); refreshCalendarUi(); }
 
 export function renderFixedSchedules(){ const wrap=$("fixedList"); wrap.innerHTML=""; const items=[...state.fixedSchedules].sort((a,b)=>a.weekday-b.weekday||a.start.localeCompare(b.start)); if(!items.length){ renderEmptyState(wrap,{message:"固定予定がまだありません。まずは授業や通学などの毎週予定を入れると判断が安定します。",primaryLabel:"＋ 固定予定を追加する",onPrimary:()=>handlers.onCreateFixed?.()}); return; } wrap.className="list-wrap"; items.forEach((item)=>wrap.appendChild(createListItem({ title:item.title,badges:[makeBadge("毎週固定","ok"),makeBadge(`${WEEKDAY_NAMES[item.weekday]}曜日`),makeBadge(`${item.start} - ${item.end}`,"blue")],detail:item.note?`補足: ${item.note}`:"",note:item.note,actions:[makeActionButton("編集",()=>handlers.onEditFixed?.(item.id)),makeActionButton("複製",()=>handlers.onDuplicateFixed?.(item.id)),makeDeleteButton(()=>handlers.onDeleteFixed?.(item.id))],itemClassName:"fixed-item"}))); }
 
@@ -28,7 +29,7 @@ export function renderSummaries(){ const selectedDate=$("selectedDate").value; c
 export function renderAutoPlan(){ const date=$("selectedDate").value; const plan=buildAutoPlan(date); fillSummary($("autoTopThree"),plan.topThree); fillSummary($("autoTimeline"),plan.timeline); $("autoPlanNote").textContent=`${plan.note} / 集中ブロック: ${plan.focusSummary}`; }
 
 export function updateGoogleStatus(message,variant=""){ const box=$("googleStatusBox"); if(!box) return; box.textContent=message; box.className="calendar-status"; if(variant) box.classList.add(variant); }
-export function updateGoogleConnectionBadge(){ const badge=$("googleConnectionBadge"); if(!badge) return; badge.className="calendar-badge"; if(hasValidGoogleToken()){ badge.textContent="接続中"; badge.classList.add("connected"); } else if(googleState.config.clientId && googleState.config.apiKey){ badge.textContent="設定済み"; } else { badge.textContent="未接続"; } }
+export function updateGoogleConnectionBadge(){ const badge=$("googleConnectionBadge"); if(!badge) return; badge.className="calendar-badge"; if(hasValidGoogleToken()){ badge.textContent="接続中"; badge.classList.add("connected"); } else { badge.textContent="未接続"; } }
 export function updateStateNote(message){ const note=$("stateNote"); if(note) note.textContent=message; }
 function updateActiveModeChip(ctx){ const chip=$("activeModeChip"); if(!chip) return; chip.className="mode-chip active"; chip.textContent=ctx.effectiveModeLabel; }
 function fillSummary(container,lines){ container.innerHTML=""; if(!lines.length){ container.className="summary-list empty"; container.textContent="まだありません"; return; } container.className="summary-list"; lines.forEach((line)=>{ const div=document.createElement("div"); div.className="summary-chip"; div.textContent=line; container.appendChild(div); }); }

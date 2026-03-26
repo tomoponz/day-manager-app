@@ -9,8 +9,8 @@ run_worker_first = ["/api/*", "/auth/*"]
 
 [[kv_namespaces]]
 binding = "DM_STORE"
-id = "YOUR_KV_NAMESPACE_ID"
-preview_id = "YOUR_KV_NAMESPACE_PREVIEW_ID"
+id = "bc707384b6ef4423a50a65649a473e03"
+preview_id = "b29b9d3ea44d45bfb22e188417897e86"
 
 [vars]
 SYNC_INTERVAL_MINUTES = "15"
