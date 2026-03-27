@@ -7,6 +7,7 @@ export const INITIAL_STATE = {
   tasks: [],
   courses: [],
   materials: [],
+  assessments: [],
   dayConditions: {},
   weeklyPlans: {},
   milestones: [],
@@ -33,6 +34,7 @@ export function loadState() {
       tasks: (parsed.tasks || []).map(normalizeTask),
       courses: (parsed.courses || []).map(normalizeCourse),
       materials: (parsed.materials || []).map(normalizeMaterial),
+      assessments: (parsed.assessments || []).map(normalizeAssessment),
       dayConditions: parsed.dayConditions || {},
       weeklyPlans: normalizeWeeklyPlans(parsed.weeklyPlans),
       milestones: (parsed.milestones || []).map(normalizeMilestone),
@@ -145,6 +147,21 @@ export function normalizeMaterial(item) {
     understanding: normalizeOptionalNumber(item.understanding),
     nextTarget: item.nextTarget || "",
     reviewNeeded: Boolean(item.reviewNeeded),
+    note: item.note || ""
+  };
+}
+
+export function normalizeAssessment(item) {
+  return {
+    id: item.id || crypto.randomUUID(),
+    courseId: item.courseId || "",
+    title: item.title || "",
+    type: item.type || "report",
+    dueDate: item.dueDate || "",
+    dueTime: item.dueTime || "",
+    weight: normalizeOptionalNumber(item.weight),
+    importance: item.importance || "高",
+    status: item.status || "未着手",
     note: item.note || ""
   };
 }

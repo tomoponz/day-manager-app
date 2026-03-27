@@ -40,6 +40,10 @@ export function generatePrompt() {
     study.materialLines.join("\n"),
     "今日進める教材候補：",
     study.focusLines.join("\n"),
+    "科目危険度ランキング：",
+    study.riskLines.join("\n"),
+    "学業の締切マップ：",
+    study.deadlineLines.join("\n"),
     "現在地点：",
     split.current.length ? split.current.map((item) => `- 進行中 / ${formatScheduleLine(item)}`).join("\n") : "- 進行中予定なし",
     split.upcoming.length ? split.upcoming.slice(0, 5).map((item) => `- これから / ${formatScheduleLine(item)}`).join("\n") : "- これからの予定少なめ",
@@ -66,9 +70,10 @@ export function generatePrompt() {
     "出力形式：",
     "1. いまからの最優先3件",
     "2. 現在時刻以降の時間ブロック化した1日設計",
-    "3. 今やらないこと",
-    "4. 詰まった時の代替案",
-    "5. 夜の締め条件"
+    "3. 学業面で今日進めるべき教材・締切",
+    "4. 今やらないこと",
+    "5. 詰まった時の代替案",
+    "6. 夜の締め条件"
   ].join("\n");
 
   $("promptOutput").value = text;

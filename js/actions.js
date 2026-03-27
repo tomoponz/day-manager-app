@@ -1,4 +1,4 @@
-import { state, saveState, normalizeOneOffEvent, normalizeFixedSchedule, normalizeTask, normalizeCourse, normalizeMaterial } from './state.js';
+import { state, saveState, normalizeOneOffEvent, normalizeFixedSchedule, normalizeTask, normalizeCourse, normalizeMaterial, normalizeAssessment } from './state.js';
 import { $, debounce, getFormValue } from './utils.js';
 import { addDays, formatDateInput, formatTimeOnly, isSelectedDateToday, isValidTimeRange, roundToFiveMinutes } from './time.js';
 import { renderAll, renderCurrentState, renderAutoPlan, updateStateNote, loadConditionInputsForDate } from './render.js';
@@ -614,6 +614,7 @@ function importData(e) {
       state.tasks = (parsed.tasks || []).map(normalizeTask);
       state.courses = (parsed.courses || []).map(normalizeCourse);
       state.materials = (parsed.materials || []).map(normalizeMaterial);
+      state.assessments = (parsed.assessments || []).map(normalizeAssessment);
       state.dayConditions = parsed.dayConditions || {};
       state.settings = {
         focusMinutesTarget: Number(parsed.settings?.focusMinutesTarget ?? state.settings.focusMinutesTarget),

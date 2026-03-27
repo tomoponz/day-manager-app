@@ -164,6 +164,11 @@ export function refreshCalendarUi() {
   renderCalendarConnectionMeta();
 }
 
+export function resizeCalendarUi() {
+  if (!calendar) return;
+  calendar.updateSize();
+}
+
 export function renderCalendarConnectionMeta() {
   const target = $("calendarConnectionMeta");
   if (!target) return;

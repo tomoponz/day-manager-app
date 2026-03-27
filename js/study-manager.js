@@ -1,5 +1,6 @@
-import { state, saveState, normalizeCourse, normalizeMaterial } from "./state.js";
+import { state, saveState, normalizeCourse, normalizeMaterial, normalizeAssessment } from "./state.js";
 import { $ } from "./utils.js";
+import { formatDateInput } from "./time.js";
 import { showToast, confirmDialog } from "./ui-feedback.js";
 
 const COURSE_RISK_LABELS = {
@@ -17,6 +18,21 @@ const MATERIAL_KIND_LABELS = {
   other: "その他"
 };
 
+const ASSESSMENT_TYPE_LABELS = {
+  exam: "試験",
+  report: "レポート",
+  presentation: "発表",
+  quiz: "小テスト",
+  homework: "宿題",
+  other: "その他"
+};
+
+const ASSESSMENT_STATUS_LABELS = {
+  todo: "未着手",
+  doing: "進行中",
+  done: "完了"
+};
+
 function on(id, event, handler) {
   $(id)?.addEventListener(event, handler);
 }
@@ -28,29 +44,42 @@ export function initializeStudyManager() {
 
 export function renderStudyManager() {
   hydrateMaterialCourseOptions();
+  hydrateAssessmentCourseOptions();
   renderStudyOverview();
+  renderStudyRiskList();
   renderCourseList();
   renderMaterialList();
+  renderAssessmentList();
 }
 
 function bindStudyEvents() {
   on("courseForm", "submit", onSubmitCourse);
   on("materialForm", "submit", onSubmitMaterial);
+  on("assessmentForm", "submit", onSubmitAssessment);
 
   on("courseCancelBtn", "click", resetCourseForm);
   on("materialCancelBtn", "click", resetMaterialForm);
+  on("assessmentCancelBtn", "click", resetAssessmentForm);
 }
 
 function hydrateMaterialCourseOptions(selectedCourseId = "") {
   const select = document.querySelector("#materialForm select[name='courseId']");
-  if (!select) return;
+  hydrateCourseOptionsInto(select, selectedCourseId, "先に科目を追加");
+}
 
+function hydrateAssessmentCourseOptions(selectedCourseId = "") {
+  const select = document.querySelector("#assessmentForm select[name='courseId']");
+  hydrateCourseOptionsInto(select, selectedCourseId, "先に科目を追加");
+}
+
+function hydrateCourseOptionsInto(select, selectedCourseId = "", emptyLabel = "先に科目を追加") {
+  if (!select) return;
   const previousValue = selectedCourseId || select.value || "";
   select.innerHTML = "";
 
   const placeholder = document.createElement("option");
   placeholder.value = "";
-  placeholder.textContent = state.courses.length ? "科目を選択" : "先に科目を追加";
+  placeholder.textContent = state.courses.length ? "科目を選択" : emptyLabel;
   select.appendChild(placeholder);
 
   state.courses.forEach((course) => {
@@ -68,23 +97,41 @@ function renderStudyOverview() {
 
   const courses = state.courses || [];
   const materials = state.materials || [];
+  const assessments = state.assessments || [];
   const highRiskCount = courses.filter((course) => course.riskStatus === "high").length;
   const reviewCount = materials.filter((material) => material.reviewNeeded).length;
   const lowUnderstandingCount = materials.filter((material) => Number(material.understanding || 0) > 0 && Number(material.understanding || 0) <= 4).length;
+  const dueSoonCount = assessments.filter((item) => isAssessmentDueSoon(item)).length;
+  const overdueCount = assessments.filter((item) => isAssessmentOverdue(item)).length;
   const focusCandidates = buildFocusCandidates().slice(0, 3);
 
   const lines = [];
   if (courses.length) lines.push(`科目 ${courses.length}件`);
   if (materials.length) lines.push(`教材 ${materials.length}件`);
+  if (assessments.length) lines.push(`締切管理 ${assessments.length}件`);
   if (highRiskCount) lines.push(`危険科目 ${highRiskCount}件`);
   if (reviewCount) lines.push(`復習必要 ${reviewCount}件`);
   if (lowUnderstandingCount) lines.push(`理解度低め ${lowUnderstandingCount}件`);
+  if (dueSoonCount) lines.push(`3日以内の締切 ${dueSoonCount}件`);
+  if (overdueCount) lines.push(`期限超過 ${overdueCount}件`);
   if (focusCandidates.length) {
     focusCandidates.forEach((candidate) => {
       lines.push(`今日進める候補: ${candidate.courseTitle} / ${candidate.title}`);
     });
   }
 
+  fillSummaryList(wrap, lines, "まだありません");
+}
+
+function renderStudyRiskList() {
+  const wrap = $("studyRiskList");
+  if (!wrap) return;
+
+  const ranking = buildCourseRiskRanking().slice(0, 6);
+  const lines = ranking.map((entry) => {
+    const reasons = entry.reasons.length ? ` / 理由:${entry.reasons.join("・")}` : "";
+    return `${entry.courseTitle} / リスク:${entry.levelLabel} / スコア:${entry.score}${reasons}`;
+  });
   fillSummaryList(wrap, lines, "まだありません");
 }
 
@@ -105,12 +152,19 @@ function renderCourseList() {
     .slice()
     .sort((a, b) => a.title.localeCompare(b.title, "ja"))
     .forEach((course) => {
+      const linkedMaterials = state.materials.filter((material) => material.courseId === course.id).length;
+      const linkedAssessments = state.assessments.filter((assessment) => assessment.courseId === course.id).length;
+      const riskEntry = buildCourseRiskRanking().find((entry) => entry.courseId === course.id);
+
       const item = createListItem({
         title: course.title,
         badges: [
           makeBadge(`危険度:${COURSE_RISK_LABELS[course.riskStatus] || "要注意"}`, course.riskStatus === "high" ? "danger" : course.riskStatus === "low" ? "ok" : "warn"),
           course.credits !== "" ? makeBadge(`単位:${course.credits}`) : null,
-          course.instructor ? makeBadge(course.instructor, "blue") : null
+          course.instructor ? makeBadge(course.instructor, "blue") : null,
+          makeBadge(`教材:${linkedMaterials}件`),
+          makeBadge(`締切:${linkedAssessments}件`, linkedAssessments ? "warn" : ""),
+          riskEntry ? makeBadge(`総合:${riskEntry.levelLabel}`, riskEntry.level === "high" ? "danger" : riskEntry.level === "medium" ? "warn" : "ok") : null
         ].filter(Boolean),
         detail: [
           course.scheduleMemo ? `授業情報: ${course.scheduleMemo}` : "",
@@ -174,6 +228,46 @@ function renderMaterialList() {
       actions.appendChild(makeButton("+5", () => advanceMaterial(material.id, 5)));
       actions.appendChild(makeButton("編集", () => populateMaterialForm(material.id)));
       actions.appendChild(makeDeleteButton(() => deleteMaterial(material.id)));
+      wrap.appendChild(item);
+    });
+}
+
+function renderAssessmentList() {
+  const wrap = $("assessmentList");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+
+  if (!state.assessments.length) {
+    wrap.className = "list-wrap empty";
+    wrap.textContent = "まだありません";
+    return;
+  }
+
+  wrap.className = "list-wrap";
+
+  state.assessments
+    .slice()
+    .sort((a, b) => buildAssessmentSortKey(a).localeCompare(buildAssessmentSortKey(b)))
+    .forEach((assessment) => {
+      const dueText = buildAssessmentDueText(assessment);
+      const item = createListItem({
+        title: `${getCourseTitle(assessment.courseId)} / ${assessment.title}`,
+        badges: [
+          makeBadge(ASSESSMENT_TYPE_LABELS[assessment.type] || "締切", "blue"),
+          makeBadge(dueText, isAssessmentOverdue(assessment) ? "danger" : isAssessmentDueSoon(assessment) ? "warn" : ""),
+          makeBadge(`状態:${ASSESSMENT_STATUS_LABELS[assessment.status] || "未着手"}`, assessment.status === "done" ? "ok" : assessment.status === "doing" ? "warn" : ""),
+          assessment.weight !== "" ? makeBadge(`配点:${assessment.weight}%`) : null,
+          makeBadge(`重要度:${assessment.importance}`, assessment.importance === "高" ? "danger" : assessment.importance === "中" ? "warn" : "")
+        ].filter(Boolean),
+        detail: assessment.note || "",
+        note: ""
+      });
+
+      const actions = item.querySelector(".list-actions");
+      if (assessment.status !== "doing") actions.appendChild(makeButton("着手", () => updateAssessmentStatus(assessment.id, "doing")));
+      if (assessment.status !== "done") actions.appendChild(makeButton("完了", () => updateAssessmentStatus(assessment.id, "done")));
+      actions.appendChild(makeButton("編集", () => populateAssessmentForm(assessment.id)));
+      actions.appendChild(makeDeleteButton(() => deleteAssessment(assessment.id)));
       wrap.appendChild(item);
     });
 }
@@ -261,6 +355,48 @@ async function onSubmitMaterial(event) {
   renderStudyManager();
 }
 
+async function onSubmitAssessment(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const editingId = String(data.get("editId") || "");
+  const payload = normalizeAssessment({
+    id: editingId || crypto.randomUUID(),
+    courseId: String(data.get("courseId") || ""),
+    title: String(data.get("title") || "").trim(),
+    type: String(data.get("type") || "report"),
+    dueDate: String(data.get("dueDate") || ""),
+    dueTime: String(data.get("dueTime") || ""),
+    weight: String(data.get("weight") || "").trim(),
+    importance: String(data.get("importance") || "高"),
+    status: String(data.get("status") || "todo"),
+    note: String(data.get("note") || "").trim()
+  });
+
+  if (!payload.courseId) {
+    showToast("科目を選んでください。", { variant: "warn" });
+    return;
+  }
+  if (!payload.title || !payload.dueDate) {
+    showToast("締切名と締切日を入力してください。", { variant: "warn" });
+    return;
+  }
+
+  if (editingId) {
+    const target = state.assessments.find((assessment) => assessment.id === editingId);
+    if (!target) return;
+    Object.assign(target, payload);
+    showToast("締切を更新しました。", { variant: "ok", duration: 1800 });
+  } else {
+    state.assessments.push(payload);
+    showToast("締切を追加しました。", { variant: "ok", duration: 1800 });
+  }
+
+  saveState();
+  resetAssessmentForm();
+  renderStudyManager();
+}
+
 function resetCourseForm() {
   const form = $("courseForm");
   if (!form) return;
@@ -288,6 +424,24 @@ function resetMaterialForm() {
   const cancel = $("materialCancelBtn");
   if (cancel) cancel.hidden = true;
   const panel = $("materialFormPanel");
+  if (panel) panel.open = false;
+}
+
+function resetAssessmentForm() {
+  const form = $("assessmentForm");
+  if (!form) return;
+  const currentCourseId = form.elements.courseId.value || "";
+  form.reset();
+  form.elements.editId.value = "";
+  hydrateAssessmentCourseOptions(currentCourseId);
+  form.elements.type.value = "report";
+  form.elements.importance.value = "高";
+  form.elements.status.value = "todo";
+  const submit = $("assessmentSubmitBtn");
+  if (submit) submit.textContent = "締切を追加";
+  const cancel = $("assessmentCancelBtn");
+  if (cancel) cancel.hidden = true;
+  const panel = $("assessmentFormPanel");
   if (panel) panel.open = false;
 }
 
@@ -343,16 +497,42 @@ function populateMaterialForm(id) {
   form.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
+function populateAssessmentForm(id) {
+  const assessment = state.assessments.find((item) => item.id === id);
+  if (!assessment) return;
+  const form = $("assessmentForm");
+  if (!form) return;
+
+  form.elements.editId.value = assessment.id;
+  hydrateAssessmentCourseOptions(assessment.courseId);
+  form.elements.courseId.value = assessment.courseId;
+  form.elements.title.value = assessment.title;
+  form.elements.type.value = assessment.type;
+  form.elements.dueDate.value = assessment.dueDate;
+  form.elements.dueTime.value = assessment.dueTime;
+  form.elements.weight.value = assessment.weight;
+  form.elements.importance.value = assessment.importance;
+  form.elements.status.value = assessment.status;
+  form.elements.note.value = assessment.note;
+
+  const submit = $("assessmentSubmitBtn");
+  if (submit) submit.textContent = "締切を更新";
+  const cancel = $("assessmentCancelBtn");
+  if (cancel) cancel.hidden = false;
+  const panel = $("assessmentFormPanel");
+  if (panel) panel.open = true;
+  form.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
 async function deleteCourse(id) {
   const course = state.courses.find((item) => item.id === id);
   if (!course) return;
 
   const linkedMaterials = state.materials.filter((item) => item.courseId === id).length;
+  const linkedAssessments = state.assessments.filter((item) => item.courseId === id).length;
   const ok = await confirmDialog({
     title: "科目を削除",
-    message: linkedMaterials
-      ? `「${course.title}」を削除すると、紐づく教材 ${linkedMaterials} 件も削除されます。続けますか？`
-      : `「${course.title}」を削除します。続けますか？`,
+    message: `「${course.title}」を削除すると、教材 ${linkedMaterials} 件と締切 ${linkedAssessments} 件も削除されます。続けますか？`,
     confirmText: "削除",
     danger: true
   });
@@ -360,6 +540,7 @@ async function deleteCourse(id) {
 
   state.courses = state.courses.filter((item) => item.id !== id);
   state.materials = state.materials.filter((item) => item.courseId !== id);
+  state.assessments = state.assessments.filter((item) => item.courseId !== id);
   saveState();
   renderStudyManager();
   showToast("科目を削除しました。", { variant: "ok", duration: 1800 });
@@ -383,6 +564,24 @@ async function deleteMaterial(id) {
   showToast("教材を削除しました。", { variant: "ok", duration: 1800 });
 }
 
+async function deleteAssessment(id) {
+  const assessment = state.assessments.find((item) => item.id === id);
+  if (!assessment) return;
+
+  const ok = await confirmDialog({
+    title: "締切を削除",
+    message: `「${assessment.title}」を削除します。続けますか？`,
+    confirmText: "削除",
+    danger: true
+  });
+  if (!ok) return;
+
+  state.assessments = state.assessments.filter((item) => item.id !== id);
+  saveState();
+  renderStudyManager();
+  showToast("締切を削除しました。", { variant: "ok", duration: 1800 });
+}
+
 function advanceMaterial(id, amount) {
   const material = state.materials.find((item) => item.id === id);
   if (!material) return;
@@ -399,6 +598,15 @@ function advanceMaterial(id, amount) {
   saveState();
   renderStudyManager();
   showToast(`進度を ${amount}${material.unitLabel || "p"} 進めました。`, { variant: "ok", duration: 1600 });
+}
+
+function updateAssessmentStatus(id, status) {
+  const assessment = state.assessments.find((item) => item.id === id);
+  if (!assessment) return;
+  assessment.status = status;
+  saveState();
+  renderStudyManager();
+  showToast(`締切状態を「${ASSESSMENT_STATUS_LABELS[status] || status}」に変更しました。`, { variant: "ok", duration: 1600 });
 }
 
 function getCourseTitle(courseId) {
@@ -424,6 +632,9 @@ function buildFocusCandidates() {
 
 function calculateFocusScore(material) {
   const course = state.courses.find((item) => item.id === material.courseId);
+  const relatedAssessments = state.assessments.filter((item) => item.courseId === material.courseId && item.status !== "done");
+  const dueSoonScore = relatedAssessments.reduce((sum, item) => sum + getAssessmentUrgencyScore(item), 0);
+
   const courseRiskScore = course?.riskStatus === "high" ? 25 : course?.riskStatus === "medium" ? 12 : 0;
   const reviewScore = material.reviewNeeded ? 35 : 0;
   const understanding = material.understanding === "" ? 6 : Number(material.understanding);
@@ -433,7 +644,99 @@ function calculateFocusScore(material) {
     const ratio = Number(material.currentUnits || 0) / Number(material.totalUnits);
     progressScore = Math.max(0, 1 - ratio) * 20;
   }
-  return courseRiskScore + reviewScore + understandingScore + progressScore;
+  return courseRiskScore + reviewScore + understandingScore + progressScore + dueSoonScore;
+}
+
+function buildCourseRiskRanking() {
+  return state.courses
+    .map((course) => {
+      const materials = state.materials.filter((item) => item.courseId === course.id);
+      const assessments = state.assessments.filter((item) => item.courseId === course.id && item.status !== "done");
+      const reasons = [];
+      let score = course.riskStatus === "high" ? 45 : course.riskStatus === "medium" ? 25 : 10;
+
+      if (course.riskStatus === "high") reasons.push("手動で危険指定");
+
+      const lowUnderstandingCount = materials.filter((item) => item.understanding !== "" && Number(item.understanding) <= 4).length;
+      if (lowUnderstandingCount) {
+        score += lowUnderstandingCount * 8;
+        reasons.push(`理解度低め ${lowUnderstandingCount}件`);
+      }
+
+      const reviewCount = materials.filter((item) => item.reviewNeeded).length;
+      if (reviewCount) {
+        score += reviewCount * 12;
+        reasons.push(`復習必要 ${reviewCount}件`);
+      }
+
+      const dueSoonCount = assessments.filter((item) => isAssessmentDueSoon(item)).length;
+      const overdueCount = assessments.filter((item) => isAssessmentOverdue(item)).length;
+      if (dueSoonCount) {
+        score += dueSoonCount * 14;
+        reasons.push(`3日以内の締切 ${dueSoonCount}件`);
+      }
+      if (overdueCount) {
+        score += overdueCount * 20;
+        reasons.push(`期限超過 ${overdueCount}件`);
+      }
+
+      score += assessments.reduce((sum, item) => sum + getAssessmentUrgencyScore(item), 0);
+
+      const level = score >= 85 ? "high" : score >= 45 ? "medium" : "low";
+      const levelLabel = level === "high" ? "危険" : level === "medium" ? "要注意" : "安定";
+
+      return {
+        courseId: course.id,
+        courseTitle: course.title,
+        score: Math.round(score),
+        level,
+        levelLabel,
+        reasons
+      };
+    })
+    .sort((a, b) => b.score - a.score);
+}
+
+function getAssessmentUrgencyScore(assessment) {
+  const dayDiff = getAssessmentDayDiff(assessment);
+  const importanceScore = assessment.importance === "高" ? 18 : assessment.importance === "中" ? 10 : 4;
+  const typeScore = assessment.type === "exam" ? 14 : assessment.type === "report" ? 10 : assessment.type === "presentation" ? 8 : 4;
+
+  if (dayDiff === null) return importanceScore + typeScore;
+  if (dayDiff < 0) return 28 + importanceScore + typeScore;
+  if (dayDiff <= 1) return 24 + importanceScore + typeScore;
+  if (dayDiff <= 3) return 16 + importanceScore + typeScore;
+  if (dayDiff <= 7) return 8 + importanceScore + typeScore;
+  return importanceScore + typeScore;
+}
+
+function getAssessmentDayDiff(assessment) {
+  if (!assessment.dueDate) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(`${assessment.dueDate}T00:00:00`);
+  return Math.floor((due.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+function isAssessmentDueSoon(assessment) {
+  if (assessment.status === "done") return false;
+  const diff = getAssessmentDayDiff(assessment);
+  return diff !== null && diff >= 0 && diff <= 3;
+}
+
+function isAssessmentOverdue(assessment) {
+  if (assessment.status === "done") return false;
+  const diff = getAssessmentDayDiff(assessment);
+  return diff !== null && diff < 0;
+}
+
+function buildAssessmentSortKey(assessment) {
+  return `${assessment.dueDate || "9999-12-31"} ${assessment.dueTime || "99:99"} ${getCourseTitle(assessment.courseId)} ${assessment.title}`;
+}
+
+function buildAssessmentDueText(assessment) {
+  const time = assessment.dueTime ? ` ${assessment.dueTime}` : "";
+  return `締切:${assessment.dueDate || "未設定"}${time}`;
 }
 
 function fillSummaryList(container, lines, emptyText) {
@@ -516,6 +819,7 @@ function makeDeleteButton(onClick) {
 }
 
 export function buildStudyPromptSection() {
+  const riskRanking = buildCourseRiskRanking();
   const courseLines = state.courses.length
     ? state.courses
       .slice()
@@ -526,8 +830,9 @@ export function buildStudyPromptSection() {
       })
       .map((course) => {
         const linkedCount = state.materials.filter((material) => material.courseId === course.id).length;
+        const linkedAssessments = state.assessments.filter((assessment) => assessment.courseId === course.id && assessment.status !== "done").length;
         const credits = course.credits === "" ? "未入力" : String(course.credits);
-        return `- ${course.title} / 単位:${credits} / 危険度:${COURSE_RISK_LABELS[course.riskStatus] || "要注意"} / 教材:${linkedCount}件 / 評価:${course.gradingMemo || "未入力"}${course.note ? ` / ${course.note}` : ""}`;
+        return `- ${course.title} / 単位:${credits} / 危険度:${COURSE_RISK_LABELS[course.riskStatus] || "要注意"} / 教材:${linkedCount}件 / 未完了締切:${linkedAssessments}件 / 評価:${course.gradingMemo || "未入力"}${course.note ? ` / ${course.note}` : ""}`;
       })
     : ["- なし"];
 
@@ -555,7 +860,20 @@ export function buildStudyPromptSection() {
       })
     : ["- なし"];
 
-  return { courseLines, materialLines, focusLines };
+  const riskLines = riskRanking.length
+    ? riskRanking.slice(0, 5).map((entry) => `- ${entry.courseTitle} / 総合危険度:${entry.levelLabel} / スコア:${entry.score}${entry.reasons.length ? ` / 理由:${entry.reasons.join("・")}` : ""}`)
+    : ["- なし"];
+
+  const deadlineLines = state.assessments.length
+    ? state.assessments
+      .filter((assessment) => assessment.status !== "done")
+      .slice()
+      .sort((a, b) => buildAssessmentSortKey(a).localeCompare(buildAssessmentSortKey(b)))
+      .slice(0, 8)
+      .map((assessment) => `- ${getCourseTitle(assessment.courseId)} / ${assessment.title} / ${ASSESSMENT_TYPE_LABELS[assessment.type] || "締切"} / ${buildAssessmentDueText(assessment)} / 状態:${ASSESSMENT_STATUS_LABELS[assessment.status] || "未着手"} / 重要度:${assessment.importance}${assessment.weight !== "" ? ` / 配点:${assessment.weight}%` : ""}${assessment.note ? ` / ${assessment.note}` : ""}`)
+    : ["- なし"];
+
+  return { courseLines, materialLines, focusLines, riskLines, deadlineLines };
 }
 
 function riskRank(status) {
