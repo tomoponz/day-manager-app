@@ -58,8 +58,37 @@
 <button aria-label="追加パネルを閉じる" class="ghost quick-add-drawer__close" data-close-quick-add="true" type="button">閉じる</button>
 </div>
 <div class="quick-add-drawer__body">
+      <section class="card inner-card">
+<div class="card-header">
+<div>
+<h2>追加</h2>
+<p>予定やタスクは、書き方を覚えなくても追加できるようにします。</p>
+</div>
+</div>
+<div class="quick-add-box">
+<label>
+          クイック追加
+          <input id="quickAddInput" placeholder="例: 明日14:00 A社MTG / タスク: 線形レポ 60分 高 必須" type="text"/>
+</label>
+<div class="quick-add-actions">
+<button class="primary" id="quickAddBtn" type="button">1行で追加</button>
+</div>
+<div class="quick-example-row">
+<button class="quick-chip" data-quick-example="明日14:00 面談" type="button">明日14:00 面談</button>
+<button class="quick-chip" data-quick-example="タスク: 線形レポ 60分 高 必須" type="button">タスク: 線形レポ 60分 高 必須</button>
+<button class="quick-chip" data-quick-example="今日中 物理復習 30分" type="button">今日中 物理復習 30分</button>
+<button class="quick-chip" data-quick-example="今夜 レポート 1h 必須" type="button">今夜 レポート 1h 必須</button>
+</div>
+<p class="quick-add-note">押せる例をそのまま使えます。入力のしかたを覚えなくても追加できます。</p>
+<div class="quick-add-result" id="quickAddResult"></div>
+</div>
+      </section>
+    </div>
+  </aside>
+</div>
 
-<main class="container workflow-shell"><section class="card workspace-section" data-workspace-section="primary" id="judgementSection">
+<main class="container workflow-shell">
+<section class="card workspace-section" data-workspace-section="primary" id="judgementSection">
 <div class="card-header">
 <div>
 <h2>今日の判断</h2>
@@ -204,34 +233,6 @@
 <p class="calendar-note" id="autoPlanNote">空き時間とタスクから自動候補を生成します。体力が低い日は重いタスクの優先度を少し下げます。</p>
 </section>
 
-
-<div class="card-header">
-<div>
-<h2>追加</h2>
-<p>予定やタスクは、書き方を覚えなくても追加できるようにします。</p>
-</div>
-</div>
-<div class="quick-add-box">
-<label>
-          クイック追加
-          <input id="quickAddInput" placeholder="例: 明日14:00 A社MTG / タスク: 線形レポ 60分 高 必須" type="text"/>
-</label>
-<div class="quick-add-actions">
-<button class="primary" id="quickAddBtn" type="button">1行で追加</button>
-</div>
-<div class="quick-example-row">
-<button class="quick-chip" data-quick-example="明日14:00 面談" type="button">明日14:00 面談</button>
-<button class="quick-chip" data-quick-example="タスク: 線形レポ 60分 高 必須" type="button">タスク: 線形レポ 60分 高 必須</button>
-<button class="quick-chip" data-quick-example="今日中 物理復習 30分" type="button">今日中 物理復習 30分</button>
-<button class="quick-chip" data-quick-example="今夜 レポート 1h 必須" type="button">今夜 レポート 1h 必須</button>
-</div>
-<p class="quick-add-note">押せる例をそのまま使えます。入力のしかたを覚えなくても追加できます。</p>
-<div class="quick-add-result" id="quickAddResult"></div>
-</div>
-</div>
-</aside>
-</div>
-
 <section class="card workspace-section" data-workspace-section="primary" id="todayListSection">
 <div class="card-header">
 <div>
@@ -310,40 +311,25 @@
 </div>
 </section>
 
-<details class="card settings-card utility-panel" id="studyToolsPanel"><summary class="settings-summary"><span><strong>大学学習管理</strong><span class="micro-note">危険・締切・今日やる候補だけを先に見せ、詳細管理は下にたたみます。</span></span><span class="mode-chip">補助</span></summary><div class="settings-body management-stack"><section class="utility-section" id="studyManagerSection">
+<details class="card settings-card utility-panel" id="studyToolsPanel"><summary class="settings-summary"><span><strong>大学学習管理</strong><span class="micro-note">毎日見る主画面から外し、必要なときだけ開きます。</span></span><span class="mode-chip">補助</span></summary><div class="settings-body management-stack"><section class="utility-section" id="studyManagerSection">
 <div class="card-header">
 <div>
 <h2>大学学習管理</h2>
-<p>まずは危険課題と直近締切だけ確認し、詳細入力は必要なときだけ開く構成にします。</p>
+<p>科目・教材・締切をまとめて、学業の現在地をAIに渡せるようにします。</p>
 </div>
 </div>
-<div class="study-insight-grid">
+<div class="judgement-grid judgement-grid-top">
 <article class="summary-box">
 <h3>学習状況の要約</h3>
 <div class="summary-list empty" id="studyOverview">まだありません</div>
 </article>
 <article class="summary-box danger-list">
-<h3>危険科目ランキング</h3>
+<h3>科目危険度ランキング</h3>
 <div class="summary-list empty" id="studyRiskList">まだありません</div>
 </article>
-<article class="summary-box">
-<h3>今日やる候補</h3>
-<div class="summary-list empty" id="studyFocusList">まだありません</div>
-</article>
 </div>
-<section class="card inner-card study-priority-card" style="margin-top: 1rem;">
-<div class="card-header compact">
-<div>
-<h2>直近で見るべきもの</h2>
-<p>3日以内の締切と期限超過だけを先に確認します。</p>
-</div>
-</div>
-<div class="list-wrap empty" id="studyDeadlineList">まだありません</div>
-</section>
-<details class="subsection-fold study-admin-fold" id="studyCourseAdminPanel">
-<summary class="subsection-summary">科目一覧と科目編集を開く</summary>
-<div class="subsection-body">
-<section class="card inner-card study-admin-card">
+<div class="grid two-col" style="margin-top: 1rem;">
+<section class="card inner-card">
 <div class="card-header compact">
 <div>
 <h2>科目</h2>
@@ -396,12 +382,7 @@
 </details>
 <div class="list-wrap empty" id="courseList">まだありません</div>
 </section>
-</div>
-</details>
-<details class="subsection-fold study-admin-fold" id="studyMaterialAdminPanel">
-<summary class="subsection-summary">教材一覧と進度編集を開く</summary>
-<div class="subsection-body">
-<section class="card inner-card study-admin-card">
+<section class="card inner-card">
 <div class="card-header compact">
 <div>
 <h2>教材と進度</h2>
@@ -472,11 +453,7 @@
 <div class="list-wrap empty" id="materialList">まだありません</div>
 </section>
 </div>
-</details>
-<details class="subsection-fold study-admin-fold" id="studyAssessmentAdminPanel">
-<summary class="subsection-summary">締切一覧と締切編集を開く</summary>
-<div class="subsection-body">
-<section class="card inner-card study-admin-card">
+<section class="card inner-card" style="margin-top: 1rem;">
 <div class="card-header compact">
 <div>
 <h2>締切マップ</h2>
@@ -550,8 +527,6 @@
 </details>
 <div class="list-wrap empty" id="assessmentList">まだありません</div>
 </section>
-</div>
-</details>
 </section></div></details>
 
 <details class="card settings-card" id="appSettingsPanel">
