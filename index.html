@@ -19,7 +19,8 @@
 <p class="sub">予定とタスクをまとめて、今日の判断を30秒〜2分で固めるための1日マネージャー</p>
 </div>
 <div class="header-actions">
-<button class="ghost compact-action" data-utility-target="appSettingsPanel" type="button">設定</button>
+<button class="ghost compact-action" data-utility-target="appSettingsPanel" type="button">管理</button>
+<button class="primary compact-action compact-action--accent" data-open-quick-add="true" type="button">＋ 追加</button>
 </div>
 </header>
 <nav aria-label="画面移動" class="workspace-nav" id="workspaceNav">
@@ -32,8 +33,9 @@
 <div class="workspace-nav__tools">
 <button class="primary workspace-add-trigger" data-open-quick-add="true" type="button">＋追加</button>
 <div class="workspace-nav__utility">
-<button class="ghost workspace-utility-btn" data-utility-target="studyToolsPanel" type="button">学習</button>
-<button class="ghost workspace-utility-btn" data-utility-target="appSettingsPanel" type="button">設定</button>
+<button class="ghost workspace-utility-btn utility-shortcut" data-utility-target="studyToolsPanel" type="button">学習</button>
+<button class="ghost workspace-utility-btn utility-shortcut" data-utility-target="appSettingsPanel" type="button">管理</button>
+<button class="ghost workspace-utility-btn utility-shortcut" data-utility-target="assistToolsPanel" type="button">連携</button>
 </div>
 <button aria-pressed="false" class="ghost workspace-mode-toggle" id="workspaceModeToggle" type="button">集中表示</button>
 <div class="workspace-nav__stepper">
@@ -531,8 +533,8 @@
 <details class="card settings-card" id="appSettingsPanel">
 <summary class="settings-summary">
 <span>
-<strong>管理・設定・補助機能</strong>
-<span class="micro-note">毎日使う主導線から外したい機能はここにまとめます。</span>
+<strong>管理・設定</strong>
+<span class="micro-note">ローカルデータの管理とバックアップだけをここにまとめます。</span>
 </span>
 <span class="mode-chip">折りたたみ</span>
 </summary>
@@ -758,17 +760,20 @@
 </div>
 </details>
 </section>
-<details class="card settings-card" id="assistToolsPanel">
+</div>
+</details>
+
+<details class="card settings-card utility-panel" id="assistToolsPanel">
 <summary class="settings-summary">
 <span>
-<strong>AI・連携機能</strong>
-<span class="micro-note">毎回の主導線ではない補助機能はここにまとめます。</span>
+<strong>AI・連携</strong>
+<span class="micro-note">AI補助と Google 連携だけをここに分離します。</span>
 </span>
-<span class="mode-chip">折りたたみ</span>
+<span class="mode-chip">補助</span>
 </summary>
-<div class="settings-body management-stack">
+<div class="settings-body management-stack assist-stack">
 <section class="card inner-card" id="promptAssistSection">
-<div class="card-header">
+<div class="card-header compact">
 <div>
 <h2>AI連携（ChatGPT）</h2>
 <p>今日の情報をまとめて、ChatGPT に貼る文章を生成します。</p>
@@ -783,21 +788,19 @@
                 <textarea id="promptOutput" placeholder="ここに生成されます" rows="18"></textarea>
 </label>
 </section>
-<details class="card settings-card" id="googleSettingsPanel">
-<summary class="settings-summary">
-<span>
-<strong>Google Calendar 連携 (β)</strong>
-<span class="micro-note">Googleアカウントで接続すると、対象日の予定を読み込めます</span>
-</span>
+<section class="card inner-card" id="googleSettingsPanel">
+<div class="card-header compact settings-inline-header">
+<div>
+<h2>Google Calendar 連携 (β)</h2>
+<p>Googleアカウントで接続すると、対象日の予定を読み込めます。</p>
+</div>
 <span class="calendar-badge" id="googleConnectionBadge">未接続</span>
-</summary>
-<div class="settings-body">
+</div>
 <div class="calendar-actions">
 <button class="primary" id="connectGoogleBtn" type="button">Googleで接続</button>
 <button class="ghost" id="disconnectGoogleBtn" type="button">接続解除</button>
 <button class="ghost" id="reloadGoogleEventsBtn" type="button">対象日のGoogle予定を再読込</button>
 <button class="ghost" id="importGoogleToLocalBtn" type="button">Google予定を取込</button>
-<a class="file-label subtle-link" href="./calendar-test.html">連携テスト画面</a>
 </div>
 <div class="calendar-status" id="googleStatusBox">Cloudflare Worker 側の secret が入っていれば、Googleで接続するだけで使えます。</div>
 <p class="calendar-note">資格情報の入力欄は出しません。接続に必要な値は <code>Cloudflare Worker secrets</code> と <code>cloudflare-worker/wrangler.toml</code> に設定します。</p>
@@ -808,10 +811,8 @@
 <div class="list-wrap empty" id="googleEventList">まだありません</div>
 </div>
 </details>
-</div>
-</details>
-</div>
-</details>
+<p class="micro-note settings-dev-note">連携テスト画面は開発用です。必要なときだけ <a class="subtle-link" href="./calendar-test.html">こちら</a> を開いてください。</p>
+</section>
 </div>
 </details>
 
