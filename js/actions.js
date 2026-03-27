@@ -113,6 +113,9 @@ export function bindEvents() {
   on('reloadGoogleEventsBtn', 'click', async () => {
     await loadGoogleEventsForSelectedDate();
   });
+  on('jumpToExecutionBtn', 'click', () => {
+    window.workspaceNavApi?.activateSection?.('todayListSection', { userInitiated: true });
+  });
   on('importGoogleToLocalBtn', 'click', () => {
     importGoogleEventsToLocal($('selectedDate')?.value || '');
   });

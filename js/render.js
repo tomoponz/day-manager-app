@@ -17,7 +17,9 @@ import {
   buildCurrentStateLines,
   buildRiskAlerts,
   buildCutCandidates,
-  formatScheduleLine
+  buildTimelineStatusLines,
+  formatScheduleLine,
+  scoreTask
 } from "./planner.js";
 import { refreshCalendarUi, renderCalendarConnectionMeta } from "./calendar-ui.js";
 
@@ -93,6 +95,7 @@ export function renderAll() {
   renderCurrentState();
   renderSummaries();
   renderAutoPlan();
+  renderTodayActionDeck();
   updateGoogleConnectionBadge();
   renderCalendarConnectionMeta();
   refreshCalendarUi();
@@ -418,6 +421,9 @@ export function renderSummaries() {
     $("freeTimeSummary"),
     freeSlots.length ? freeSlots.map((slot) => `${slot.start} - ${slot.end} (${slot.minutes}分)`) : []
   );
+
+  const split = splitSchedulesByNow(schedules, ctx);
+  fillSummary($("immediateScheduleSummary"), buildTimelineStatusLines(split).slice(0, 5));
 }
 
 export function renderAutoPlan() {
@@ -427,6 +433,46 @@ export function renderAutoPlan() {
   fillSummary($("autoTopThree"), plan.topThree);
   fillSummary($("autoTimeline"), plan.timeline);
   $("autoPlanNote").textContent = `${plan.note} / 集中ブロック: ${plan.focusSummary}`;
+}
+
+export function renderTodayActionDeck() {
+  const wrap = $("todayActionDeck");
+  if (!wrap) return;
+
+  wrap.innerHTML = "";
+  const selectedDate = $("selectedDate")?.value;
+  if (!selectedDate) {
+    wrap.className = "today-action-list empty";
+    wrap.textContent = "対象日を選ぶと、ここに直接触れる候補を出します。";
+    return;
+  }
+
+  const ctx = getNowContext(selectedDate, state.uiState?.plannerMode || "auto");
+  const schedules = getSchedulesForDate(selectedDate);
+  const freeSlots = computeFreeSlots(schedules, ctx);
+  const slotMinutes = freeSlots[0]?.minutes || 60;
+  const fatigue = Number(state.dayConditions?.[selectedDate]?.fatigue || $("fatigue")?.value || 5);
+  const reference = ctx.isToday ? ctx.now : new Date(`${selectedDate}T00:00:00`);
+
+  const ranked = getPendingTasks(selectedDate, ctx)
+    .map((task) => ({ task, score: scoreTask(task, reference, slotMinutes, fatigue, ctx, selectedDate) }))
+    .filter((entry) => entry.score > -999)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      const deadlineA = `${a.task.deadlineDate || "9999-99-99"} ${a.task.deadlineTime || "99:99"}`;
+      const deadlineB = `${b.task.deadlineDate || "9999-99-99"} ${b.task.deadlineTime || "99:99"}`;
+      return deadlineA.localeCompare(deadlineB);
+    })
+    .slice(0, 3);
+
+  if (!ranked.length) {
+    wrap.className = "today-action-list empty";
+    wrap.textContent = "未完了タスクがないので、ここには直接触る候補がありません。";
+    return;
+  }
+
+  wrap.className = "today-action-list";
+  ranked.forEach(({ task, score }) => wrap.appendChild(createTodayActionCard(task, score, slotMinutes, selectedDate)));
 }
 
 export function updateGoogleStatus(message, variant = "") {
@@ -518,6 +564,88 @@ function renderEmptyState(
   if (actions.childNodes.length) {
     container.appendChild(actions);
   }
+}
+
+function createTodayActionCard(task, score, slotMinutes, selectedDate) {
+  const card = document.createElement("article");
+  card.className = "today-action-card";
+
+  const head = document.createElement("div");
+  head.className = "today-action-card__head";
+
+  const titleWrap = document.createElement("div");
+  titleWrap.className = "today-action-card__title-wrap";
+
+  const title = document.createElement("strong");
+  title.className = "today-action-card__title";
+  title.textContent = task.title;
+  titleWrap.appendChild(title);
+
+  const scoreBadge = document.createElement("span");
+  scoreBadge.className = "today-action-score";
+  scoreBadge.textContent = `優先 ${Math.round(score)}`;
+  head.appendChild(titleWrap);
+  head.appendChild(scoreBadge);
+
+  const meta = document.createElement("div");
+  meta.className = "today-action-card__meta";
+  [
+    createActionMetaBadge(`状態:${task.status}`, task.status === "完了" ? "ok" : task.status === "進行中" ? "warn" : ""),
+    createActionMetaBadge(`重要度:${task.importance}`, task.importance === "必須" ? "warn" : ""),
+    createActionMetaBadge(`優先度:${task.priority}`, task.priority === "高" ? "danger" : task.priority === "中" ? "warn" : "blue"),
+    createActionMetaBadge(`見積:${task.estimate || "?"}分`, "blue"),
+    task.deadlineDate ? createActionMetaBadge(`締切:${formatTaskDeadline(task)}`, getDeadlineVariant(task, selectedDate)) : null,
+    task.protectTimeBlock ? createActionMetaBadge("保護", "ok") : null
+  ].filter(Boolean).forEach((badge) => meta.appendChild(badge));
+
+  const reason = document.createElement("p");
+  reason.className = "today-action-card__reason";
+  reason.textContent = buildActionReason(task, slotMinutes, selectedDate);
+
+  const actions = document.createElement("div");
+  actions.className = "today-action-card__actions";
+  if (task.status !== "進行中") actions.appendChild(makeActionButton("着手", () => handlers.onQuickSetTaskStatus?.(task.id, "進行中")));
+  if (task.status !== "完了") actions.appendChild(makeActionButton("完了", () => handlers.onQuickSetTaskStatus?.(task.id, "完了")));
+  actions.appendChild(makeActionButton("明日", () => handlers.onDeferTaskToTomorrow?.(task.id)));
+  actions.appendChild(makeActionButton("編集", () => handlers.onEditTask?.(task.id)));
+
+  card.appendChild(head);
+  card.appendChild(meta);
+  card.appendChild(reason);
+  card.appendChild(actions);
+  return card;
+}
+
+function createActionMetaBadge(text, variant = "") {
+  const span = document.createElement("span");
+  span.className = `item-badge${variant ? ` is-${variant}` : ""}`;
+  span.textContent = text;
+  return span;
+}
+
+function formatTaskDeadline(task) {
+  return `${task.deadlineDate}${task.deadlineTime ? ` ${task.deadlineTime}` : ""}`;
+}
+
+function getDeadlineVariant(task, selectedDate) {
+  if (!task.deadlineDate || task.status === "完了") return "";
+  if (task.deadlineDate < selectedDate) return "danger";
+  if (task.deadlineDate === selectedDate) return "warn";
+  return "";
+}
+
+function buildActionReason(task, slotMinutes, selectedDate) {
+  const reasons = [];
+  if (task.deadlineDate) {
+    if (task.deadlineDate < selectedDate) reasons.push("期限超過なので最優先で処理対象です");
+    else if (task.deadlineDate === selectedDate) reasons.push("今日が締切です");
+    else reasons.push(`直近の締切は ${formatTaskDeadline(task)} です`);
+  }
+  if (task.status === "進行中") reasons.push("すでに進行中なので、そのまま終わらせる候補です");
+  if (task.protectTimeBlock) reasons.push("守るべき時間ブロックとして扱っています");
+  if ((Number(task.estimate) || 60) <= slotMinutes) reasons.push(`いま見えている空き時間 ${slotMinutes}分 に収まりやすい見積です`);
+  if (!reasons.length) reasons.push("重要度・優先度・空き時間のバランスから上位に来ています");
+  return reasons[0];
 }
 
 function getLocalEventSyncLabel(item) {
