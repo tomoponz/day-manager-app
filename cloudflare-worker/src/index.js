@@ -445,26 +445,37 @@ async function fetchEventsForDateRange(user, startDate, endDate) {
 }
 
 async function fetchEventsList(user, { timeMin, timeMax }) {
-  const listUrl = new URL("https://www.googleapis.com/calendar/v3/calendars/primary/events");
-  listUrl.searchParams.set("timeMin", timeMin);
-  listUrl.searchParams.set("timeMax", timeMax);
-  listUrl.searchParams.set("showDeleted", "false");
-  listUrl.searchParams.set("singleEvents", "true");
-  listUrl.searchParams.set("orderBy", "startTime");
+  const allItems = [];
+  let pageToken = "";
 
-  const response = await fetch(listUrl.toString(), {
-    headers: {
-      Authorization: `Bearer ${user.tokens.access_token}`
+  while (true) {
+    const listUrl = new URL("https://www.googleapis.com/calendar/v3/calendars/primary/events");
+    listUrl.searchParams.set("timeMin", timeMin);
+    listUrl.searchParams.set("timeMax", timeMax);
+    listUrl.searchParams.set("showDeleted", "false");
+    listUrl.searchParams.set("singleEvents", "true");
+    listUrl.searchParams.set("orderBy", "startTime");
+    listUrl.searchParams.set("maxResults", "2500");
+    if (pageToken) listUrl.searchParams.set("pageToken", pageToken);
+
+    const response = await fetch(listUrl.toString(), {
+      headers: {
+        Authorization: `Bearer ${user.tokens.access_token}`
+      }
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Googleイベント取得失敗: ${err}`);
     }
-  });
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Googleイベント取得失敗: ${err}`);
+    const data = await response.json();
+    allItems.push(...(data.items || []));
+    if (!data.nextPageToken) break;
+    pageToken = data.nextPageToken;
   }
 
-  const data = await response.json();
-  return (data.items || []).sort((a, b) => eventSortKey(a).localeCompare(eventSortKey(b)));
+  return dedupeEventsById(allItems).sort((a, b) => eventSortKey(a).localeCompare(eventSortKey(b)));
 }
 
 async function ensureFreshAccessToken(env, userKey, user) {
@@ -563,6 +574,16 @@ function eventSortKey(event) {
   if (event.start?.date && !event.start?.dateTime) return `${event.start.date} 00:00`;
   const dt = event.start?.dateTime || "";
   return `${dt.slice(0, 10)} ${dt.slice(11, 16)}`;
+}
+
+function dedupeEventsById(items) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = item.id || `${item.summary || ''}:${eventSortKey(item)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function isCacheStale(lastSyncAt, minutes) {

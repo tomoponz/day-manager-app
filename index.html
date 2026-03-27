@@ -19,41 +19,45 @@
 <p class="sub">予定とタスクをまとめて、今日の判断を30秒〜2分で固めるための1日マネージャー</p>
 </div>
 <div class="header-actions">
-<button class="ghost" id="exportBtn">バックアップ書き出し</button>
-<label class="ghost file-label">
-        バックアップ読込
-        <input accept="application/json" hidden="" id="importInput" type="file"/>
-</label>
+<button class="ghost compact-action" data-utility-target="appSettingsPanel" type="button">設定</button>
+<button class="primary compact-action compact-action--accent" data-open-quick-add="true" type="button">＋ 追加</button>
 </div>
 </header>
 <nav aria-label="画面移動" class="workspace-nav" id="workspaceNav">
 <div class="workspace-nav__inner">
 <div aria-label="主要セクション" class="workspace-nav__tabs" role="toolbar">
 <button aria-pressed="true" class="workspace-tab is-active" data-workspace-target="judgementSection" type="button">今日</button>
-<button aria-pressed="false" class="workspace-tab" data-workspace-target="quickAddSection" type="button">追加</button>
 <button aria-pressed="false" class="workspace-tab" data-workspace-target="todayListSection" type="button">実行</button>
 <button aria-pressed="false" class="workspace-tab" data-workspace-target="proCalendarSection" type="button">カレンダー</button>
 </div>
 <div class="workspace-nav__tools">
+<button class="primary workspace-add-trigger" data-open-quick-add="true" type="button">＋追加</button>
 <div class="workspace-nav__utility">
-<button class="ghost workspace-utility-btn" data-utility-target="studyToolsPanel" type="button">学習管理</button>
-<button class="ghost workspace-utility-btn" data-utility-target="appSettingsPanel" type="button">設定・連携</button>
+<button class="ghost workspace-utility-btn" data-utility-target="studyToolsPanel" type="button">学習</button>
+<button class="ghost workspace-utility-btn" data-utility-target="appSettingsPanel" type="button">設定</button>
 </div>
-<label class="workspace-nav__mode">
-        表示
-        <select aria-label="表示モード" id="workspaceModeSelect">
-<option value="normal">通常</option>
-<option value="focus">集中</option>
-</select>
-</label>
+<button aria-pressed="false" class="ghost workspace-mode-toggle" id="workspaceModeToggle" type="button">集中表示</button>
 <div class="workspace-nav__stepper">
 <button class="ghost" id="workspacePrevBtn" type="button">前</button>
 <button class="ghost" id="workspaceNextBtn" type="button">次</button>
 </div>
 </div>
 </div>
-<p class="workspace-nav__note" id="workspaceModeNote">通常: 全体を見ながら移動します。集中: 主導線4画面だけを切り替えて縦移動を減らします。</p>
 </nav>
+<div class="quick-add-launcher-mobile">
+<button class="primary quick-add-fab" data-open-quick-add="true" type="button">＋</button>
+</div>
+<div aria-hidden="true" class="quick-add-drawer" id="quickAddDrawer">
+<div class="quick-add-drawer__backdrop" data-close-quick-add="true"></div>
+<aside aria-labelledby="quickAddDrawerTitle" class="quick-add-drawer__panel" role="dialog">
+<div class="quick-add-drawer__header">
+<div>
+<h2 id="quickAddDrawerTitle">追加</h2>
+<p>予定やタスクは、書き方を覚えなくても追加できるようにします。</p>
+</div>
+<button aria-label="追加パネルを閉じる" class="ghost quick-add-drawer__close" data-close-quick-add="true" type="button">閉じる</button>
+</div>
+<div class="quick-add-drawer__body">
 
 <main class="container workflow-shell"><section class="card workspace-section" data-workspace-section="primary" id="judgementSection">
 <div class="card-header">
@@ -200,7 +204,7 @@
 <p class="calendar-note" id="autoPlanNote">空き時間とタスクから自動候補を生成します。体力が低い日は重いタスクの優先度を少し下げます。</p>
 </section>
 
-<section class="card workspace-section" data-workspace-section="primary" id="quickAddSection">
+
 <div class="card-header">
 <div>
 <h2>追加</h2>
@@ -224,7 +228,9 @@
 <p class="quick-add-note">押せる例をそのまま使えます。入力のしかたを覚えなくても追加できます。</p>
 <div class="quick-add-result" id="quickAddResult"></div>
 </div>
-</section>
+</div>
+</aside>
+</div>
 
 <section class="card workspace-section" data-workspace-section="primary" id="todayListSection">
 <div class="card-header">
@@ -552,6 +558,21 @@
 <div>朝モード: 重いタスクを先に取りにいきます。</div>
 <div>再設計モード: 崩れた日の立て直しを優先します。</div>
 <div>夜モード: 短い必須タスクと翌日の初手を優先します。</div>
+</div>
+</section>
+<section class="card inner-card">
+<div class="card-header compact">
+<div>
+<h2>バックアップ</h2>
+<p>主画面から外し、必要なときだけ扱うようにします。</p>
+</div>
+</div>
+<div class="settings-actions-row">
+<button class="ghost" id="exportBtn" type="button">バックアップ書き出し</button>
+<label class="ghost file-label inline-file-label">
+              バックアップ読込
+              <input accept="application/json" hidden="" id="importInput" type="file"/>
+</label>
 </div>
 </section>
 <section class="grid two-col">

@@ -1,8 +1,9 @@
 import { resizeCalendarUi, refreshCalendarUi } from './calendar-ui.js';
 
-const STORAGE_KEY = 'day-manager-workspace-nav-v2';
+const STORAGE_KEY = 'day-manager-workspace-nav-v4';
 const NORMAL_MODE = 'normal';
 const FOCUS_MODE = 'focus';
+const COMPACT_SCROLL_Y = 32;
 
 boot();
 
@@ -18,16 +19,18 @@ function init() {
   const nav = document.getElementById('workspaceNav');
   if (!nav) return;
 
+  const drawer = document.getElementById('quickAddDrawer');
+  const drawerOpeners = Array.from(document.querySelectorAll('[data-open-quick-add]'));
+  const drawerClosers = Array.from(document.querySelectorAll('[data-close-quick-add]'));
   const sections = Array.from(document.querySelectorAll("[data-workspace-section='primary']"));
   const tabs = Array.from(nav.querySelectorAll('[data-workspace-target]'));
   const utilityButtons = Array.from(nav.querySelectorAll('[data-utility-target]'));
-  const modeSelect = document.getElementById('workspaceModeSelect');
+  const modeToggle = document.getElementById('workspaceModeToggle');
   const prevBtn = document.getElementById('workspacePrevBtn');
   const nextBtn = document.getElementById('workspaceNextBtn');
-  const modeNote = document.getElementById('workspaceModeNote');
-  if (!sections.length || !tabs.length || !modeSelect || !prevBtn || !nextBtn) return;
+  if (!sections.length || !tabs.length || !modeToggle || !prevBtn || !nextBtn) return;
 
-  const state = loadPrefs(sections, tabs);
+  const prefs = loadPrefs(sections, tabs);
   let observer = null;
 
   const activateSection = (targetId, options = {}) => {
@@ -35,7 +38,8 @@ function init() {
     const target = sections.find((section) => section.id === targetId) || sections[0];
     if (!target) return;
 
-    state.activeSectionId = target.id;
+    closeQuickAddDrawer({ restoreFocus: false });
+    prefs.activeSectionId = target.id;
     tabs.forEach((tab) => {
       const isActive = tab.dataset.workspaceTarget === target.id;
       tab.classList.toggle('is-active', isActive);
@@ -46,14 +50,15 @@ function init() {
     });
 
     updateStepButtons();
-    updateModeNote(modeNote, state.mode);
-    savePrefs(state);
+    syncModeUi();
+    savePrefs(prefs);
 
-    if (state.mode === FOCUS_MODE) {
+    if (prefs.mode === FOCUS_MODE) {
       if (userInitiated && !skipScroll) scrollNavIntoView(nav);
       requestCalendarRefresh(target.id);
       return;
     }
+
     if (userInitiated && !skipScroll) {
       scrollToNode(target);
     }
@@ -63,14 +68,10 @@ function init() {
     const panel = document.getElementById(panelId);
     if (!panel) return;
     if (panel.tagName === 'DETAILS') panel.open = true;
-    const nestedSummary = panel.querySelector('summary');
-    if (nestedSummary && panel.tagName !== 'DETAILS') {
-      nestedSummary.setAttribute('aria-expanded', 'true');
-    }
     scrollToNode(panel);
   };
 
-  window.workspaceNavApi = { activateSection, openUtilityPanel };
+  window.workspaceNavApi = { activateSection, openUtilityPanel, openQuickAddDrawer };
 
   tabs.forEach((tab) => {
     tab.addEventListener('click', () => {
@@ -88,41 +89,53 @@ function init() {
     });
   });
 
-  modeSelect.addEventListener('change', () => {
-    state.mode = modeSelect.value === FOCUS_MODE ? FOCUS_MODE : NORMAL_MODE;
-    document.body.classList.toggle('workspace-focus-mode', state.mode === FOCUS_MODE);
-    updateModeNote(modeNote, state.mode);
+  drawerOpeners.forEach((button) => button.addEventListener('click', openQuickAddDrawer));
+  drawerClosers.forEach((button) => button.addEventListener('click', () => closeQuickAddDrawer()));
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeQuickAddDrawer();
+  });
+
+  modeToggle.addEventListener('click', () => {
+    prefs.mode = prefs.mode === FOCUS_MODE ? NORMAL_MODE : FOCUS_MODE;
+    document.body.classList.toggle('workspace-focus-mode', prefs.mode === FOCUS_MODE);
+    syncModeUi();
     syncStickyOffsets(nav);
     setupObserver();
-    savePrefs(state);
-    requestCalendarRefresh(state.activeSectionId);
+    savePrefs(prefs);
+    requestCalendarRefresh(prefs.activeSectionId);
   });
 
   prevBtn.addEventListener('click', () => stepSection(-1));
   nextBtn.addEventListener('click', () => stepSection(1));
+
   window.addEventListener('resize', () => syncStickyOffsets(nav), { passive: true });
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(() => syncStickyOffsets(nav)).catch(() => {});
+  }
+  bindChromeCompaction(nav);
 
   function stepSection(delta) {
-    const currentIndex = Math.max(0, sections.findIndex((section) => section.id === state.activeSectionId));
+    const currentIndex = Math.max(0, sections.findIndex((section) => section.id === prefs.activeSectionId));
     const nextIndex = clamp(currentIndex + delta, 0, sections.length - 1);
     activateSection(sections[nextIndex].id, { userInitiated: true });
   }
 
   function updateStepButtons() {
-    const currentIndex = sections.findIndex((section) => section.id === state.activeSectionId);
+    const currentIndex = sections.findIndex((section) => section.id === prefs.activeSectionId);
     prevBtn.disabled = currentIndex <= 0;
     nextBtn.disabled = currentIndex < 0 || currentIndex >= sections.length - 1;
   }
 
   function setupObserver() {
     observer?.disconnect();
-    if (state.mode === FOCUS_MODE || !('IntersectionObserver' in window)) return;
+    if (prefs.mode === FOCUS_MODE || !('IntersectionObserver' in window)) return;
     observer = new IntersectionObserver((entries) => {
-      const visible = entries.filter((entry) => entry.isIntersecting)
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
         .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
       if (!visible.length) return;
       const nextId = visible[0].target.id;
-      if (!nextId || nextId === state.activeSectionId) return;
+      if (!nextId || nextId === prefs.activeSectionId) return;
       activateSection(nextId, { skipScroll: true });
     }, {
       threshold: [0.2, 0.35, 0.5],
@@ -131,10 +144,39 @@ function init() {
     sections.forEach((section) => observer.observe(section));
   }
 
-  modeSelect.value = state.mode;
-  document.body.classList.toggle('workspace-focus-mode', state.mode === FOCUS_MODE);
+  function openQuickAddDrawer() {
+    if (!drawer) return;
+    drawer.classList.add('is-open');
+    drawer.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('quick-add-open');
+    syncStickyOffsets(nav);
+    window.setTimeout(() => {
+      drawer.querySelector('#quickAddInput')?.focus();
+    }, 30);
+  }
+
+  function closeQuickAddDrawer({ restoreFocus = true } = {}) {
+    if (!drawer || !drawer.classList.contains('is-open')) return;
+    drawer.classList.remove('is-open');
+    drawer.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('quick-add-open');
+    syncStickyOffsets(nav);
+    if (restoreFocus) {
+      drawerOpeners[0]?.focus();
+    }
+  }
+
+  function syncModeUi() {
+    const isFocus = prefs.mode === FOCUS_MODE;
+    document.body.classList.toggle('workspace-focus-mode', isFocus);
+    modeToggle.classList.toggle('is-active', isFocus);
+    modeToggle.setAttribute('aria-pressed', String(isFocus));
+    modeToggle.textContent = isFocus ? '通常表示' : '集中表示';
+  }
+
+  syncModeUi();
   syncStickyOffsets(nav);
-  activateSection(state.activeSectionId, { skipScroll: true });
+  activateSection(prefs.activeSectionId, { skipScroll: true });
   setupObserver();
   requestAnimationFrame(() => syncStickyOffsets(nav));
 }
@@ -167,6 +209,25 @@ function syncStickyOffsets(nav) {
   document.documentElement.style.setProperty('--workspace-nav-height', `${navHeight}px`);
 }
 
+function bindChromeCompaction(nav) {
+  let ticking = false;
+
+  const applyChromeDensity = () => {
+    document.body.classList.toggle('workspace-chrome-compact', window.scrollY > COMPACT_SCROLL_Y);
+    syncStickyOffsets(nav);
+    ticking = false;
+  };
+
+  const requestApply = () => {
+    if (ticking) return;
+    ticking = true;
+    window.requestAnimationFrame(applyChromeDensity);
+  };
+
+  window.addEventListener('scroll', requestApply, { passive: true });
+  applyChromeDensity();
+}
+
 function getStickyOffset() {
   const topbarHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--topbar-height')) || 0;
   const navHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--workspace-nav-height')) || 0;
@@ -191,13 +252,6 @@ function savePrefs(state) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {}
-}
-
-function updateModeNote(target, mode) {
-  if (!target) return;
-  target.textContent = mode === FOCUS_MODE
-    ? '集中: 主導線4画面だけを切り替えて、縦スクロールをほぼ不要にします。学習管理と設定は右側ボタンから開きます。'
-    : '通常: 全体を見ながら移動します。学習管理と設定は右側ボタンから開きます。';
 }
 
 function clamp(value, min, max) {

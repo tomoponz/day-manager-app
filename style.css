@@ -228,6 +228,8 @@ button.ghost:hover { background: var(--bg-2); }
 .settings-body { padding: 0 1.35rem 1.35rem; border-top: 1px solid var(--line); }
 .management-stack { display: grid; gap: 1rem; }
 .helper-list { display: grid; gap: 0.55rem; margin-top: 1rem; color: var(--muted); font-size: 0.88rem; }
+.settings-actions-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.inline-file-label { box-shadow: none; }
 .subsection-fold { margin-top: 1rem; border: 1px solid var(--line); border-radius: var(--r-sm); background: #fff; overflow: hidden; }
 .subsection-summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.95rem 1rem; background: var(--bg-2); color: var(--text); font-weight: 600; }
 .subsection-summary::-webkit-details-marker { display: none; }
@@ -593,40 +595,113 @@ hr { border: none; border-top: 1px solid var(--line); margin: 1.5rem 0; }
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.45rem;
+  gap: 0.35rem;
   flex-wrap: nowrap;
 }
 .workspace-nav__utility,
 .workspace-nav__stepper {
   display: flex;
-  gap: 0.35rem;
+  gap: 0.28rem;
   flex-wrap: nowrap;
 }
 .workspace-utility-btn,
 .workspace-nav__stepper .ghost {
   white-space: nowrap;
-  padding: 0.42rem 0.7rem;
-  font-size: 0.8rem;
+  padding: 0.42rem 0.62rem;
+  font-size: 0.78rem;
   box-shadow: none;
   background: rgba(255,255,255,0.62);
 }
-.workspace-nav__mode {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.45rem;
-  min-width: auto;
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-.workspace-nav__mode select {
-  width: auto;
-  min-width: 88px;
-  padding: 0.42rem 1.8rem 0.42rem 0.7rem;
-  font-size: 0.82rem;
-}
 .workspace-nav__note {
   display: none;
+}
+.workspace-add-trigger {
+  padding: 0.42rem 0.84rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  box-shadow: none;
+}
+.workspace-mode-toggle {
+  padding: 0.42rem 0.76rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  box-shadow: none;
+}
+.workspace-mode-toggle.is-active {
+  background: var(--text);
+  color: #fff;
+  border-color: var(--text);
+}
+.quick-add-launcher-mobile {
+  display: none;
+}
+.quick-add-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  pointer-events: none;
+}
+.quick-add-drawer__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(28, 25, 23, 0.3);
+  opacity: 0;
+  transition: opacity var(--ease);
+}
+.quick-add-drawer__panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(480px, 92vw);
+  background: var(--card);
+  border-left: 1px solid var(--line);
+  box-shadow: -12px 0 40px rgba(28, 25, 23, 0.16);
+  transform: translateX(100%);
+  transition: transform var(--ease);
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+.quick-add-drawer.is-open {
+  pointer-events: auto;
+}
+.quick-add-drawer.is-open .quick-add-drawer__backdrop {
+  opacity: 1;
+}
+.quick-add-drawer.is-open .quick-add-drawer__panel {
+  transform: translateX(0);
+}
+.quick-add-drawer__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem 1rem 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+.quick-add-drawer__header h2 {
+  margin-bottom: 0.2rem;
+}
+.quick-add-drawer__header p {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+.quick-add-drawer__close {
+  flex: 0 0 auto;
+}
+.quick-add-drawer__body {
+  overflow: auto;
+  padding: 1rem;
+}
+.quick-add-drawer .card-header {
+  display: none;
+}
+.quick-add-drawer .quick-add-box {
+  gap: 0.85rem;
+}
+body.quick-add-open {
+  overflow: hidden;
 }
 body.workspace-focus-mode .workflow-shell > [data-workspace-section='primary'] {
   display: none;
@@ -682,7 +757,8 @@ body.workspace-chrome-compact .workspace-nav__inner {
 body.workspace-chrome-compact .workspace-tab,
 body.workspace-chrome-compact .workspace-utility-btn,
 body.workspace-chrome-compact .workspace-nav__stepper .ghost,
-body.workspace-chrome-compact .workspace-nav__mode select {
+body.workspace-chrome-compact .workspace-add-trigger,
+body.workspace-chrome-compact .workspace-mode-toggle {
   padding-top: 0.34rem;
   padding-bottom: 0.34rem;
 }
@@ -706,23 +782,35 @@ body.workspace-chrome-compact .workspace-nav__mode select {
     display: none;
   }
   .header-actions {
-    width: 100%;
+    display: none;
   }
-  .header-actions > .ghost,
-  .header-actions > .file-label {
-    flex: 1 1 auto;
+  .quick-add-launcher-mobile {
+    display: block;
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 120;
+  }
+  .quick-add-fab {
+    width: 3.1rem;
+    height: 3.1rem;
+    border-radius: 999px;
+    padding: 0;
+    font-size: 1.2rem;
+    box-shadow: 0 8px 24px rgba(192, 83, 58, 0.28);
+  }
+  .workspace-nav__stepper {
+    display: none;
+  }
+  .workspace-add-trigger {
+    display: none;
   }
   .workspace-nav__tools {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.45rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.35rem;
   }
-  .workspace-nav__utility,
-  .workspace-nav__stepper {
-    display: contents;
-  }
-  .workspace-nav__mode {
-    grid-column: 1 / -1;
-    justify-content: space-between;
+  .quick-add-drawer__panel {
+    width: 100%;
   }
 }
