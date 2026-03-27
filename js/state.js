@@ -1,7 +1,9 @@
 export const STORAGE_KEY = "day-manager-v1";
 export const GOOGLE_CONFIG_KEY = "day-manager-google-config-v1";
+export const STATE_SCHEMA_VERSION = 2;
 
 export const INITIAL_STATE = {
+  schemaVersion: STATE_SCHEMA_VERSION,
   fixedSchedules: [],
   oneOffEvents: [],
   tasks: [],
@@ -27,8 +29,9 @@ export function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return structuredClone(INITIAL_STATE);
-    const parsed = JSON.parse(raw);
+    const parsed = migrateParsedState(JSON.parse(raw));
     return {
+      schemaVersion: STATE_SCHEMA_VERSION,
       fixedSchedules: (parsed.fixedSchedules || []).map(normalizeFixedSchedule),
       oneOffEvents: (parsed.oneOffEvents || []).map(normalizeOneOffEvent),
       tasks: (parsed.tasks || []).map(normalizeTask),
@@ -53,6 +56,7 @@ export function loadState() {
 }
 
 export function saveState() {
+  state.schemaVersion = STATE_SCHEMA_VERSION;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -161,7 +165,7 @@ export function normalizeAssessment(item) {
     dueTime: item.dueTime || "",
     weight: normalizeOptionalNumber(item.weight),
     importance: item.importance || "高",
-    status: item.status || "未着手",
+    status: normalizeAssessmentStatus(item.status),
     note: item.note || ""
   };
 }
@@ -230,4 +234,33 @@ export function normalizePlanningDraft(item) {
     source: item.source || "ai",
     createdAt: item.createdAt || ""
   };
+}
+
+function migrateParsedState(parsed) {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return structuredClone(INITIAL_STATE);
+  }
+
+  const next = { ...parsed };
+  next.schemaVersion = STATE_SCHEMA_VERSION;
+  next.assessments = Array.isArray(parsed.assessments)
+    ? parsed.assessments.map((item) => ({ ...item, status: normalizeAssessmentStatus(item?.status) }))
+    : [];
+  return next;
+}
+
+function normalizeAssessmentStatus(status) {
+  const raw = String(status || "").trim().toLowerCase();
+  if (!raw) return "todo";
+
+  if (["todo", "未着手", "not_started", "not-started", "pending"].includes(raw)) {
+    return "todo";
+  }
+  if (["doing", "進行中", "in_progress", "in-progress", "started"].includes(raw)) {
+    return "doing";
+  }
+  if (["done", "完了", "completed", "complete", "finished"].includes(raw)) {
+    return "done";
+  }
+  return "todo";
 }
