@@ -1,4 +1,4 @@
-const CACHE_NAME = "day-manager-cache-v11";
+const CACHE_NAME = "day-manager-cache-v12";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -15,7 +15,6 @@ const CORE_ASSETS = [
   "./js/google-calendar.js",
   "./js/main-screen-layout.js",
   "./js/planner.js",
-  "./js/product-ui-tune.js",
   "./js/prompt.js",
   "./js/quick-add.js",
   "./js/render.js",

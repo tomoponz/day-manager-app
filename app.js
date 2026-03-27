@@ -18,7 +18,6 @@
       import("./js/study-manager.js")
     ]);
 
-    await import("./js/product-ui-tune.js");
     await import("./js/main-screen-layout.js");
 
     googleModule.configureGoogleUi({
