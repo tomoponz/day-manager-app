@@ -1,4 +1,4 @@
-const CACHE_NAME = "day-manager-cache-v10";
+const CACHE_NAME = "day-manager-cache-v11";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -21,6 +21,9 @@ const CORE_ASSETS = [
   "./js/render.js",
   "./js/state.js",
   "./js/study-manager.js",
+  "./js/study-manager-shared.js",
+  "./js/study-manager-summary.js",
+  "./js/study-manager-editor.js",
   "./js/time.js",
   "./js/ui-feedback.js",
   "./js/utils.js",
