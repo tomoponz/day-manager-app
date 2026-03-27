@@ -47,6 +47,8 @@ export function renderStudyManager() {
   hydrateAssessmentCourseOptions();
   renderStudyOverview();
   renderStudyRiskList();
+  renderStudyFocusList();
+  renderStudyDeadlineList();
   renderCourseList();
   renderMaterialList();
   renderAssessmentList();
@@ -127,12 +129,71 @@ function renderStudyRiskList() {
   const wrap = $("studyRiskList");
   if (!wrap) return;
 
-  const ranking = buildCourseRiskRanking().slice(0, 6);
+  const ranking = buildCourseRiskRanking().slice(0, 5);
   const lines = ranking.map((entry) => {
     const reasons = entry.reasons.length ? ` / 理由:${entry.reasons.join("・")}` : "";
-    return `${entry.courseTitle} / リスク:${entry.levelLabel} / スコア:${entry.score}${reasons}`;
+    return `${entry.courseTitle} / リスク:${entry.levelLabel}${reasons}`;
   });
   fillSummaryList(wrap, lines, "まだありません");
+}
+
+function renderStudyFocusList() {
+  const wrap = $("studyFocusList");
+  if (!wrap) return;
+
+  const lines = buildFocusCandidates()
+    .slice(0, 4)
+    .map((candidate) => {
+      const course = state.courses.find((item) => item.id === candidate.courseId);
+      const reasons = [];
+      if (course?.riskStatus === "high") reasons.push("危険科目");
+      if (candidate.reviewNeeded) reasons.push("復習必要");
+      if (candidate.understanding !== "" && Number(candidate.understanding) <= 4) reasons.push("理解度低め");
+      const reasonText = reasons.length ? ` / ${reasons.join("・")}` : "";
+      const next = candidate.nextTarget ? ` / 次:${candidate.nextTarget}` : "";
+      return `${candidate.courseTitle} / ${candidate.title}${reasonText}${next}`;
+    });
+
+  fillSummaryList(wrap, lines, "まだありません");
+}
+
+function renderStudyDeadlineList() {
+  const wrap = $("studyDeadlineList");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+
+  const items = state.assessments
+    .filter((assessment) => assessment.status !== "done")
+    .filter((assessment) => isAssessmentOverdue(assessment) || isAssessmentDueSoon(assessment))
+    .slice()
+    .sort((a, b) => buildAssessmentSortKey(a).localeCompare(buildAssessmentSortKey(b)));
+
+  if (!items.length) {
+    wrap.className = "list-wrap empty";
+    wrap.textContent = "期限超過や3日以内の締切はありません";
+    return;
+  }
+
+  wrap.className = "list-wrap";
+  items.slice(0, 6).forEach((assessment) => {
+    const overdue = isAssessmentOverdue(assessment);
+    const item = createListItem({
+      title: `${getCourseTitle(assessment.courseId)} / ${assessment.title}`,
+      badges: [
+        makeBadge(ASSESSMENT_TYPE_LABELS[assessment.type] || "締切", "blue"),
+        makeBadge(buildAssessmentDueText(assessment), overdue ? "danger" : "warn"),
+        makeBadge(`状態:${ASSESSMENT_STATUS_LABELS[assessment.status] || "未着手"}`, assessment.status === "doing" ? "warn" : "")
+      ],
+      detail: overdue ? "期限を過ぎています。先に処理してください。" : "3日以内の締切です。今日の候補に入れるべきです。",
+      note: assessment.note || ""
+    });
+    item.classList.add("study-deadline-item");
+    const actions = item.querySelector('.list-actions');
+    if (assessment.status !== 'doing') actions.appendChild(makeButton('着手', () => updateAssessmentStatus(assessment.id, 'doing')));
+    if (assessment.status !== 'done') actions.appendChild(makeButton('完了', () => updateAssessmentStatus(assessment.id, 'done')));
+    actions.appendChild(makeButton('編集', () => populateAssessmentForm(assessment.id)));
+    wrap.appendChild(item);
+  });
 }
 
 function renderCourseList() {
@@ -450,6 +511,8 @@ function populateCourseForm(id) {
   if (!course) return;
   const form = $("courseForm");
   if (!form) return;
+  const adminPanel = $("studyCourseAdminPanel");
+  if (adminPanel) adminPanel.open = true;
 
   form.elements.editId.value = course.id;
   form.elements.title.value = course.title;
@@ -474,6 +537,8 @@ function populateMaterialForm(id) {
   if (!material) return;
   const form = $("materialForm");
   if (!form) return;
+  const adminPanel = $("studyMaterialAdminPanel");
+  if (adminPanel) adminPanel.open = true;
 
   form.elements.editId.value = material.id;
   hydrateMaterialCourseOptions(material.courseId);
@@ -502,6 +567,8 @@ function populateAssessmentForm(id) {
   if (!assessment) return;
   const form = $("assessmentForm");
   if (!form) return;
+  const adminPanel = $("studyAssessmentAdminPanel");
+  if (adminPanel) adminPanel.open = true;
 
   form.elements.editId.value = assessment.id;
   hydrateAssessmentCourseOptions(assessment.courseId);

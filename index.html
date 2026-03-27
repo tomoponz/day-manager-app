@@ -310,25 +310,40 @@
 </div>
 </section>
 
-<details class="card settings-card utility-panel" id="studyToolsPanel"><summary class="settings-summary"><span><strong>大学学習管理</strong><span class="micro-note">毎日見る主画面から外し、必要なときだけ開きます。</span></span><span class="mode-chip">補助</span></summary><div class="settings-body management-stack"><section class="utility-section" id="studyManagerSection">
+<details class="card settings-card utility-panel" id="studyToolsPanel"><summary class="settings-summary"><span><strong>大学学習管理</strong><span class="micro-note">危険・締切・今日やる候補だけを先に見せ、詳細管理は下にたたみます。</span></span><span class="mode-chip">補助</span></summary><div class="settings-body management-stack"><section class="utility-section" id="studyManagerSection">
 <div class="card-header">
 <div>
 <h2>大学学習管理</h2>
-<p>科目・教材・締切をまとめて、学業の現在地をAIに渡せるようにします。</p>
+<p>まずは危険課題と直近締切だけ確認し、詳細入力は必要なときだけ開く構成にします。</p>
 </div>
 </div>
-<div class="judgement-grid judgement-grid-top">
+<div class="study-insight-grid">
 <article class="summary-box">
 <h3>学習状況の要約</h3>
 <div class="summary-list empty" id="studyOverview">まだありません</div>
 </article>
 <article class="summary-box danger-list">
-<h3>科目危険度ランキング</h3>
+<h3>危険科目ランキング</h3>
 <div class="summary-list empty" id="studyRiskList">まだありません</div>
 </article>
+<article class="summary-box">
+<h3>今日やる候補</h3>
+<div class="summary-list empty" id="studyFocusList">まだありません</div>
+</article>
 </div>
-<div class="grid two-col" style="margin-top: 1rem;">
-<section class="card inner-card">
+<section class="card inner-card study-priority-card" style="margin-top: 1rem;">
+<div class="card-header compact">
+<div>
+<h2>直近で見るべきもの</h2>
+<p>3日以内の締切と期限超過だけを先に確認します。</p>
+</div>
+</div>
+<div class="list-wrap empty" id="studyDeadlineList">まだありません</div>
+</section>
+<details class="subsection-fold study-admin-fold" id="studyCourseAdminPanel">
+<summary class="subsection-summary">科目一覧と科目編集を開く</summary>
+<div class="subsection-body">
+<section class="card inner-card study-admin-card">
 <div class="card-header compact">
 <div>
 <h2>科目</h2>
@@ -381,7 +396,12 @@
 </details>
 <div class="list-wrap empty" id="courseList">まだありません</div>
 </section>
-<section class="card inner-card">
+</div>
+</details>
+<details class="subsection-fold study-admin-fold" id="studyMaterialAdminPanel">
+<summary class="subsection-summary">教材一覧と進度編集を開く</summary>
+<div class="subsection-body">
+<section class="card inner-card study-admin-card">
 <div class="card-header compact">
 <div>
 <h2>教材と進度</h2>
@@ -452,7 +472,11 @@
 <div class="list-wrap empty" id="materialList">まだありません</div>
 </section>
 </div>
-<section class="card inner-card" style="margin-top: 1rem;">
+</details>
+<details class="subsection-fold study-admin-fold" id="studyAssessmentAdminPanel">
+<summary class="subsection-summary">締切一覧と締切編集を開く</summary>
+<div class="subsection-body">
+<section class="card inner-card study-admin-card">
 <div class="card-header compact">
 <div>
 <h2>締切マップ</h2>
@@ -526,6 +550,8 @@
 </details>
 <div class="list-wrap empty" id="assessmentList">まだありません</div>
 </section>
+</div>
+</details>
 </section></div></details>
 
 <details class="card settings-card" id="appSettingsPanel">

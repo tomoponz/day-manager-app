@@ -814,3 +814,58 @@ body.workspace-chrome-compact .workspace-mode-toggle {
     width: 100%;
   }
 }
+
+
+.study-insight-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.study-priority-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(250,248,245,0.96) 100%);
+}
+
+.study-admin-fold {
+  margin-top: 1rem;
+}
+
+.study-admin-fold > .subsection-summary {
+  background: #fff;
+  font-size: 0.92rem;
+}
+
+.study-admin-card {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+}
+
+.study-admin-card .card-header {
+  padding-bottom: 0.75rem;
+}
+
+.study-admin-card .list-wrap {
+  margin-top: 0.9rem;
+}
+
+.study-deadline-item {
+  align-items: center;
+}
+
+.study-deadline-item .list-actions {
+  justify-content: flex-end;
+}
+
+.study-chip-quiet {
+  color: var(--muted);
+  border-color: var(--line);
+  background: var(--bg-2);
+}
+
+@media (max-width: 1080px) {
+  .study-insight-grid {
+    grid-template-columns: 1fr;
+  }
+}
