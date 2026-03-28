@@ -1,7 +1,7 @@
 import { state, saveState, STATE_SCHEMA_VERSION, normalizeOneOffEvent, normalizeFixedSchedule, normalizeTask, normalizeCourse, normalizeMaterial, normalizeAssessment, normalizeWeeklyPlans, normalizeMilestone, normalizePlanningDraft } from './state.js';
 import { $, debounce, getFormValue } from './utils.js';
 import { addDays, formatDateInput, formatTimeOnly, isSelectedDateToday, isValidTimeRange, roundToFiveMinutes } from './time.js';
-import { renderAll, renderCurrentState, renderAutoPlan, updateStateNote, loadConditionInputsForDate, hydrateSettingsInputs } from './render.js';
+import { renderAll, renderCurrentState, renderAutoPlan, renderSummaries, updateStateNote, loadConditionInputsForDate, hydrateSettingsInputs } from './render.js';
 import { renderStudyManager } from './study-manager.js';
 import {
   loadGoogleEventsForDate,
@@ -118,9 +118,10 @@ function bindEditorDrawerUi() {
 
 export function closeEditorDrawer() {
   const shell = $('plannerEditorShell');
-  if (!shell) return;
-  shell.classList.remove('is-open');
-  shell.setAttribute('aria-hidden', 'true');
+  if (shell) {
+    shell.classList.remove('is-open');
+    shell.setAttribute('aria-hidden', 'true');
+  }
   document.body.classList.remove('editor-drawer-open');
   Object.values(EDITOR_DRAWER_CONFIG).forEach(({ panelId }) => setPanelOpen(panelId, false));
 }
@@ -129,14 +130,21 @@ export function openEditorDrawer(editorKey, options = {}) {
   bindEditorDrawerUi();
   const config = EDITOR_DRAWER_CONFIG[editorKey];
   const shell = $('plannerEditorShell');
-  if (!config || !shell) return;
+  if (!config) return;
+
+  const settingsPanel = $('appSettingsPanel');
+  if (settingsPanel && !shell) {
+    settingsPanel.open = true;
+  }
 
   updateEditorDrawerHeader(editorKey);
   Object.entries(EDITOR_DRAWER_CONFIG).forEach(([key, { panelId }]) => setPanelOpen(panelId, key === editorKey));
 
-  shell.classList.add('is-open');
-  shell.setAttribute('aria-hidden', 'false');
-  document.body.classList.add('editor-drawer-open');
+  if (shell) {
+    shell.classList.add('is-open');
+    shell.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('editor-drawer-open');
+  }
 
   const panel = $(config.panelId);
   const form = panel?.querySelector('form');
@@ -146,6 +154,9 @@ export function openEditorDrawer(editorKey, options = {}) {
     focusTarget?.focus();
     if (focusTarget instanceof HTMLInputElement && ['text', 'search', 'url', 'tel', 'email', 'password'].includes(focusTarget.type)) {
       focusTarget.select();
+    }
+    if (!shell) {
+      panel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   });
 }
@@ -235,6 +246,7 @@ export function saveSettingsInputs() {
   state.settings.bufferMinutes = Math.max(0, Number($('bufferMinutes')?.value || 0));
   saveState();
   renderCurrentState();
+  renderSummaries();
   renderAutoPlan();
 }
 

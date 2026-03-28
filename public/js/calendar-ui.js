@@ -516,7 +516,7 @@ function renderCalendarDetail(fcEvent) {
     ? "終日"
     : `${fcEvent.start ? fcEvent.start.toLocaleString("ja-JP") : ""}${fcEvent.end ? ` 〜 ${fcEvent.end.toLocaleString("ja-JP")}` : ""}`;
   const editorHint = (sourceType === "local-oneoff" || sourceType === "fixed")
-    ? '<p class="calendar-detail-hint">この予定は右側の編集パネルでそのまま更新できます。</p>'
+    ? '<p class="calendar-detail-hint">この予定は編集パネルでそのまま更新できます。</p>'
     : "";
 
   detail.className = "calendar-detail";

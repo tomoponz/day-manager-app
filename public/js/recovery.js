@@ -133,7 +133,7 @@ export function restoreRecoverySnapshot() {
 
 export function refreshRecoveryUi() {
   const button = $("restoreBackupBtn");
-  const note = $("recoveryStatusNote");
+  const note = $("recoveryStatusNote") || $("recoveryStatusText");
   const meta = getRecoverySnapshotMeta();
 
   if (button) {
