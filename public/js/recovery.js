@@ -60,19 +60,8 @@ export function normalizePersistedState(parsed) {
     weeklyPlans: normalizeWeeklyPlans(parsed.weeklyPlans),
     milestones: (parsed.milestones || []).map(normalizeMilestone),
     planningDrafts: (parsed.planningDrafts || []).map(normalizePlanningDraft),
-    settings: {
-      focusMinutesTarget: Math.max(
-        0,
-        Number(parsed.settings?.focusMinutesTarget ?? INITIAL_STATE.settings.focusMinutesTarget)
-      ),
-      bufferMinutes: Math.max(
-        0,
-        Number(parsed.settings?.bufferMinutes ?? INITIAL_STATE.settings.bufferMinutes)
-      )
-    },
-    uiState: {
-      plannerMode: parsed.uiState?.plannerMode || INITIAL_STATE.uiState.plannerMode
-    }
+    settings: normalizeSettings(parsed.settings),
+    uiState: normalizeUiState(parsed.uiState)
   };
 }
 
@@ -138,30 +127,73 @@ export function restoreRecoverySnapshot() {
   refreshRecoveryUi();
   return {
     meta: getRecoverySnapshotMeta(),
-    normalized
+    state
   };
 }
 
 export function refreshRecoveryUi() {
   const button = $("restoreBackupBtn");
-  const status = $("recoveryStatusText");
+  const note = $("recoveryStatusNote");
   const meta = getRecoverySnapshotMeta();
 
-  if (button) button.disabled = !meta;
-  if (status) {
-    status.textContent = meta
-      ? `直前退避: ${formatRecoveryDate(meta.capturedAt)} / ${resolveReasonLabel(meta.reason)}`
-      : "自動退避はまだありません。削除や読込の直前に自動退避されます。";
+  if (button) {
+    button.disabled = !meta;
   }
+
+  if (!note) return;
+  if (!meta) {
+    note.textContent = "復元用の自動退避はまだありません。";
+    return;
+  }
+
+  const label = REASON_LABELS[meta.reason] || meta.reason || "直前状態";
+  const time = meta.capturedAt
+    ? new Date(meta.capturedAt).toLocaleString("ja-JP")
+    : "時刻不明";
+  note.textContent = `${label} / ${time}`;
 }
 
-function resolveReasonLabel(reason) {
-  return REASON_LABELS[reason] || reason || "不明";
+function normalizeSettings(settings) {
+  return {
+    focusMinutesTarget: normalizeNumberWithFallback(settings?.focusMinutesTarget, INITIAL_STATE.settings.focusMinutesTarget),
+    bufferMinutes: normalizeNumberWithFallback(settings?.bufferMinutes, INITIAL_STATE.settings.bufferMinutes),
+    protectLunch: normalizeBooleanWithFallback(settings?.protectLunch, INITIAL_STATE.settings.protectLunch),
+    lunchWindowStart: normalizeTimeValue(settings?.lunchWindowStart, INITIAL_STATE.settings.lunchWindowStart),
+    lunchWindowEnd: normalizeTimeValue(settings?.lunchWindowEnd, INITIAL_STATE.settings.lunchWindowEnd),
+    lunchMinutes: normalizeNumberWithFallback(settings?.lunchMinutes, INITIAL_STATE.settings.lunchMinutes),
+    breakAfterEvent: normalizeBooleanWithFallback(settings?.breakAfterEvent, INITIAL_STATE.settings.breakAfterEvent),
+    breakMinutes: normalizeNumberWithFallback(settings?.breakMinutes, INITIAL_STATE.settings.breakMinutes),
+    protectFocusBlock: normalizeBooleanWithFallback(settings?.protectFocusBlock, INITIAL_STATE.settings.protectFocusBlock),
+    focusBlockMinutes: normalizeNumberWithFallback(settings?.focusBlockMinutes, INITIAL_STATE.settings.focusBlockMinutes),
+    aiDraftOnly: normalizeBooleanWithFallback(settings?.aiDraftOnly, INITIAL_STATE.settings.aiDraftOnly),
+    confirmBeforeGoogleApply: normalizeBooleanWithFallback(settings?.confirmBeforeGoogleApply, INITIAL_STATE.settings.confirmBeforeGoogleApply)
+  };
 }
 
-function formatRecoveryDate(value) {
-  if (!value) return "時刻不明";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("ja-JP");
+function normalizeUiState(uiState) {
+  return {
+    plannerMode: uiState?.plannerMode || INITIAL_STATE.uiState.plannerMode,
+    onboardingCompleted: normalizeBooleanWithFallback(uiState?.onboardingCompleted, INITIAL_STATE.uiState.onboardingCompleted),
+    onboardingStep: normalizeOnboardingStep(uiState?.onboardingStep)
+  };
+}
+
+function normalizeNumberWithFallback(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function normalizeBooleanWithFallback(value, fallback) {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function normalizeTimeValue(value, fallback) {
+  const text = String(value || "").trim();
+  return /^\d{2}:\d{2}$/.test(text) ? text : fallback;
+}
+
+function normalizeOnboardingStep(value) {
+  const number = Number(value);
+  if (!Number.isInteger(number)) return INITIAL_STATE.uiState.onboardingStep;
+  return Math.min(3, Math.max(1, number));
 }

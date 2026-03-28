@@ -12,12 +12,16 @@ import {
   deleteGoogleEventById,
   getErrorMessage
 } from "./google-calendar.js";
-import {
-  openEventFormForCreate,
-  populateEventForm,
-  populateFixedForm,
-  deleteEvent
-} from "./actions.js";
+const calendarHandlers = {
+  openEventFormForCreate: null,
+  populateEventForm: null,
+  populateFixedForm: null,
+  deleteEvent: null
+};
+
+export function configureCalendarUiHandlers(nextHandlers = {}) {
+  Object.assign(calendarHandlers, nextHandlers);
+}
 import { showToast } from "./ui-feedback.js";
 
 let calendar = null;
@@ -94,13 +98,19 @@ export function initializeCalendarUi() {
     select(info) {
       setSelectedDateFromCalendar(info.startStr.slice(0, 10));
       seedEventFormFromSelection(info);
-      openEventFormForCreate();
+      calendarHandlers.openEventFormForCreate?.();
       showToast("単発予定フォームに時間帯を入れました。", { variant: "ok", duration: 1800 });
       calendar.unselect();
     },
     eventClick(info) {
       info.jsEvent.preventDefault();
+      const sourceType = info.event.extendedProps.sourceType;
       renderCalendarDetail(info.event);
+      if (sourceType === 'local-oneoff') {
+        calendarHandlers.populateEventForm?.(info.event.extendedProps.entityId);
+      } else if (sourceType === 'fixed') {
+        calendarHandlers.populateFixedForm?.(info.event.extendedProps.entityId);
+      }
     },
     eventDrop: async (info) => {
       try {
@@ -505,6 +515,9 @@ function renderCalendarDetail(fcEvent) {
   const timeText = fcEvent.allDay
     ? "終日"
     : `${fcEvent.start ? fcEvent.start.toLocaleString("ja-JP") : ""}${fcEvent.end ? ` 〜 ${fcEvent.end.toLocaleString("ja-JP")}` : ""}`;
+  const editorHint = (sourceType === "local-oneoff" || sourceType === "fixed")
+    ? '<p class="calendar-detail-hint">この予定は右側の編集パネルでそのまま更新できます。</p>'
+    : "";
 
   detail.className = "calendar-detail";
   detail.innerHTML = `
@@ -514,6 +527,7 @@ function renderCalendarDetail(fcEvent) {
     </div>
     <div class="calendar-detail-meta">${escapeHtml(timeText || "時刻情報なし")}</div>
     <div class="calendar-detail-note">${note ? escapeHtml(note) : "補足はありません。"}</div>
+    ${editorHint}
     <div class="calendar-detail-actions" id="calendarDetailActions"></div>
   `;
 
@@ -521,9 +535,9 @@ function renderCalendarDetail(fcEvent) {
   if (!actions) return;
 
   if (sourceType === "local-oneoff") {
-    actions.appendChild(makeActionButton("編集", () => populateEventForm(fcEvent.extendedProps.entityId), "primary"));
+    actions.appendChild(makeActionButton("編集パネルで開く", () => calendarHandlers.populateEventForm?.(fcEvent.extendedProps.entityId), "primary"));
     actions.appendChild(makeActionButton("削除", async () => {
-      await deleteEvent(fcEvent.extendedProps.entityId);
+      await calendarHandlers.deleteEvent?.(fcEvent.extendedProps.entityId);
       detail.className = "calendar-detail empty";
       detail.textContent = "予定をクリックすると詳細を表示します。";
     }));
@@ -540,7 +554,7 @@ function renderCalendarDetail(fcEvent) {
   }
 
   if (sourceType === "fixed") {
-    actions.appendChild(makeActionButton("固定予定を編集", () => populateFixedForm(fcEvent.extendedProps.entityId), "primary"));
+    actions.appendChild(makeActionButton("編集パネルで開く", () => calendarHandlers.populateFixedForm?.(fcEvent.extendedProps.entityId), "primary"));
     return;
   }
 
@@ -560,7 +574,6 @@ function renderCalendarDetail(fcEvent) {
     actions.appendChild(makeActionButton("AI・連携を開く", () => {
       document.getElementById("assistToolsPanel")?.setAttribute("open", "");
       window.workspaceNavApi?.openUtilityPanel?.("assistToolsPanel");
-      document.getElementById("assistToolsPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }));
     return;
   }

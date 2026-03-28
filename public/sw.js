@@ -1,4 +1,4 @@
-const CACHE_NAME = "day-manager-cache-v14";
+const CACHE_NAME = "day-manager-cache-v15";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -14,9 +14,11 @@ const CORE_ASSETS = [
   "./js/date-nav-ui.js",
   "./js/google-calendar.js",
   "./js/main-screen-layout.js",
+  "./js/onboarding.js",
   "./js/planner.js",
   "./js/prompt.js",
   "./js/quick-add.js",
+  "./js/recovery.js",
   "./js/render.js",
   "./js/scheduling-rules.js",
   "./js/state.js",
@@ -31,6 +33,7 @@ const CORE_ASSETS = [
 ];
 
 const STATIC_ASSET_PATTERN = /\.(?:css|js|mjs|png|svg|jpg|jpeg|webp|gif|ico|woff2?|ttf|otf|json|webmanifest)$/i;
+const APP_CODE_PATTERN = /\.(?:css|js|mjs|json|webmanifest)$/i;
 const BYPASS_PREFIXES = ["/api/", "/auth/"];
 
 self.addEventListener("install", (event) => {
@@ -53,7 +56,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (shouldBypassCache(url)) return;
 
-  if (event.request.mode === "navigate") {
+  if (event.request.mode === "navigate" || isAppCodeRequest(url)) {
     event.respondWith(networkFirst(event.request));
     return;
   }
@@ -69,6 +72,11 @@ function shouldBypassCache(url) {
   return BYPASS_PREFIXES.some((prefix) => url.pathname.startsWith(prefix));
 }
 
+function isAppCodeRequest(url) {
+  if (url.pathname === "/" || url.pathname.endsWith("/index.html")) return true;
+  return APP_CODE_PATTERN.test(url.pathname);
+}
+
 function isStaticAssetRequest(url) {
   if (url.pathname === "/" || url.pathname.endsWith("/index.html")) return true;
   return STATIC_ASSET_PATTERN.test(url.pathname);
@@ -77,7 +85,7 @@ function isStaticAssetRequest(url) {
 async function networkFirst(request) {
   const cache = await caches.open(CACHE_NAME);
   try {
-    const fresh = await fetch(request);
+    const fresh = await fetch(request, { cache: "no-store" });
     if (fresh.ok) {
       cache.put(request, fresh.clone());
     }

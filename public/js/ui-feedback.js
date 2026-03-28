@@ -1,5 +1,5 @@
 let isInitialized = false;
-let activeConfirm = null;
+let feedbackReadyPromise = null;
 
 export function showToast(message, options = {}) {
   ensureFeedbackUi();
@@ -52,68 +52,17 @@ export function showToast(message, options = {}) {
   }
 }
 
-export function confirmDialog(options = {}) {
-  ensureFeedbackUi();
+export async function confirmDialog(options = {}) {
   const {
     title = '確認',
     message = '',
-    confirmText = 'OK',
-    cancelText = 'キャンセル',
     danger = false
   } = options;
 
-  if (activeConfirm?.resolver) {
-    activeConfirm.resolver(false);
-    activeConfirm = null;
-  }
-
-  const root = document.getElementById('feedbackConfirmRoot');
-  const titleEl = document.getElementById('feedbackConfirmTitle');
-  const messageEl = document.getElementById('feedbackConfirmMessage');
-  const confirmBtn = document.getElementById('feedbackConfirmOk');
-  const cancelBtn = document.getElementById('feedbackConfirmCancel');
-
-  if (!root || !titleEl || !messageEl || !confirmBtn || !cancelBtn) {
-    return Promise.resolve(window.confirm(message || title));
-  }
-
-  titleEl.textContent = title;
-  messageEl.textContent = message;
-  confirmBtn.textContent = confirmText;
-  cancelBtn.textContent = cancelText;
-  confirmBtn.classList.toggle('primary', !danger);
-  confirmBtn.classList.toggle('danger', danger);
-
-  root.hidden = false;
-  root.setAttribute('aria-hidden', 'false');
-
-  return new Promise((resolve) => {
-    const cleanup = (result) => {
-      root.hidden = true;
-      root.setAttribute('aria-hidden', 'true');
-      confirmBtn.replaceWith(confirmBtn.cloneNode(true));
-      cancelBtn.replaceWith(cancelBtn.cloneNode(true));
-      bindDialogButtonHandlers();
-      activeConfirm = null;
-      resolve(result);
-    };
-
-    activeConfirm = { resolver: resolve };
-
-    document.getElementById('feedbackConfirmOk')?.addEventListener('click', () => cleanup(true), { once: true });
-    document.getElementById('feedbackConfirmCancel')?.addEventListener('click', () => cleanup(false), { once: true });
-
-    const backdrop = root.querySelector('.feedback-confirm__backdrop');
-    backdrop?.addEventListener('click', () => cleanup(false), { once: true });
-
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        document.removeEventListener('keydown', onKeyDown);
-        cleanup(false);
-      }
-    };
-    document.addEventListener('keydown', onKeyDown, { once: true });
-  });
+  // Temporary hard fallback: native confirm is ugly but reliable.
+  // We prefer a working confirmation flow over a broken custom modal.
+  const body = message ? `${title}\n\n${message}` : title;
+  return Promise.resolve(window.confirm(body));
 }
 
 function dismissToast(toast) {
@@ -122,9 +71,22 @@ function dismissToast(toast) {
   window.setTimeout(() => toast.remove(), 180);
 }
 
-function ensureFeedbackUi() {
-  if (isInitialized) return;
-  isInitialized = true;
+async function ensureFeedbackUi() {
+  if (isInitialized && document.getElementById('feedbackToastRegion')) {
+    return;
+  }
+
+  if (!document.body) {
+    if (!feedbackReadyPromise) {
+      feedbackReadyPromise = new Promise((resolve) => {
+        document.addEventListener('DOMContentLoaded', () => resolve(), { once: true });
+      }).then(() => {
+        feedbackReadyPromise = null;
+        return ensureFeedbackUi();
+      });
+    }
+    return feedbackReadyPromise;
+  }
 
   if (!document.getElementById('feedbackToastRegion')) {
     const region = document.createElement('div');
@@ -135,28 +97,5 @@ function ensureFeedbackUi() {
     document.body.appendChild(region);
   }
 
-  if (!document.getElementById('feedbackConfirmRoot')) {
-    const root = document.createElement('div');
-    root.id = 'feedbackConfirmRoot';
-    root.className = 'feedback-confirm';
-    root.hidden = true;
-    root.setAttribute('aria-hidden', 'true');
-    root.innerHTML = `
-      <div class="feedback-confirm__backdrop"></div>
-      <div class="feedback-confirm__dialog" role="dialog" aria-modal="true" aria-labelledby="feedbackConfirmTitle">
-        <h3 id="feedbackConfirmTitle" class="feedback-confirm__title">確認</h3>
-        <p id="feedbackConfirmMessage" class="feedback-confirm__message"></p>
-        <div class="feedback-confirm__actions">
-          <button id="feedbackConfirmCancel" type="button" class="ghost">キャンセル</button>
-          <button id="feedbackConfirmOk" type="button" class="primary">OK</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(root);
-    bindDialogButtonHandlers();
-  }
-}
-
-function bindDialogButtonHandlers() {
-  // placeholder: listeners are attached per open via once handlers
+  isInitialized = true;
 }

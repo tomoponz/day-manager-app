@@ -3,6 +3,7 @@ import { getWeekDates, getWeekKey, getWeekLabel, formatDateInput, formatDateTime
 import { getSchedulesForDate, getUpcomingTasks, getPendingTasks, computeFreeSlots, formatScheduleLine } from './planner.js';
 import { hasValidGoogleToken, upsertGoogleEventFromLocal, cacheGoogleEvent, getErrorMessage } from './google-calendar.js';
 import { captureRecoverySnapshot } from './recovery.js';
+import { confirmDialog } from './ui-feedback.js';
 
 export function buildGeminiPlanningPrompt(selectedDate = formatDateInput(new Date())) {
   const safeDate = selectedDate || formatDateInput(new Date());
@@ -143,13 +144,20 @@ export function deletePlanningDraft(id) {
   saveState();
 }
 
-export async function applyPlanningDraft(id, { syncToGoogle = false, captureSnapshot = true } = {}) {
+export async function applyPlanningDraft(id, { syncToGoogle = false, captureSnapshot = true, skipConfirm = false } = {}) {
   const draft = state.planningDrafts.find((item) => item.id === id);
   if (!draft) {
     return { ok: false, error: '提案が見つかりません。' };
   }
   if (syncToGoogle && !hasValidGoogleToken()) {
     return { ok: false, error: 'Google に接続してから実行してください。' };
+  }
+
+  if (syncToGoogle && !skipConfirm) {
+    const proceed = await confirmGoogleApply([draft]);
+    if (!proceed) {
+      return { ok: false, cancelled: true, error: 'Google 反映をキャンセルしました。' };
+    }
   }
 
   if (captureSnapshot) {
@@ -200,6 +208,13 @@ export async function applyAllPlanningDrafts({ syncToGoogle = false } = {}) {
     return { ok: true, applied: 0, skipped: 0, failed: 0 };
   }
 
+  if (syncToGoogle) {
+    const proceed = await confirmGoogleApply(targets);
+    if (!proceed) {
+      return { ok: false, cancelled: true, error: 'Google 反映をキャンセルしました。' };
+    }
+  }
+
   captureRecoverySnapshot(syncToGoogle ? 'apply-planning-drafts-google' : 'apply-planning-drafts-local');
 
   let applied = 0;
@@ -208,7 +223,7 @@ export async function applyAllPlanningDrafts({ syncToGoogle = false } = {}) {
   const errors = [];
 
   for (const draft of targets) {
-    const result = await applyPlanningDraft(draft.id, { syncToGoogle, captureSnapshot: false });
+    const result = await applyPlanningDraft(draft.id, { syncToGoogle, captureSnapshot: false, skipConfirm: true });
     if (result.applied && result.ok) {
       applied += 1;
       continue;
@@ -291,6 +306,42 @@ function isDuplicateLocalEvent(candidate) {
     (item.end || '') === (candidate.end || '') &&
     Boolean(item.allDay) === Boolean(candidate.allDay)
   );
+}
+
+async function confirmGoogleApply(drafts = []) {
+  if (state.settings?.confirmBeforeGoogleApply === false) {
+    return true;
+  }
+
+  const targets = (drafts || []).filter(Boolean);
+  if (!targets.length) return true;
+
+  if (targets.length === 1) {
+    const draft = targets[0];
+    const timeLabel = draft.allDay
+      ? '終日'
+      : draft.start && draft.end
+        ? `${draft.start} - ${draft.end}`
+        : '時刻未設定';
+    return confirmDialog({
+      title: 'Google Calendar に追加',
+      message: `次のAI提案を Google Calendar に追加します。\n\n${draft.targetDate} / ${timeLabel} / ${draft.title}`,
+      confirmText: 'Google追加',
+      cancelText: 'キャンセル'
+    });
+  }
+
+  const preview = targets
+    .slice(0, 3)
+    .map((draft) => `- ${draft.targetDate} / ${draft.title}`)
+    .join('\n');
+  const rest = targets.length > 3 ? `\n…ほか ${targets.length - 3} 件` : '';
+  return confirmDialog({
+    title: 'AI提案を Google Calendar に一括追加',
+    message: `${targets.length} 件のAI提案を Google Calendar に追加します。\n\n${preview}${rest}`,
+    confirmText: '一括追加',
+    cancelText: 'キャンセル'
+  });
 }
 
 function stripJsonFence(text) {

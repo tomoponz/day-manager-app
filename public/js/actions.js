@@ -45,15 +45,115 @@ function setPanelOpen(panelId, isOpen) {
   if (panel) panel.open = isOpen;
 }
 
-function focusFormPanel(panelId, form, focusSelector = 'input, select, textarea') {
-  setPanelOpen('appSettingsPanel', true);
-  const toolsPanel = $('assistToolsPanel');
-  if (toolsPanel && panelId !== 'googleSettingsPanel' && panelId !== 'promptAssistSection') toolsPanel.open = false;
-  setPanelOpen(panelId, true);
-  requestAnimationFrame(() => {
-    form.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    form.querySelector(focusSelector)?.focus();
+const EDITOR_DRAWER_CONFIG = {
+  fixed: {
+    panelId: 'fixedFormPanel',
+    title: '固定予定を追加・編集',
+    eyebrow: 'Recurring schedule',
+    description: '毎週くり返す授業・通学・食事などを、カレンダーを見ながらその場で更新します。'
+  },
+  event: {
+    panelId: 'eventFormPanel',
+    title: '単発予定を追加・編集',
+    eyebrow: 'One-off event',
+    description: '面談・締切・外出など、その日だけの予定をスクロールせずに追加します。'
+  },
+  task: {
+    panelId: 'taskFormPanel',
+    title: 'タスクを追加・編集',
+    eyebrow: 'Task editor',
+    description: '課題・復習・生活タスクを、今日の文脈を見たまま処理します。'
+  }
+};
+
+let editorDrawerBound = false;
+
+function getEditorKeyByPanelId(panelId) {
+  return Object.entries(EDITOR_DRAWER_CONFIG).find(([, config]) => config.panelId === panelId)?.[0] || null;
+}
+
+function updateEditorDrawerHeader(editorKey) {
+  const config = EDITOR_DRAWER_CONFIG[editorKey];
+  if (!config) return;
+  if ($('plannerEditorTitle')) $('plannerEditorTitle').textContent = config.title;
+  if ($('plannerEditorEyebrow')) $('plannerEditorEyebrow').textContent = config.eyebrow;
+  if ($('plannerEditorDescription')) $('plannerEditorDescription').textContent = config.description;
+  document.querySelectorAll('[data-editor-target]').forEach((button) => {
+    const active = button.getAttribute('data-editor-target') === editorKey;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', String(active));
   });
+}
+
+function bindEditorDrawerUi() {
+  if (editorDrawerBound) return;
+  editorDrawerBound = true;
+
+  document.querySelectorAll('[data-open-editor-target]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const editorKey = button.getAttribute('data-open-editor-target');
+      if (editorKey) openEditorDrawer(editorKey);
+    });
+  });
+
+  document.querySelectorAll('[data-editor-target]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const editorKey = button.getAttribute('data-editor-target');
+      if (editorKey) openEditorDrawer(editorKey);
+    });
+  });
+
+  document.querySelectorAll('[data-close-editor-drawer]').forEach((button) => {
+    button.addEventListener('click', closeEditorDrawer);
+  });
+
+  document.addEventListener('keydown', (event) => {
+    const shell = $('plannerEditorShell');
+    if (event.key === 'Escape' && shell?.classList.contains('is-open')) {
+      event.preventDefault();
+      closeEditorDrawer();
+    }
+  });
+}
+
+export function closeEditorDrawer() {
+  const shell = $('plannerEditorShell');
+  if (!shell) return;
+  shell.classList.remove('is-open');
+  shell.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('editor-drawer-open');
+  Object.values(EDITOR_DRAWER_CONFIG).forEach(({ panelId }) => setPanelOpen(panelId, false));
+}
+
+export function openEditorDrawer(editorKey, options = {}) {
+  bindEditorDrawerUi();
+  const config = EDITOR_DRAWER_CONFIG[editorKey];
+  const shell = $('plannerEditorShell');
+  if (!config || !shell) return;
+
+  updateEditorDrawerHeader(editorKey);
+  Object.entries(EDITOR_DRAWER_CONFIG).forEach(([key, { panelId }]) => setPanelOpen(panelId, key === editorKey));
+
+  shell.classList.add('is-open');
+  shell.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('editor-drawer-open');
+
+  const panel = $(config.panelId);
+  const form = panel?.querySelector('form');
+  const focusSelector = options.focusSelector || 'input, select, textarea';
+  requestAnimationFrame(() => {
+    const focusTarget = form?.querySelector(focusSelector) || panel?.querySelector(focusSelector) || panel;
+    focusTarget?.focus();
+    if (focusTarget instanceof HTMLInputElement && ['text', 'search', 'url', 'tel', 'email', 'password'].includes(focusTarget.type)) {
+      focusTarget.select();
+    }
+  });
+}
+
+function focusFormPanel(panelId, form, focusSelector = 'input, select, textarea') {
+  const editorKey = getEditorKeyByPanelId(panelId);
+  if (!editorKey) return;
+  openEditorDrawer(editorKey, { focusSelector });
 }
 
 function closeStateUpdateMenu() {
@@ -62,6 +162,7 @@ function closeStateUpdateMenu() {
 }
 
 export function bindEvents() {
+  bindEditorDrawerUi();
   const debouncedSaveCurrentConditionInputs = debounce(saveCurrentConditionInputs, 400);
 
   on('fixedForm', 'submit', onSubmitFixedSchedule);
@@ -375,7 +476,7 @@ export function resetFixedForm() {
   form.elements.editId.value = '';
   if ($('fixedSubmitBtn')) $('fixedSubmitBtn').textContent = '固定予定を追加';
   if ($('fixedCancelBtn')) $('fixedCancelBtn').hidden = true;
-  setPanelOpen('fixedFormPanel', false);
+  closeEditorDrawer();
 }
 
 export function resetEventForm() {
@@ -389,7 +490,7 @@ export function resetEventForm() {
   if ($('syncEventToGoogle')) $('syncEventToGoogle').checked = true;
   if ($('eventAllDay')) $('eventAllDay').checked = false;
   toggleEventTimeInputs();
-  setPanelOpen('eventFormPanel', false);
+  closeEditorDrawer();
 }
 
 export function resetTaskForm() {
@@ -404,7 +505,7 @@ export function resetTaskForm() {
   form.elements.protectTimeBlock.checked = false;
   if ($('taskSubmitBtn')) $('taskSubmitBtn').textContent = 'タスクを追加';
   if ($('taskCancelBtn')) $('taskCancelBtn').hidden = true;
-  setPanelOpen('taskFormPanel', false);
+  closeEditorDrawer();
 }
 
 export function toggleEventTimeInputs() {
