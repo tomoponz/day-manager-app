@@ -20,6 +20,7 @@
 </div>
 
 </header>
+<div id="onboardingMount"></div>
 <nav aria-label="画面移動" class="workspace-nav" id="workspaceNav">
 <div class="workspace-nav__inner">
 <div aria-label="主要セクション" class="workspace-nav__tabs" role="toolbar">
@@ -536,6 +537,27 @@
 <span class="mode-chip">折りたたみ</span>
 </summary>
 <div class="settings-body management-stack">
+<section class="card inner-card" id="setupControlSection">
+<div class="card-header compact">
+<div>
+<h2>初回セットアップ</h2>
+<p>最初に決める運用ルールを、あとからでもここで開き直せます。</p>
+</div>
+</div>
+<div class="setup-actions-row">
+<button class="primary" id="openOnboardingBtn" type="button">セットアップを開く</button>
+<span class="micro-note" id="onboardingStatusText">未完了</span>
+</div>
+</section>
+<section class="card inner-card" id="ruleSettingsSection">
+<div class="card-header compact">
+<div>
+<h2>時間防衛ルール</h2>
+<p>昼休み・休憩・集中時間を、AI提案と自動時間割の前提ルールとして扱います。</p>
+</div>
+</div>
+<div id="ruleSettingsMount"></div>
+</section>
 <section class="card inner-card">
 <div class="card-header compact">
 <div>
@@ -771,6 +793,15 @@
 <span class="mode-chip">補助</span>
 </summary>
 <div class="settings-body management-stack assist-stack">
+<section class="card inner-card" id="aiPolicyControlSection">
+<div class="card-header compact">
+<div>
+<h2>AI運用方針</h2>
+<p>AIは提案を作るところまでに止め、反映は人間が確認してから行います。</p>
+</div>
+</div>
+<div id="aiPolicyMount"></div>
+</section>
 <section class="card inner-card" id="promptAssistSection">
 <div class="card-header compact">
 <div>

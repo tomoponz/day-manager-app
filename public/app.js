@@ -5,14 +5,15 @@
   });
 
   async function bootstrap() {
-    const [utilsModule, timeModule, renderModule, actionsModule, googleModule, calendarModule, studyModule] = await Promise.all([
+    const [utilsModule, timeModule, renderModule, actionsModule, googleModule, calendarModule, studyModule, onboardingModule] = await Promise.all([
       import("./js/utils.js"),
       import("./js/time.js"),
       import("./js/render.js"),
       import("./js/actions.js"),
       import("./js/google-calendar.js"),
       import("./js/calendar-ui.js"),
-      import("./js/study-manager.js")
+      import("./js/study-manager.js"),
+      import("./js/onboarding.js")
     ]);
 
     await import("./js/main-screen-layout.js");
@@ -56,6 +57,11 @@
     calendarModule.initializeCalendarUi();
     studyModule.initializeStudyManager();
     renderModule.renderAll();
+    onboardingModule.initializeOnboarding({
+      getGoogleConnected: () => Boolean(googleModule.googleState?.connected),
+      onConnectGoogle: googleModule.onConnectGoogle,
+      onDisconnectGoogle: googleModule.onDisconnectGoogle
+    });
 
     registerServiceWorker();
     await import("./js/ai-gemini-assist.js");
