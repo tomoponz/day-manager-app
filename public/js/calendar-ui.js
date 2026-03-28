@@ -1,5 +1,6 @@
 
 import { state, saveState } from "./state.js";
+import { buildProtectedTimeBlocks } from "./planner.js";
 import { $ } from "./utils.js";
 import { addDays, formatDateInput } from "./time.js";
 import {
@@ -11,16 +12,12 @@ import {
   deleteGoogleEventById,
   getErrorMessage
 } from "./google-calendar.js";
-const calendarHandlers = {
-  openEventFormForCreate: null,
-  populateEventForm: null,
-  populateFixedForm: null,
-  deleteEvent: null
-};
-
-export function configureCalendarUiHandlers(nextHandlers = {}) {
-  Object.assign(calendarHandlers, nextHandlers);
-}
+import {
+  openEventFormForCreate,
+  populateEventForm,
+  populateFixedForm,
+  deleteEvent
+} from "./actions.js";
 import { showToast } from "./ui-feedback.js";
 
 let calendar = null;
@@ -97,7 +94,7 @@ export function initializeCalendarUi() {
     select(info) {
       setSelectedDateFromCalendar(info.startStr.slice(0, 10));
       seedEventFormFromSelection(info);
-      calendarHandlers.openEventFormForCreate?.();
+      openEventFormForCreate();
       showToast("単発予定フォームに時間帯を入れました。", { variant: "ok", duration: 1800 });
       calendar.unselect();
     },
@@ -145,6 +142,7 @@ export function initializeCalendarUi() {
 
   calendar.render();
   renderCalendarConnectionMeta();
+  ensureCalendarLegendPills();
   bindCalendarHelpers();
 }
 
@@ -166,6 +164,7 @@ export function refreshCalendarUi() {
   }
   calendar.refetchEvents();
   renderCalendarConnectionMeta();
+  ensureCalendarLegendPills();
 }
 
 export function resizeCalendarUi() {
@@ -223,9 +222,11 @@ function buildCalendarEvents(fetchStart, fetchEndExclusive) {
   const startDate = formatDateInput(fetchStart);
   const endDate = formatDateInput(new Date(fetchEndExclusive.getTime() - 1));
   return [
+    ...buildProtectedRuleEvents(startDate, endDate),
     ...buildFixedScheduleEvents(startDate, endDate),
     ...buildLocalOneOffEvents(startDate, endDate),
-    ...buildGoogleEvents(startDate, endDate)
+    ...buildGoogleEvents(startDate, endDate),
+    ...buildPlanningDraftEvents(startDate, endDate)
   ];
 }
 
@@ -280,6 +281,99 @@ function buildLocalOneOffEvents(startDate, endDate) {
         }
       };
     });
+}
+
+function buildProtectedRuleEvents(startDate, endDate) {
+  const results = [];
+  for (const dateStr of enumerateDateRange(startDate, endDate)) {
+    const schedules = getSchedulesForDateForCalendar(dateStr);
+    const blocks = buildProtectedTimeBlocks(dateStr, schedules);
+    for (const block of blocks) {
+      if (!block.start || !block.end) continue;
+      results.push({
+        id: `protected:${block.kind}:${dateStr}:${block.start}:${block.end}`,
+        title: block.title,
+        start: `${dateStr}T${block.start}:00`,
+        end: `${dateStr}T${block.end}:00`,
+        display: "background",
+        overlap: false,
+        classNames: [
+          "fc-day-manager-protected",
+          `fc-day-manager-protected-${block.kind}`
+        ],
+        editable: false,
+        extendedProps: {
+          sourceType: "protected",
+          entityId: block.id,
+          protectedKind: block.kind,
+          note: block.note || "",
+          protectedTitle: block.title,
+          dateStr
+        }
+      });
+    }
+  }
+  return results;
+}
+
+function buildPlanningDraftEvents(startDate, endDate) {
+  return (state.planningDrafts || [])
+    .filter((item) => ["draft", "failed"].includes(item.status))
+    .filter((item) => item.targetDate && item.targetDate >= startDate && item.targetDate <= endDate)
+    .map((item) => ({
+      id: `draft:${item.id}`,
+      title: item.title,
+      start: item.allDay ? item.targetDate : `${item.targetDate}T${item.start || "00:00"}:00`,
+      end: item.allDay ? addDays(item.targetDate, 1) : `${item.targetDate}T${item.end || item.start || "00:00"}:00`,
+      allDay: Boolean(item.allDay),
+      editable: false,
+      classNames: ["fc-day-manager-draft", item.status === "failed" ? "fc-day-manager-draft-failed" : ""].filter(Boolean),
+      extendedProps: {
+        sourceType: "draft",
+        entityId: item.id,
+        note: buildDraftCalendarNote(item),
+        draftStatus: item.status || "draft",
+        draftReason: item.reason || ""
+      }
+    }));
+}
+
+function buildDraftCalendarNote(item) {
+  const parts = [];
+  if (item.note) parts.push(item.note);
+  if (item.reason) parts.push(`AI理由: ${item.reason}`);
+  parts.push(item.status === "failed" ? "追加失敗 / 再確認してから反映してください。" : "AI提案候補 / AI・連携から反映できます。");
+  return parts.join(" / ");
+}
+
+function getSchedulesForDateForCalendar(dateStr) {
+  if (!dateStr) return [];
+  const dateObj = new Date(`${dateStr}T00:00:00`);
+  const weekday = dateObj.getDay();
+
+  const fixed = state.fixedSchedules
+    .filter((item) => Number(item.weekday) === weekday)
+    .map((item) => ({ ...item, type: "fixed", date: dateStr, allDay: false }));
+
+  const oneOff = state.oneOffEvents
+    .filter((item) => item.date === dateStr)
+    .map((item) => ({ ...item, type: "event" }));
+
+  const syncedIds = new Set(oneOff.map((item) => item.googleEventId).filter(Boolean));
+  const googleSchedules = (googleState.eventsByDate?.[dateStr] || [])
+    .filter((event) => !syncedIds.has(event.id))
+    .map((event) => mapGoogleEventToSchedule(event, dateStr));
+
+  return [...fixed, ...oneOff, ...googleSchedules].sort(compareCalendarSchedule);
+}
+
+function compareCalendarSchedule(a, b) {
+  const allDayRankA = a.allDay ? 0 : 1;
+  const allDayRankB = b.allDay ? 0 : 1;
+  if (allDayRankA !== allDayRankB) return allDayRankA - allDayRankB;
+  const aKey = `${a.start || "99:99"}${a.title}`;
+  const bKey = `${b.start || "99:99"}${b.title}`;
+  return aKey.localeCompare(bKey);
 }
 
 function buildGoogleEvents(startDate, endDate) {
@@ -380,6 +474,26 @@ async function applyLocalEventMove(fcEvent) {
   showToast("予定の日時を更新しました。", { variant: "ok", duration: 1800 });
 }
 
+function ensureCalendarLegendPills() {
+  const row = document.querySelector(".calendar-legend-row");
+  if (!row) return;
+
+  const defs = [
+    ["legend-pill-lunch", "昼休み候補"],
+    ["legend-pill-break", "休憩候補"],
+    ["legend-pill-focus", "集中時間候補"],
+    ["legend-pill-draft", "AI提案候補"]
+  ];
+
+  defs.forEach(([className, label]) => {
+    if (row.querySelector(`.${className}`)) return;
+    const pill = document.createElement("span");
+    pill.className = `legend-pill ${className}`;
+    pill.textContent = label;
+    row.appendChild(pill);
+  });
+}
+
 function renderCalendarDetail(fcEvent) {
   const detail = $("calendarDetail");
   if (!detail || !fcEvent) return;
@@ -407,9 +521,9 @@ function renderCalendarDetail(fcEvent) {
   if (!actions) return;
 
   if (sourceType === "local-oneoff") {
-    actions.appendChild(makeActionButton("編集", () => calendarHandlers.populateEventForm?.(fcEvent.extendedProps.entityId), "primary"));
+    actions.appendChild(makeActionButton("編集", () => populateEventForm(fcEvent.extendedProps.entityId), "primary"));
     actions.appendChild(makeActionButton("削除", async () => {
-      await calendarHandlers.deleteEvent?.(fcEvent.extendedProps.entityId);
+      await deleteEvent(fcEvent.extendedProps.entityId);
       detail.className = "calendar-detail empty";
       detail.textContent = "予定をクリックすると詳細を表示します。";
     }));
@@ -426,7 +540,7 @@ function renderCalendarDetail(fcEvent) {
   }
 
   if (sourceType === "fixed") {
-    actions.appendChild(makeActionButton("固定予定を編集", () => calendarHandlers.populateFixedForm?.(fcEvent.extendedProps.entityId), "primary"));
+    actions.appendChild(makeActionButton("固定予定を編集", () => populateFixedForm(fcEvent.extendedProps.entityId), "primary"));
     return;
   }
 
@@ -438,6 +552,21 @@ function renderCalendarDetail(fcEvent) {
       detail.textContent = "予定をクリックすると詳細を表示します。";
       calendar?.refetchEvents();
     }));
+    return;
+  }
+
+  if (sourceType === "draft") {
+    actions.appendChild(makeActionButton("この日を表示", () => setSelectedDateFromCalendar((fcEvent.startStr || "").slice(0, 10)), "primary"));
+    actions.appendChild(makeActionButton("AI・連携を開く", () => {
+      document.getElementById("assistToolsPanel")?.setAttribute("open", "");
+      window.workspaceNavApi?.openUtilityPanel?.("assistToolsPanel");
+      document.getElementById("assistToolsPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }));
+    return;
+  }
+
+  if (sourceType === "protected") {
+    actions.appendChild(makeActionButton("この日を表示", () => setSelectedDateFromCalendar((fcEvent.startStr || "").slice(0, 10)), "primary"));
   }
 }
 
@@ -445,7 +574,9 @@ function getSourceLabel(sourceType) {
   return {
     "local-oneoff": "ローカル単発予定",
     fixed: "固定予定",
-    google: "Google予定"
+    google: "Google予定",
+    draft: "AI提案候補",
+    protected: "時間防衛候補"
   }[sourceType] || sourceType;
 }
 
