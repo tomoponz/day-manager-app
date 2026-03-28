@@ -13,6 +13,8 @@ import {
   getPendingTasks,
   computeFreeSlots,
   buildAutoPlan,
+  computeRuleAwareFreeSlots,
+  buildProtectedTimeBlocks,
   splitSchedulesByNow,
   buildCurrentStateLines,
   buildRiskAlerts,
@@ -22,6 +24,7 @@ import {
   scoreTask
 } from "./planner.js";
 import { refreshCalendarUi, renderCalendarConnectionMeta } from "./calendar-ui.js";
+import { describeProtectedBlock, buildRuleModeLabel } from "./scheduling-rules.js";
 
 const handlers = {
   onEditFixed: null,
@@ -381,15 +384,16 @@ export function renderCurrentState() {
   const fatigue = Number(state.dayConditions?.[date]?.fatigue ?? $("fatigue")?.value ?? 5);
   const risks = buildRiskAlerts(date, ctx, schedules, fatigue);
   const cuts = buildCutCandidates(date, ctx, fatigue);
-  const freeSlots = computeFreeSlots(schedules, ctx);
+  const { protectedBlocks, freeSlots } = computeRuleAwareFreeSlots(date, schedules, ctx);
 
-  fillSummary($("currentStateSummary"), buildCurrentStateLines(date, ctx, split, freeSlots));
+  fillSummary($("currentStateSummary"), buildCurrentStateLines(date, ctx, split, freeSlots, protectedBlocks));
   fillSummary($("riskSummary"), risks);
   fillSummary($("cutSummary"), cuts);
 
+  const ruleLabel = buildRuleModeLabel(date, protectedBlocks);
   const note = ctx.isToday
-    ? `${ctx.effectiveModeLabel}として、現在時刻以降の残り時間を優先して評価しています。`
-    : "対象日は今日ではないので、現在時刻は参考情報として扱い、日全体の計画を出します。";
+    ? `${ctx.effectiveModeLabel}として、現在時刻以降の残り時間を優先して評価しています。 ${ruleLabel}`
+    : `対象日は今日ではないので、現在時刻は参考情報として扱い、日全体の計画を出します。 ${ruleLabel}`;
   updateStateNote(note);
 }
 
@@ -399,7 +403,7 @@ export function renderSummaries() {
   const schedules = getSchedulesForDate(selectedDate);
   const deadlines = getUpcomingTasks(selectedDate, 48, ctx);
   const pending = getPendingTasks(selectedDate, ctx);
-  const freeSlots = computeFreeSlots(schedules, ctx);
+  const { protectedBlocks, freeSlots } = computeRuleAwareFreeSlots(selectedDate, schedules, ctx);
 
   fillSummary(
     $("dayScheduleSummary"),
@@ -417,10 +421,7 @@ export function renderSummaries() {
     $("pendingSummary"),
     pending.length ? pending.slice(0, 8).map((task) => `${task.title} / ${task.category || "分類なし"} / ${task.status}`) : []
   );
-  fillSummary(
-    $("freeTimeSummary"),
-    freeSlots.length ? freeSlots.map((slot) => `${slot.start} - ${slot.end} (${slot.minutes}分)`) : []
-  );
+  fillSummary($("freeTimeSummary"), buildFreeTimeSummaryLines(protectedBlocks, freeSlots));
 
   const split = splitSchedulesByNow(schedules, ctx);
   fillSummary($("immediateScheduleSummary"), buildTimelineStatusLines(split).slice(0, 5));
@@ -428,13 +429,13 @@ export function renderSummaries() {
 
 export function renderAutoPlan() {
   const date = $("selectedDate").value;
-  const ctx = getNowContext(date, state.uiState?.plannerMode || "auto");
   const fatigue = Number(state.dayConditions?.[date]?.fatigue ?? $("fatigue")?.value ?? 5);
-  const plan = buildAutoPlan(date, ctx, false, fatigue);
+  const plan = buildAutoPlan(date, null, false, fatigue);
 
   fillSummary($("autoTopThree"), plan.topThree);
   fillSummary($("autoTimeline"), plan.timeline);
-  $("autoPlanNote").textContent = `${plan.note} / 集中ブロック: ${plan.focusSummary}`;
+  const protectedTail = plan.protectedSummary?.length ? ` / 時間防衛: ${plan.protectedSummary.join(" / ")}` : "";
+  $("autoPlanNote").textContent = `${plan.note} / 集中ブロック: ${plan.focusSummary}${protectedTail}`;
 }
 
 export function renderTodayActionDeck() {
@@ -451,7 +452,7 @@ export function renderTodayActionDeck() {
 
   const ctx = getNowContext(selectedDate, state.uiState?.plannerMode || "auto");
   const schedules = getSchedulesForDate(selectedDate);
-  const freeSlots = computeFreeSlots(schedules, ctx);
+  const { freeSlots } = computeRuleAwareFreeSlots(selectedDate, schedules, ctx);
   const slotMinutes = freeSlots[0]?.minutes || 60;
   const fatigue = Number(state.dayConditions?.[selectedDate]?.fatigue || $("fatigue")?.value || 5);
   const reference = ctx.isToday ? ctx.now : new Date(`${selectedDate}T00:00:00`);
@@ -502,6 +503,17 @@ export function updateGoogleConnectionBadge() {
 export function updateStateNote(message) {
   const note = $("stateNote");
   if (note) note.textContent = message;
+}
+
+function buildFreeTimeSummaryLines(protectedBlocks, freeSlots) {
+  const lines = [];
+  (protectedBlocks || []).forEach((block) => {
+    lines.push(`守る / ${describeProtectedBlock(block)}`);
+  });
+  (freeSlots || []).forEach((slot) => {
+    lines.push(`空き / ${slot.start} - ${slot.end} (${slot.minutes}分)`);
+  });
+  return lines.slice(0, 8);
 }
 
 function updateActiveModeChip(ctx) {

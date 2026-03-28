@@ -1,8 +1,10 @@
 import { state } from "./state.js";
 import { getCachedGoogleEvents } from "./google-calendar.js";
 import { getNowContext, toMinutes, fromMinutes, formatDateInput, formatTimeOnly } from "./time.js";
+import { $ } from "./utils.js";
+import { getSchedulingRules, isWeekdayDate, makeProtectedBlock, describeProtectedBlock, summarizeProtectedBlocks, buildRuleModeLabel, intersectMinuteRange, clampBlockWithinSlot, minutesToTimeText } from "./scheduling-rules.js";
 
-function currentContext(dateStr = formatDateInput(new Date())) {
+function currentContext(dateStr = $("selectedDate")?.value || formatDateInput(new Date())) {
   return getNowContext(dateStr, state.uiState?.plannerMode || "auto");
 }
 
@@ -73,7 +75,7 @@ export function getUpcomingTasks(dateStr, hours = 48, ctx = currentContext(dateS
     .sort((a, b) => (`${a.deadlineDate}${a.deadlineTime}`).localeCompare(`${b.deadlineDate}${b.deadlineTime}`));
 }
 
-export function getPendingTasks(dateStr = formatDateInput(new Date()), ctx = currentContext(dateStr)) {
+export function getPendingTasks(dateStr = $("selectedDate")?.value || formatDateInput(new Date()), ctx = currentContext(dateStr)) {
   return state.tasks.filter((task) => {
     if (task.status === "完了") return false;
     if (task.deferUntilDate && task.deferUntilDate > dateStr && ctx.effectiveMode !== "night") return false;
@@ -117,16 +119,26 @@ export function splitSchedulesByNow(schedules, ctx) {
   return { done, current, upcoming };
 }
 
-export function computeFreeSlots(schedules, ctx = currentContext(formatDateInput(new Date()))) {
+export function computeFreeSlots(schedules, ctx = currentContext(), options = {}) {
+  const { additionalBlocks = [] } = options;
   const baseStart = toMinutes("06:00");
   const baseEnd = toMinutes("24:00");
   const buffer = Math.max(0, Number(state.settings?.bufferMinutes || 0));
-  const blocks = schedules
+  const scheduleBlocks = schedules
     .filter((item) => !item.allDay && item.start && item.end)
     .map((item) => ({
       start: Math.max(baseStart, toMinutes(item.start) - Math.floor(buffer / 2)),
       end: Math.min(baseEnd, toMinutes(item.end) + Math.ceil(buffer / 2))
-    }))
+    }));
+
+  const guardBlocks = (additionalBlocks || [])
+    .filter((item) => !item.allDay && item.start && item.end)
+    .map((item) => ({
+      start: Math.max(baseStart, toMinutes(item.start)),
+      end: Math.min(baseEnd, toMinutes(item.end))
+    }));
+
+  const blocks = [...scheduleBlocks, ...guardBlocks]
     .filter((item) => Number.isFinite(item.start) && Number.isFinite(item.end) && item.end > item.start)
     .sort((a, b) => a.start - b.start);
 
@@ -151,13 +163,138 @@ export function makeSlot(start, end) {
   return { start: fromMinutes(start), end: fromMinutes(end), minutes: end - start };
 }
 
-export function buildCurrentStateLines(date, ctx, split, freeSlots) {
+
+export function buildProtectedTimeBlocks(dateStr, schedules = getSchedulesForDate(dateStr), ctx = currentContext(dateStr)) {
+  if (!dateStr) return [];
+
+  const rules = getSchedulingRules();
+  const baseFreeSlots = computeFreeSlots(schedules, ctx);
+  const protectedBlocks = [];
+
+  const lunchBlock = computeLunchProtectionBlock(dateStr, rules, baseFreeSlots);
+  if (lunchBlock) protectedBlocks.push(lunchBlock);
+
+  const breakBlocks = computeRecoveryBreakBlocks(dateStr, schedules, ctx, rules, protectedBlocks);
+  protectedBlocks.push(...breakBlocks);
+
+  const focusBlock = computeFocusProtectionBlock(dateStr, schedules, ctx, rules, protectedBlocks);
+  if (focusBlock) protectedBlocks.push(focusBlock);
+
+  return protectedBlocks.sort((a, b) => `${a.start}${a.end}${a.title}`.localeCompare(`${b.start}${b.end}${b.title}`));
+}
+
+export function computeRuleAwareFreeSlots(dateStr, schedules = getSchedulesForDate(dateStr), ctx = currentContext(dateStr)) {
+  const protectedBlocks = buildProtectedTimeBlocks(dateStr, schedules, ctx);
+  const freeSlots = computeFreeSlots(schedules, ctx, { additionalBlocks: protectedBlocks });
+  return { protectedBlocks, freeSlots };
+}
+
+function computeLunchProtectionBlock(dateStr, rules, freeSlots) {
+  if (!rules.protectLunch || !isWeekdayDate(dateStr)) return null;
+  const windowStart = toMinutes(rules.lunchWindowStart);
+  const windowEnd = toMinutes(rules.lunchWindowEnd);
+  if (!Number.isFinite(windowStart) || !Number.isFinite(windowEnd) || windowEnd <= windowStart) return null;
+
+  for (const slot of freeSlots) {
+    const slotStart = toMinutes(slot.start);
+    const slotEnd = toMinutes(slot.end);
+    const intersection = intersectMinuteRange(slotStart, slotEnd, windowStart, windowEnd);
+    if (!intersection || intersection.minutes < rules.lunchMinutes) continue;
+    const preferredStart = Math.max(intersection.start, windowStart);
+    const placed = clampBlockWithinSlot(intersection.start, intersection.end, rules.lunchMinutes, preferredStart);
+    if (!placed) continue;
+    return makeProtectedBlock({
+      date: dateStr,
+      kind: "lunch",
+      title: "昼休み候補",
+      start: minutesToTimeText(placed.start),
+      end: minutesToTimeText(placed.end),
+      note: `${rules.lunchMinutes}分確保`
+    });
+  }
+
+  return null;
+}
+
+function computeRecoveryBreakBlocks(dateStr, schedules, ctx, rules, protectedBlocks) {
+  if (!rules.breakAfterEvent) return [];
+  const freeSlots = computeFreeSlots(schedules, ctx, { additionalBlocks: protectedBlocks });
+  const timedSchedules = schedules
+    .filter((item) => !item.allDay && item.start && item.end)
+    .sort(compareSchedule);
+
+  const breaks = [];
+  for (const schedule of timedSchedules) {
+    const scheduleEnd = toMinutes(schedule.end);
+    const matchingSlot = freeSlots.find((slot) => {
+      const slotStart = toMinutes(slot.start);
+      const slotEnd = toMinutes(slot.end);
+      if (!Number.isFinite(slotStart) || !Number.isFinite(slotEnd)) return false;
+      if (slotEnd - Math.max(slotStart, scheduleEnd) < rules.breakMinutes) return false;
+      return slotStart <= scheduleEnd + 10 && slotEnd > scheduleEnd;
+    });
+    if (!matchingSlot) continue;
+
+    const slotStart = Math.max(toMinutes(matchingSlot.start), scheduleEnd);
+    const placed = clampBlockWithinSlot(slotStart, toMinutes(matchingSlot.end), rules.breakMinutes, slotStart);
+    if (!placed) continue;
+
+    const candidate = makeProtectedBlock({
+      date: dateStr,
+      kind: "break",
+      title: "休憩候補",
+      start: minutesToTimeText(placed.start),
+      end: minutesToTimeText(placed.end),
+      note: `${schedule.title} の後` 
+    });
+
+    if (breaks.some((item) => blocksOverlap(item, candidate))) continue;
+    breaks.push(candidate);
+  }
+
+  return breaks;
+}
+
+function computeFocusProtectionBlock(dateStr, schedules, ctx, rules, protectedBlocks) {
+  if (!rules.protectFocusBlock) return null;
+  const pendingTasks = getPendingTasks(dateStr, ctx).filter((task) => task.status !== "完了");
+  if (!pendingTasks.length) return null;
+
+  const freeSlots = computeFreeSlots(schedules, ctx, { additionalBlocks: protectedBlocks });
+  const candidates = freeSlots
+    .filter((slot) => slot.minutes >= Math.min(45, rules.focusBlockMinutes))
+    .sort((a, b) => b.minutes - a.minutes || a.start.localeCompare(b.start));
+  const chosen = candidates[0];
+  if (!chosen) return null;
+
+  const allocatedMinutes = Math.min(chosen.minutes, rules.focusBlockMinutes);
+  const placed = clampBlockWithinSlot(toMinutes(chosen.start), toMinutes(chosen.end), allocatedMinutes, toMinutes(chosen.start));
+  if (!placed) return null;
+
+  const leadTask = pendingTasks[0];
+  return makeProtectedBlock({
+    date: dateStr,
+    kind: "focus",
+    title: "集中時間候補",
+    start: minutesToTimeText(placed.start),
+    end: minutesToTimeText(placed.end),
+    note: leadTask ? `先頭候補: ${leadTask.title}` : `${allocatedMinutes}分確保`
+  });
+}
+
+function blocksOverlap(a, b) {
+  return toMinutes(a.start) < toMinutes(b.end) && toMinutes(b.start) < toMinutes(a.end);
+}
+
+export function buildCurrentStateLines(date, ctx, split, freeSlots, protectedBlocks = []) {
   const lines = [
     `現在日時: ${ctx.currentDateLabel}`,
     `運用モード: ${ctx.effectiveModeLabel}`,
     `対象日: ${date}`,
     `集中目標: ${state.settings?.focusMinutesTarget || 0}分 / バッファ: ${state.settings?.bufferMinutes || 0}分`
   ];
+  const protectedSummary = summarizeProtectedBlocks(protectedBlocks);
+  if (protectedSummary.length) lines.push(`時間防衛: ${protectedSummary.join(" / ")}`);
   if (ctx.isToday) {
     const remainingMinutes = Math.max(0, toMinutes("24:00") - ctx.currentMinutes);
     lines.push(`今日の残り時間: ${Math.floor(remainingMinutes / 60)}時間${remainingMinutes % 60}分`);
@@ -180,7 +317,7 @@ export function buildTimelineStatusLines(split) {
 export function buildRiskAlerts(dateStr, ctx, schedules, fatigue = 5) {
   const alerts = [];
   const reference = ctx.isToday ? ctx.now : new Date(`${dateStr}T00:00:00`);
-  const freeSlots = computeFreeSlots(schedules, ctx);
+  const { freeSlots } = computeRuleAwareFreeSlots(dateStr, schedules, ctx);
   const pending = getPendingTasks(dateStr, ctx);
   pending.forEach((task) => {
     if (!task.deadlineDate) return;
@@ -204,7 +341,7 @@ export function buildCutCandidates(dateStr, ctx, fatigue = 5) {
 export function buildAutoPlan(dateStr, providedCtx = null, includeCutCandidates = false, fatigue = 5) {
   const ctx = providedCtx || currentContext(dateStr);
   const schedules = getSchedulesForDate(dateStr);
-  const freeSlots = computeFreeSlots(schedules, ctx);
+  const { protectedBlocks, freeSlots } = computeRuleAwareFreeSlots(dateStr, schedules, ctx);
   const referenceDate = ctx.isToday ? ctx.now : new Date(`${dateStr}T00:00:00`);
   const normalizedFatigue = Number(fatigue || 5);
   const focusTarget = Math.max(0, Number(state.settings?.focusMinutesTarget || 0));
@@ -262,16 +399,19 @@ export function buildAutoPlan(dateStr, providedCtx = null, includeCutCandidates 
 
   const unscheduled = tasks.filter((task) => !scheduledTaskIds.has(task.id));
   const cutCandidates = deriveCutCandidates(unscheduled);
+  const ruleLabel = buildRuleModeLabel(dateStr, protectedBlocks);
   const note = placements.length
-    ? `${ctx.effectiveModeLabel}として、現在時刻以降に収まりやすい順で仮配置しています。`
-    : "条件に合う自動配置候補を作れませんでした。今日は切る候補を確認してください。";
+    ? `${ctx.effectiveModeLabel}として、現在時刻以降に収まりやすい順で仮配置しています。 ${ruleLabel}`
+    : `条件に合う自動配置候補を作れませんでした。今日は切る候補を確認してください。 ${ruleLabel}`;
 
   return {
     topThree,
     timeline: placements.map((item) => item.label),
     cutCandidates: includeCutCandidates ? cutCandidates : [],
     note,
-    focusSummary: `${plannedFocusMinutes} / ${focusTarget}分`
+    focusSummary: `${plannedFocusMinutes} / ${focusTarget}分`,
+    protectedSummary: summarizeProtectedBlocks(protectedBlocks),
+    protectedBlocks
   };
 }
 
@@ -295,7 +435,7 @@ export function deriveCutCandidates(tasks) {
     .map((task) => `${task.title} / ${task.importance}${task.deferUntilDate ? ` / 保留:${task.deferUntilDate}` : ""}`);
 }
 
-export function scoreTask(task, referenceDate, slotMinutes, fatigue, ctx, dateStr = formatDateInput(new Date())) {
+export function scoreTask(task, referenceDate, slotMinutes, fatigue, ctx, dateStr = $("selectedDate")?.value || formatDateInput(new Date())) {
   if (task.deferUntilDate && task.deferUntilDate > dateStr) return -999;
   let score = 0;
   score += ({ 必須: 60, できれば: 25, 後回し: -12 })[task.importance] ?? 0;
