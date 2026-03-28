@@ -84,6 +84,10 @@ export function renderCurrentClock() {
 
   $("currentDateTime").textContent = ctx.currentDateLabel;
   $("currentDateMeta").textContent = `${ctx.timeZone} / ${WEEKDAY_NAMES[ctx.now.getDay()]}曜日 / 現在時刻を基準に再設計`;
+  const clockMount = $("topbarClockMount");
+  if (clockMount) {
+    clockMount.textContent = ctx.now.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+  }
   updateActiveModeChip(ctx);
 }
 
@@ -254,7 +258,6 @@ export function renderTasks() {
   const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
   items.forEach((item) => {
-    const actions = [];
     const statusSelect = document.createElement("select");
     statusSelect.className = "status-select";
 
@@ -267,18 +270,46 @@ export function renderTasks() {
     });
 
     statusSelect.addEventListener("change", () => handlers.onQuickSetTaskStatus?.(item.id, statusSelect.value));
-    actions.push(statusSelect);
 
-    if (item.status !== "進行中") {
-      actions.push(makeActionButton("着手", () => handlers.onQuickSetTaskStatus?.(item.id, "進行中")));
-    }
+    const actionShell = document.createElement("div");
+    actionShell.className = "task-action-shell";
+
+    const primaryActions = document.createElement("div");
+    primaryActions.className = "list-actions-primary";
+    primaryActions.appendChild(statusSelect);
+
     if (item.status !== "完了") {
-      actions.push(makeActionButton("完了", () => handlers.onQuickSetTaskStatus?.(item.id, "完了")));
+      const completeButton = makeActionButton("完了", () => handlers.onQuickSetTaskStatus?.(item.id, "完了"));
+      completeButton.classList.add("mini-btn", "complete-btn");
+      primaryActions.appendChild(completeButton);
     }
 
-    actions.push(makeActionButton("明日", () => handlers.onDeferTaskToTomorrow?.(item.id)));
-    actions.push(makeActionButton("編集", () => handlers.onEditTask?.(item.id)));
-    actions.push(makeDeleteButton(() => handlers.onDeleteTask?.(item.id)));
+    const moreButton = document.createElement("button");
+    moreButton.type = "button";
+    moreButton.className = "list-item__more-btn";
+    moreButton.textContent = "…";
+    moreButton.setAttribute("aria-label", "その他の操作");
+    moreButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      const listItem = moreButton.closest(".list-item");
+      listItem?.classList.toggle("is-expanded");
+    });
+    primaryActions.appendChild(moreButton);
+
+    const subActions = document.createElement("div");
+    subActions.className = "list-item__sub-actions";
+    const deferButton = makeActionButton("明日", () => handlers.onDeferTaskToTomorrow?.(item.id));
+    deferButton.classList.add("mini-btn");
+    const editButton = makeActionButton("編集", () => handlers.onEditTask?.(item.id));
+    editButton.classList.add("mini-btn");
+    subActions.appendChild(deferButton);
+    subActions.appendChild(editButton);
+    subActions.appendChild(makeDeleteButton(() => handlers.onDeleteTask?.(item.id)));
+
+    actionShell.appendChild(primaryActions);
+    actionShell.appendChild(subActions);
+
+    const actions = [actionShell];
 
     const deadlineText = item.deadlineDate
       ? `${item.deadlineDate}${item.deadlineTime ? ` ${item.deadlineTime}` : ""}`
@@ -405,6 +436,8 @@ export function renderSummaries() {
   const pending = getPendingTasks(selectedDate, ctx);
   const { protectedBlocks, freeSlots } = computeRuleAwareFreeSlots(selectedDate, schedules, ctx);
 
+  renderSummaryOverview(selectedDate, pending, freeSlots, protectedBlocks);
+
   fillSummary(
     $("dayScheduleSummary"),
     schedules.length ? schedules.map((item) => formatScheduleLine(item)) : []
@@ -476,6 +509,75 @@ export function renderTodayActionDeck() {
 
   wrap.className = "today-action-list";
   ranked.forEach(({ task, score }) => wrap.appendChild(createTodayActionCard(task, score, slotMinutes, selectedDate)));
+}
+
+
+function renderSummaryOverview(selectedDate, pending, freeSlots, protectedBlocks) {
+  const container = $("summaryOverviewCard");
+  if (!container) return;
+  if (!selectedDate) {
+    container.className = "summary-overview empty";
+    container.textContent = "対象日を選ぶと、ここに今日の概況を表示します。";
+    return;
+  }
+
+  const remaining = pending.length;
+  const freeMinutes = (freeSlots || []).reduce((sum, slot) => sum + (Number(slot?.minutes) || 0), 0);
+  const totalCount = state.tasks.length;
+  const doneCount = state.tasks.filter((task) => task.status === "完了").length;
+  const focusTarget = Number(state.settings?.focusMinutesTarget) || 180;
+  const focusMin = (protectedBlocks || [])
+    .filter((block) => block?.kind === "focus")
+    .reduce((sum, block) => sum + (Number(block?.minutes) || 0), 0);
+  const urgentCount = pending.filter((task) => task.importance === "必須" || task.priority === "高").length;
+  const focusPct = Math.min(100, Math.round((focusMin / Math.max(focusTarget, 1)) * 100));
+  const donePct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+
+  container.className = "summary-overview";
+  container.innerHTML = `
+    <div class="summary-stat-grid">
+      <div class="summary-stat">
+        <span class="summary-stat__val">${remaining}</span>
+        <span class="summary-stat__lbl">残りタスク</span>
+      </div>
+      <div class="summary-stat">
+        <span class="summary-stat__val">${freeMinutes}分</span>
+        <span class="summary-stat__lbl">空き時間</span>
+      </div>
+      <div class="summary-stat">
+        <span class="summary-stat__val">${doneCount} / ${totalCount}</span>
+        <span class="summary-stat__lbl">完了</span>
+      </div>
+      <div class="summary-stat">
+        <span class="summary-stat__val">${focusMin}分</span>
+        <span class="summary-stat__lbl">集中確保</span>
+      </div>
+    </div>
+
+    <div class="summary-progress">
+      <div class="summary-progress__label">
+        <span>集中確保 ${focusMin} / ${focusTarget}分</span>
+        <span>${focusPct}%</span>
+      </div>
+      <div class="summary-progress__bar">
+        <div class="summary-progress__fill" style="width: ${focusPct}%"></div>
+      </div>
+    </div>
+
+    <div class="summary-progress">
+      <div class="summary-progress__label">
+        <span>タスク完了率</span>
+        <span>${donePct}%</span>
+      </div>
+      <div class="summary-progress__bar">
+        <div class="summary-progress__fill summary-progress__fill--blue" style="width: ${donePct}%"></div>
+      </div>
+    </div>
+
+    <div class="summary-alert ${urgentCount === 0 ? "is-hidden" : ""}">
+      必須または高優先タスク ${urgentCount}件が未完了です
+    </div>
+  `;
 }
 
 export function updateGoogleStatus(message, variant = "") {
