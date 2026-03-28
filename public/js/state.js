@@ -1,6 +1,6 @@
 export const STORAGE_KEY = "day-manager-v1";
 export const GOOGLE_CONFIG_KEY = "day-manager-google-config-v1";
-export const STATE_SCHEMA_VERSION = 2;
+export const STATE_SCHEMA_VERSION = 3;
 
 export const INITIAL_STATE = {
   schemaVersion: STATE_SCHEMA_VERSION,
@@ -16,12 +16,69 @@ export const INITIAL_STATE = {
   planningDrafts: [],
   settings: {
     focusMinutesTarget: 180,
-    bufferMinutes: 10
+    bufferMinutes: 10,
+    protectLunch: true,
+    lunchWindowStart: "12:00",
+    lunchWindowEnd: "13:30",
+    lunchMinutes: 45,
+    breakAfterEvent: true,
+    breakMinutes: 15,
+    protectFocusBlock: false,
+    focusBlockMinutes: 90,
+    aiDraftOnly: true,
+    confirmBeforeGoogleApply: true
   },
   uiState: {
-    plannerMode: "auto"
+    plannerMode: "auto",
+    onboardingCompleted: false,
+    onboardingStep: 1
   }
 };
+
+function normalizeSettings(settings) {
+  return {
+    focusMinutesTarget: normalizeNumberWithFallback(settings?.focusMinutesTarget, INITIAL_STATE.settings.focusMinutesTarget),
+    bufferMinutes: normalizeNumberWithFallback(settings?.bufferMinutes, INITIAL_STATE.settings.bufferMinutes),
+    protectLunch: normalizeBooleanWithFallback(settings?.protectLunch, INITIAL_STATE.settings.protectLunch),
+    lunchWindowStart: normalizeTimeValue(settings?.lunchWindowStart, INITIAL_STATE.settings.lunchWindowStart),
+    lunchWindowEnd: normalizeTimeValue(settings?.lunchWindowEnd, INITIAL_STATE.settings.lunchWindowEnd),
+    lunchMinutes: normalizeNumberWithFallback(settings?.lunchMinutes, INITIAL_STATE.settings.lunchMinutes),
+    breakAfterEvent: normalizeBooleanWithFallback(settings?.breakAfterEvent, INITIAL_STATE.settings.breakAfterEvent),
+    breakMinutes: normalizeNumberWithFallback(settings?.breakMinutes, INITIAL_STATE.settings.breakMinutes),
+    protectFocusBlock: normalizeBooleanWithFallback(settings?.protectFocusBlock, INITIAL_STATE.settings.protectFocusBlock),
+    focusBlockMinutes: normalizeNumberWithFallback(settings?.focusBlockMinutes, INITIAL_STATE.settings.focusBlockMinutes),
+    aiDraftOnly: normalizeBooleanWithFallback(settings?.aiDraftOnly, INITIAL_STATE.settings.aiDraftOnly),
+    confirmBeforeGoogleApply: normalizeBooleanWithFallback(settings?.confirmBeforeGoogleApply, INITIAL_STATE.settings.confirmBeforeGoogleApply)
+  };
+}
+
+function normalizeUiState(uiState) {
+  return {
+    plannerMode: uiState?.plannerMode || INITIAL_STATE.uiState.plannerMode,
+    onboardingCompleted: normalizeBooleanWithFallback(uiState?.onboardingCompleted, INITIAL_STATE.uiState.onboardingCompleted),
+    onboardingStep: normalizeOnboardingStep(uiState?.onboardingStep)
+  };
+}
+
+function normalizeNumberWithFallback(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function normalizeBooleanWithFallback(value, fallback) {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function normalizeTimeValue(value, fallback) {
+  const text = String(value || "").trim();
+  return /^\d{2}:\d{2}$/.test(text) ? text : fallback;
+}
+
+function normalizeOnboardingStep(value) {
+  const number = Number(value);
+  if (!Number.isInteger(number)) return INITIAL_STATE.uiState.onboardingStep;
+  return Math.min(3, Math.max(1, number));
+}
 
 export const state = loadState();
 
@@ -42,13 +99,8 @@ export function loadState() {
       weeklyPlans: normalizeWeeklyPlans(parsed.weeklyPlans),
       milestones: (parsed.milestones || []).map(normalizeMilestone),
       planningDrafts: (parsed.planningDrafts || []).map(normalizePlanningDraft),
-      settings: {
-        focusMinutesTarget: Number(parsed.settings?.focusMinutesTarget ?? INITIAL_STATE.settings.focusMinutesTarget),
-        bufferMinutes: Number(parsed.settings?.bufferMinutes ?? INITIAL_STATE.settings.bufferMinutes)
-      },
-      uiState: {
-        plannerMode: parsed.uiState?.plannerMode || "auto"
-      }
+      settings: normalizeSettings(parsed.settings),
+      uiState: normalizeUiState(parsed.uiState)
     };
   } catch {
     return structuredClone(INITIAL_STATE);
