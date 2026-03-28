@@ -1,7 +1,6 @@
 import { state, saveState, normalizeCourse, normalizeMaterial, normalizeAssessment } from "./state.js";
 import { $ } from "./utils.js";
 import { showToast, confirmDialog } from "./ui-feedback.js";
-import { renderStudyManager } from "./study-manager.js";
 import {
   on,
   hydrateMaterialCourseOptions,
@@ -22,6 +21,17 @@ import {
   makeButton,
   makeDeleteButton
 } from "./study-manager-shared.js";
+
+let onStudyDataChanged = () => {};
+
+export function configureStudyManagerEditor({ onStateChanged } = {}) {
+  onStudyDataChanged = typeof onStateChanged === "function" ? onStateChanged : () => {};
+}
+
+function commitStudyStateChange() {
+  saveState();
+  onStudyDataChanged();
+}
 
 export function bindStudyEvents() {
   on("courseForm", "submit", onSubmitCourse);
@@ -203,9 +213,8 @@ async function onSubmitCourse(event) {
     showToast("科目を追加しました。", { variant: "ok", duration: 1800 });
   }
 
-  saveState();
+  commitStudyStateChange();
   resetCourseForm();
-  renderStudyManager();
 }
 
 async function onSubmitMaterial(event) {
@@ -250,9 +259,8 @@ async function onSubmitMaterial(event) {
     showToast("教材を追加しました。", { variant: "ok", duration: 1800 });
   }
 
-  saveState();
+  commitStudyStateChange();
   resetMaterialForm();
-  renderStudyManager();
 }
 
 async function onSubmitAssessment(event) {
@@ -292,9 +300,8 @@ async function onSubmitAssessment(event) {
     showToast("締切を追加しました。", { variant: "ok", duration: 1800 });
   }
 
-  saveState();
+  commitStudyStateChange();
   resetAssessmentForm();
-  renderStudyManager();
 }
 
 function resetCourseForm() {
@@ -350,9 +357,6 @@ export function populateCourseForm(id) {
   if (!course) return;
   const form = $("courseForm");
   if (!form) return;
-  const adminPanel = $("studyCourseAdminPanel");
-  if (adminPanel) adminPanel.open = true;
-
   form.elements.editId.value = course.id;
   form.elements.title.value = course.title;
   form.elements.instructor.value = course.instructor;
@@ -376,9 +380,6 @@ export function populateMaterialForm(id) {
   if (!material) return;
   const form = $("materialForm");
   if (!form) return;
-  const adminPanel = $("studyMaterialAdminPanel");
-  if (adminPanel) adminPanel.open = true;
-
   form.elements.editId.value = material.id;
   hydrateMaterialCourseOptions(material.courseId);
   form.elements.courseId.value = material.courseId;
@@ -406,9 +407,6 @@ export function populateAssessmentForm(id) {
   if (!assessment) return;
   const form = $("assessmentForm");
   if (!form) return;
-  const adminPanel = $("studyAssessmentAdminPanel");
-  if (adminPanel) adminPanel.open = true;
-
   form.elements.editId.value = assessment.id;
   hydrateAssessmentCourseOptions(assessment.courseId);
   form.elements.courseId.value = assessment.courseId;
@@ -447,8 +445,7 @@ async function deleteCourse(id) {
   state.courses = state.courses.filter((item) => item.id !== id);
   state.materials = state.materials.filter((item) => item.courseId !== id);
   state.assessments = state.assessments.filter((item) => item.courseId !== id);
-  saveState();
-  renderStudyManager();
+  commitStudyStateChange();
   showToast("科目を削除しました。", { variant: "ok", duration: 1800 });
 }
 
@@ -465,8 +462,7 @@ async function deleteMaterial(id) {
   if (!ok) return;
 
   state.materials = state.materials.filter((item) => item.id !== id);
-  saveState();
-  renderStudyManager();
+  commitStudyStateChange();
   showToast("教材を削除しました。", { variant: "ok", duration: 1800 });
 }
 
@@ -483,8 +479,7 @@ async function deleteAssessment(id) {
   if (!ok) return;
 
   state.assessments = state.assessments.filter((item) => item.id !== id);
-  saveState();
-  renderStudyManager();
+  commitStudyStateChange();
   showToast("締切を削除しました。", { variant: "ok", duration: 1800 });
 }
 
@@ -501,8 +496,7 @@ function advanceMaterial(id, amount) {
     material.reviewNeeded = false;
   }
 
-  saveState();
-  renderStudyManager();
+  commitStudyStateChange();
   showToast(`進度を ${amount}${material.unitLabel || "p"} 進めました。`, { variant: "ok", duration: 1600 });
 }
 
@@ -510,7 +504,6 @@ export function updateAssessmentStatus(id, status) {
   const assessment = state.assessments.find((item) => item.id === id);
   if (!assessment) return;
   assessment.status = status;
-  saveState();
-  renderStudyManager();
+  commitStudyStateChange();
   showToast(`締切状態を「${ASSESSMENT_STATUS_LABELS[status] || status}」に変更しました。`, { variant: "ok", duration: 1600 });
 }

@@ -46,7 +46,6 @@ export function configureRenderHandlers(nextHandlers = {}) {
   Object.assign(handlers, nextHandlers);
 }
 
-export function hydrateGoogleConfigInputs() {}
 
 export function hydratePlannerMode() {
   const select = $("plannerMode");
@@ -379,8 +378,9 @@ export function renderCurrentState() {
   const ctx = getNowContext(date, state.uiState?.plannerMode || "auto");
   const schedules = getSchedulesForDate(date);
   const split = splitSchedulesByNow(schedules, ctx);
-  const risks = buildRiskAlerts(date, ctx, schedules);
-  const cuts = buildCutCandidates(date, ctx);
+  const fatigue = Number(state.dayConditions?.[date]?.fatigue ?? $("fatigue")?.value ?? 5);
+  const risks = buildRiskAlerts(date, ctx, schedules, fatigue);
+  const cuts = buildCutCandidates(date, ctx, fatigue);
   const freeSlots = computeFreeSlots(schedules, ctx);
 
   fillSummary($("currentStateSummary"), buildCurrentStateLines(date, ctx, split, freeSlots));
@@ -428,7 +428,9 @@ export function renderSummaries() {
 
 export function renderAutoPlan() {
   const date = $("selectedDate").value;
-  const plan = buildAutoPlan(date);
+  const ctx = getNowContext(date, state.uiState?.plannerMode || "auto");
+  const fatigue = Number(state.dayConditions?.[date]?.fatigue ?? $("fatigue")?.value ?? 5);
+  const plan = buildAutoPlan(date, ctx, false, fatigue);
 
   fillSummary($("autoTopThree"), plan.topThree);
   fillSummary($("autoTimeline"), plan.timeline);

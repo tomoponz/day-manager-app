@@ -1,7 +1,4 @@
 (() => {
-  window.gapiLoaded = () => {};
-  window.gisLoaded = () => {};
-
   bootstrap().catch((error) => {
     console.error("Day Manager bootstrap failed:", error);
     showBootstrapError(error);
@@ -23,8 +20,14 @@
     googleModule.configureGoogleUi({
       renderAll: renderModule.renderAll,
       updateGoogleStatus: renderModule.updateGoogleStatus,
-      updateGoogleConnectionBadge: renderModule.updateGoogleConnectionBadge,
-      hydrateGoogleConfigInputs: renderModule.hydrateGoogleConfigInputs
+      updateGoogleConnectionBadge: renderModule.updateGoogleConnectionBadge
+    });
+
+    calendarModule.configureCalendarUiHandlers({
+      openEventFormForCreate: actionsModule.openEventFormForCreate,
+      populateEventForm: actionsModule.populateEventForm,
+      populateFixedForm: actionsModule.populateFixedForm,
+      deleteEvent: actionsModule.deleteEvent
     });
 
     renderModule.configureRenderHandlers({

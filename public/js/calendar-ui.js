@@ -11,12 +11,16 @@ import {
   deleteGoogleEventById,
   getErrorMessage
 } from "./google-calendar.js";
-import {
-  openEventFormForCreate,
-  populateEventForm,
-  populateFixedForm,
-  deleteEvent
-} from "./actions.js";
+const calendarHandlers = {
+  openEventFormForCreate: null,
+  populateEventForm: null,
+  populateFixedForm: null,
+  deleteEvent: null
+};
+
+export function configureCalendarUiHandlers(nextHandlers = {}) {
+  Object.assign(calendarHandlers, nextHandlers);
+}
 import { showToast } from "./ui-feedback.js";
 
 let calendar = null;
@@ -93,7 +97,7 @@ export function initializeCalendarUi() {
     select(info) {
       setSelectedDateFromCalendar(info.startStr.slice(0, 10));
       seedEventFormFromSelection(info);
-      openEventFormForCreate();
+      calendarHandlers.openEventFormForCreate?.();
       showToast("単発予定フォームに時間帯を入れました。", { variant: "ok", duration: 1800 });
       calendar.unselect();
     },
@@ -403,9 +407,9 @@ function renderCalendarDetail(fcEvent) {
   if (!actions) return;
 
   if (sourceType === "local-oneoff") {
-    actions.appendChild(makeActionButton("編集", () => populateEventForm(fcEvent.extendedProps.entityId), "primary"));
+    actions.appendChild(makeActionButton("編集", () => calendarHandlers.populateEventForm?.(fcEvent.extendedProps.entityId), "primary"));
     actions.appendChild(makeActionButton("削除", async () => {
-      await deleteEvent(fcEvent.extendedProps.entityId);
+      await calendarHandlers.deleteEvent?.(fcEvent.extendedProps.entityId);
       detail.className = "calendar-detail empty";
       detail.textContent = "予定をクリックすると詳細を表示します。";
     }));
@@ -422,7 +426,7 @@ function renderCalendarDetail(fcEvent) {
   }
 
   if (sourceType === "fixed") {
-    actions.appendChild(makeActionButton("固定予定を編集", () => populateFixedForm(fcEvent.extendedProps.entityId), "primary"));
+    actions.appendChild(makeActionButton("固定予定を編集", () => calendarHandlers.populateFixedForm?.(fcEvent.extendedProps.entityId), "primary"));
     return;
   }
 

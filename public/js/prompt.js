@@ -22,9 +22,10 @@ export function generatePrompt() {
   const deadlines = getUpcomingTasks(selectedDate, 48, ctx);
   const pending = getPendingTasks(selectedDate, ctx);
   const freeSlots = computeFreeSlots(schedules, ctx);
-  const autoPlan = buildAutoPlan(selectedDate, ctx, true);
+  const fatigue = Number(dayData.fatigue || $("fatigue")?.value || 5);
+  const autoPlan = buildAutoPlan(selectedDate, ctx, true, fatigue);
   const split = splitSchedulesByNow(schedules, ctx);
-  const risks = buildRiskAlerts(selectedDate, ctx, schedules);
+  const risks = buildRiskAlerts(selectedDate, ctx, schedules, fatigue);
   const study = buildStudyPromptSection();
 
   const text = [

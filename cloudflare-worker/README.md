@@ -57,7 +57,7 @@ npx wrangler secret put COOKIE_SIGNING_SECRET
 - Google Calendar の予定取得
 - 単発予定の Google 追加 / 更新 / 削除
 - cron による Google 予定キャッシュの定期更新
-- 静的フロントの配信
+- `../public` の静的フロント配信
 
 ---
 
@@ -74,3 +74,12 @@ npx wrangler secret put COOKIE_SIGNING_SECRET
 この Worker は Google Calendar を定期取得しますが、  
 ブラウザ `localStorage` にしか存在しないローカル予定まで  
 未起動時に自動反映する構成ではありません。
+
+
+---
+
+## assets の向き先
+
+`wrangler.toml` の `assets.directory` は `../public` を向けます。
+
+そのため、Worker 経由で配信したい `index.html` / `style.css` / `app.js` / `js/` / `icons/` / `sw.js` は **`public/` 配下**に置いてください。

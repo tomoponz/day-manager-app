@@ -2,18 +2,18 @@ import { hydrateMaterialCourseOptions, hydrateAssessmentCourseOptions } from "./
 import {
   renderStudyOverview,
   renderStudyRiskList,
-  renderStudyFocusList,
-  renderStudyDeadlineList,
   buildStudyPromptSection
 } from "./study-manager-summary.js";
 import {
   bindStudyEvents,
+  configureStudyManagerEditor,
   renderCourseList,
   renderMaterialList,
   renderAssessmentList
 } from "./study-manager-editor.js";
 
 export function initializeStudyManager() {
+  configureStudyManagerEditor({ onStateChanged: renderStudyManager });
   bindStudyEvents();
   renderStudyManager();
 }
@@ -23,8 +23,6 @@ export function renderStudyManager() {
   hydrateAssessmentCourseOptions();
   renderStudyOverview();
   renderStudyRiskList();
-  renderStudyFocusList();
-  renderStudyDeadlineList();
   renderCourseList();
   renderMaterialList();
   renderAssessmentList();

@@ -230,6 +230,7 @@ button.ghost:hover { background: var(--bg-2); }
 .helper-list { display: grid; gap: 0.55rem; margin-top: 1rem; color: var(--muted); font-size: 0.88rem; }
 .settings-actions-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
 .inline-file-label { box-shadow: none; }
+.backup-recovery-note { margin: 0.1rem 0 0; }
 .subsection-fold { margin-top: 1rem; border: 1px solid var(--line); border-radius: var(--r-sm); background: #fff; overflow: hidden; }
 .subsection-summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.95rem 1rem; background: var(--bg-2); color: var(--text); font-weight: 600; }
 .subsection-summary::-webkit-details-marker { display: none; }

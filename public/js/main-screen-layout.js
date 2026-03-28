@@ -1,3 +1,5 @@
+import './workspace-nav.js';
+
 boot();
 
 function boot() {

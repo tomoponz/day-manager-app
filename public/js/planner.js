@@ -1,9 +1,8 @@
 import { state } from "./state.js";
 import { getCachedGoogleEvents } from "./google-calendar.js";
 import { getNowContext, toMinutes, fromMinutes, formatDateInput, formatTimeOnly } from "./time.js";
-import { $ } from "./utils.js";
 
-function currentContext(dateStr = $("selectedDate")?.value || formatDateInput(new Date())) {
+function currentContext(dateStr = formatDateInput(new Date())) {
   return getNowContext(dateStr, state.uiState?.plannerMode || "auto");
 }
 
@@ -74,7 +73,7 @@ export function getUpcomingTasks(dateStr, hours = 48, ctx = currentContext(dateS
     .sort((a, b) => (`${a.deadlineDate}${a.deadlineTime}`).localeCompare(`${b.deadlineDate}${b.deadlineTime}`));
 }
 
-export function getPendingTasks(dateStr = $("selectedDate")?.value || formatDateInput(new Date()), ctx = currentContext(dateStr)) {
+export function getPendingTasks(dateStr = formatDateInput(new Date()), ctx = currentContext(dateStr)) {
   return state.tasks.filter((task) => {
     if (task.status === "完了") return false;
     if (task.deferUntilDate && task.deferUntilDate > dateStr && ctx.effectiveMode !== "night") return false;
@@ -118,7 +117,7 @@ export function splitSchedulesByNow(schedules, ctx) {
   return { done, current, upcoming };
 }
 
-export function computeFreeSlots(schedules, ctx = currentContext()) {
+export function computeFreeSlots(schedules, ctx = currentContext(formatDateInput(new Date()))) {
   const baseStart = toMinutes("06:00");
   const baseEnd = toMinutes("24:00");
   const buffer = Math.max(0, Number(state.settings?.bufferMinutes || 0));
@@ -178,7 +177,7 @@ export function buildTimelineStatusLines(split) {
   return lines;
 }
 
-export function buildRiskAlerts(dateStr, ctx, schedules) {
+export function buildRiskAlerts(dateStr, ctx, schedules, fatigue = 5) {
   const alerts = [];
   const reference = ctx.isToday ? ctx.now : new Date(`${dateStr}T00:00:00`);
   const freeSlots = computeFreeSlots(schedules, ctx);
@@ -192,22 +191,22 @@ export function buildRiskAlerts(dateStr, ctx, schedules) {
     else if (diffHours <= 24) alerts.push(`24時間以内 / ${task.title}`);
   });
   if (ctx.isToday && !freeSlots.length) alerts.push("残り空き時間がほぼありません");
-  if (ctx.isToday && Number($("fatigue")?.value || 5) <= 2) alerts.push("体力がかなり低いので、重い作業は縮小推奨");
+  if (ctx.isToday && Number(fatigue || 5) <= 2) alerts.push("体力がかなり低いので、重い作業は縮小推奨");
   const failedSync = state.oneOffEvents.filter((item) => item.googleSyncStatus === "failed");
   if (failedSync.length) alerts.push(`Google同期失敗 ${failedSync.length}件`);
   return alerts.slice(0, 6);
 }
 
-export function buildCutCandidates(dateStr, ctx) {
-  return buildAutoPlan(dateStr, ctx, true).cutCandidates;
+export function buildCutCandidates(dateStr, ctx, fatigue = 5) {
+  return buildAutoPlan(dateStr, ctx, true, fatigue).cutCandidates;
 }
 
-export function buildAutoPlan(dateStr, providedCtx = null, includeCutCandidates = false) {
+export function buildAutoPlan(dateStr, providedCtx = null, includeCutCandidates = false, fatigue = 5) {
   const ctx = providedCtx || currentContext(dateStr);
   const schedules = getSchedulesForDate(dateStr);
   const freeSlots = computeFreeSlots(schedules, ctx);
   const referenceDate = ctx.isToday ? ctx.now : new Date(`${dateStr}T00:00:00`);
-  const fatigue = Number($("fatigue")?.value || 5);
+  const normalizedFatigue = Number(fatigue || 5);
   const focusTarget = Math.max(0, Number(state.settings?.focusMinutesTarget || 0));
 
   const tasks = getPendingTasks(dateStr, ctx).map((task) => ({
@@ -230,7 +229,7 @@ export function buildAutoPlan(dateStr, providedCtx = null, includeCutCandidates 
       safety += 1;
       const candidates = tasks
         .filter((task) => task.remaining > 0)
-        .map((task) => ({ task, score: scoreTask(task, referenceDate, remainingSlot, fatigue, ctx, dateStr) }))
+        .map((task) => ({ task, score: scoreTask(task, referenceDate, remainingSlot, normalizedFatigue, ctx, dateStr) }))
         .filter((entry) => entry.score > -999)
         .sort((a, b) => b.score - a.score);
       const chosen = candidates[0]?.task;
@@ -296,7 +295,7 @@ export function deriveCutCandidates(tasks) {
     .map((task) => `${task.title} / ${task.importance}${task.deferUntilDate ? ` / 保留:${task.deferUntilDate}` : ""}`);
 }
 
-export function scoreTask(task, referenceDate, slotMinutes, fatigue, ctx, dateStr = $("selectedDate")?.value || formatDateInput(new Date())) {
+export function scoreTask(task, referenceDate, slotMinutes, fatigue, ctx, dateStr = formatDateInput(new Date())) {
   if (task.deferUntilDate && task.deferUntilDate > dateStr) return -999;
   let score = 0;
   score += ({ 必須: 60, できれば: 25, 後回し: -12 })[task.importance] ?? 0;

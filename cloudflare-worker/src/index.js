@@ -567,7 +567,42 @@ async function readUser(env, userKey) {
 }
 
 async function writeUser(env, userKey, user) {
-  await env.DM_STORE.put(`user:${userKey}`, JSON.stringify(user));
+  const normalizedUser = normalizeUserForStorage(user, env);
+  await env.DM_STORE.put(`user:${userKey}`, JSON.stringify(normalizedUser));
+}
+
+function normalizeUserForStorage(user, env) {
+  return {
+    ...user,
+    cacheByDate: pruneCacheByDate(user?.cacheByDate || {}, env)
+  };
+}
+
+function pruneCacheByDate(cacheByDate, env) {
+  const pastDays = Math.max(0, Number(env.CACHE_PAST_RETENTION_DAYS || 45));
+  const futureDays = Math.max(
+    Number(env.SYNC_LOOKAHEAD_DAYS || 30),
+    Number(env.CACHE_FUTURE_RETENTION_DAYS || 45)
+  );
+
+  const today = getTodayDateInAppTimeZone();
+  const minDate = shiftDateString(today, -pastDays);
+  const maxDate = shiftDateString(today, futureDays);
+  const next = {};
+
+  for (const [dateKey, items] of Object.entries(cacheByDate || {})) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) continue;
+    if (dateKey < minDate || dateKey > maxDate) continue;
+    next[dateKey] = Array.isArray(items) ? items : [];
+  }
+
+  return next;
+}
+
+function shiftDateString(dateStr, diffDays) {
+  const date = new Date(`${dateStr}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + diffDays);
+  return date.toISOString().slice(0, 10);
 }
 
 function eventSortKey(event) {

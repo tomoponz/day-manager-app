@@ -136,10 +136,6 @@ export async function refreshGoogleStatus({ silent = false } = {}) {
   }
 }
 
-export function maybePrepareTokenClient() {}
-export async function gapiLoaded() {}
-export function gisLoaded() {}
-
 export function hasValidGoogleToken() {
   return googleState.connected;
 }
@@ -373,15 +369,7 @@ function mapGoogleEventToLocal(event, fallbackDate) {
   };
 }
 
-export async function createGoogleEventFromLocal(localEvent) {
-  const result = await api("/api/google/local-event-upsert", {
-    method: "POST",
-    body: JSON.stringify({ localEvent })
-  });
-  return result.event;
-}
-
-export async function updateGoogleEventFromLocal(localEvent) {
+export async function upsertGoogleEventFromLocal(localEvent) {
   const result = await api("/api/google/local-event-upsert", {
     method: "POST",
     body: JSON.stringify({ localEvent })
@@ -399,7 +387,7 @@ export async function syncLocalEventToGoogle(localEventId) {
 
   try {
     notifyStatus("ローカル予定を Google Calendar に追加しています...");
-    const created = await createGoogleEventFromLocal(item);
+    const created = await upsertGoogleEventFromLocal(item);
     item.googleEventId = created.id;
     item.googleSyncStatus = "synced";
     saveState();
@@ -430,7 +418,7 @@ export async function syncUpdatedLocalEventToGoogle(localEventId) {
 
   try {
     notifyStatus("Google Calendar の予定を更新しています...");
-    const updated = await updateGoogleEventFromLocal(item);
+    const updated = await upsertGoogleEventFromLocal(item);
     item.googleSyncStatus = "synced";
     saveState();
     cacheGoogleEvent(updated, item.date);

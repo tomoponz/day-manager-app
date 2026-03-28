@@ -1,7 +1,8 @@
 import { state, saveState, normalizePlanningDraft, normalizeOneOffEvent } from './state.js';
 import { getWeekDates, getWeekKey, getWeekLabel, formatDateInput, formatDateTimeForDisplay, getNowContext } from './time.js';
 import { getSchedulesForDate, getUpcomingTasks, getPendingTasks, computeFreeSlots, formatScheduleLine } from './planner.js';
-import { hasValidGoogleToken, createGoogleEventFromLocal, cacheGoogleEvent, getErrorMessage } from './google-calendar.js';
+import { hasValidGoogleToken, upsertGoogleEventFromLocal, cacheGoogleEvent, getErrorMessage } from './google-calendar.js';
+import { captureRecoverySnapshot } from './recovery.js';
 
 export function buildGeminiPlanningPrompt(selectedDate = formatDateInput(new Date())) {
   const safeDate = selectedDate || formatDateInput(new Date());
@@ -119,28 +120,40 @@ export function parsePlanningDraftsResponse(rawText, fallbackDate = formatDateIn
 }
 
 export function replacePlanningDrafts(drafts) {
+  if (state.planningDrafts.length || (drafts || []).length) {
+    captureRecoverySnapshot('replace-planning-drafts');
+  }
   state.planningDrafts = (drafts || []).map(normalizePlanningDraft);
   saveState();
   return state.planningDrafts;
 }
 
 export function clearPlanningDrafts() {
+  if (!state.planningDrafts.length) return;
+  captureRecoverySnapshot('clear-planning-drafts');
   state.planningDrafts = [];
   saveState();
 }
 
 export function deletePlanningDraft(id) {
+  const exists = state.planningDrafts.some((item) => item.id === id);
+  if (!exists) return;
+  captureRecoverySnapshot('delete-planning-draft');
   state.planningDrafts = state.planningDrafts.filter((item) => item.id !== id);
   saveState();
 }
 
-export async function applyPlanningDraft(id, { syncToGoogle = false } = {}) {
+export async function applyPlanningDraft(id, { syncToGoogle = false, captureSnapshot = true } = {}) {
   const draft = state.planningDrafts.find((item) => item.id === id);
   if (!draft) {
     return { ok: false, error: '提案が見つかりません。' };
   }
   if (syncToGoogle && !hasValidGoogleToken()) {
     return { ok: false, error: 'Google に接続してから実行してください。' };
+  }
+
+  if (captureSnapshot) {
+    captureRecoverySnapshot(syncToGoogle ? 'apply-planning-draft-google' : 'apply-planning-draft-local');
   }
 
   const localEvent = toLocalEventFromDraft(draft);
@@ -154,7 +167,7 @@ export async function applyPlanningDraft(id, { syncToGoogle = false } = {}) {
 
   try {
     if (syncToGoogle) {
-      const created = await createGoogleEventFromLocal(localEvent);
+      const created = await upsertGoogleEventFromLocal(localEvent);
       localEvent.googleEventId = created.id;
       localEvent.googleSyncStatus = 'synced';
       cacheGoogleEvent(created, localEvent.date);
@@ -187,13 +200,15 @@ export async function applyAllPlanningDrafts({ syncToGoogle = false } = {}) {
     return { ok: true, applied: 0, skipped: 0, failed: 0 };
   }
 
+  captureRecoverySnapshot(syncToGoogle ? 'apply-planning-drafts-google' : 'apply-planning-drafts-local');
+
   let applied = 0;
   let skipped = 0;
   let failed = 0;
   const errors = [];
 
   for (const draft of targets) {
-    const result = await applyPlanningDraft(draft.id, { syncToGoogle });
+    const result = await applyPlanningDraft(draft.id, { syncToGoogle, captureSnapshot: false });
     if (result.applied && result.ok) {
       applied += 1;
       continue;

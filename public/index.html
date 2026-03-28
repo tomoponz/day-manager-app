@@ -18,10 +18,7 @@
 <h1>Day Manager</h1>
 <p class="sub">予定とタスクをまとめて、今日の判断を30秒〜2分で固めるための1日マネージャー</p>
 </div>
-<div class="header-actions">
-<button class="ghost compact-action" data-utility-target="appSettingsPanel" type="button">管理</button>
-<button class="primary compact-action compact-action--accent" data-open-quick-add="true" type="button">＋ 追加</button>
-</div>
+
 </header>
 <nav aria-label="画面移動" class="workspace-nav" id="workspaceNav">
 <div class="workspace-nav__inner">
@@ -575,7 +572,9 @@
               バックアップ読込
               <input accept="application/json" hidden="" id="importInput" type="file"/>
 </label>
+<button class="ghost" disabled="" id="restoreBackupBtn" type="button">直前状態を復元</button>
 </div>
+<p class="micro-note backup-recovery-note" id="recoveryStatusText">自動退避はまだありません。削除や読込の直前に自動退避されます。</p>
 </section>
 <section class="grid two-col">
 <section class="card inner-card">
@@ -811,7 +810,7 @@
 <div class="list-wrap empty" id="googleEventList">まだありません</div>
 </div>
 </details>
-<p class="micro-note settings-dev-note">連携テスト画面は開発用です。必要なときだけ <a class="subtle-link" href="./calendar-test.html">こちら</a> を開いてください。</p>
+
 </section>
 </div>
 </details>
@@ -831,6 +830,5 @@
 <script src="app.js"></script>
 <script src="./js/date-nav-ui.js" type="module"></script>
 
-<script src="./js/workspace-nav.js" type="module"></script>
 </body>
 </html>

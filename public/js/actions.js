@@ -1,19 +1,16 @@
-import { state, saveState, normalizeOneOffEvent, normalizeFixedSchedule, normalizeTask, normalizeCourse, normalizeMaterial, normalizeAssessment } from './state.js';
+import { state, saveState, STATE_SCHEMA_VERSION, normalizeOneOffEvent, normalizeFixedSchedule, normalizeTask, normalizeCourse, normalizeMaterial, normalizeAssessment, normalizeWeeklyPlans, normalizeMilestone, normalizePlanningDraft } from './state.js';
 import { $, debounce, getFormValue } from './utils.js';
 import { addDays, formatDateInput, formatTimeOnly, isSelectedDateToday, isValidTimeRange, roundToFiveMinutes } from './time.js';
-import { renderAll, renderCurrentState, renderAutoPlan, updateStateNote, loadConditionInputsForDate } from './render.js';
+import { renderAll, renderCurrentState, renderAutoPlan, updateStateNote, loadConditionInputsForDate, hydrateSettingsInputs } from './render.js';
 import { renderStudyManager } from './study-manager.js';
 import {
   loadGoogleEventsForDate,
   hasValidGoogleToken,
-  updateGoogleEventFromLocal,
-  createGoogleEventFromLocal,
+  upsertGoogleEventFromLocal,
   syncLocalEventToGoogle,
   syncUpdatedLocalEventToGoogle,
   deleteLocalEvent,
   deleteGoogleEventById,
-  onSaveGoogleConfig,
-  onClearGoogleConfig,
   onConnectGoogle,
   onDisconnectGoogle,
   loadGoogleEventsForSelectedDate,
@@ -22,6 +19,13 @@ import {
 import { generatePrompt, copyPrompt } from './prompt.js';
 import { parseQuickAddInput } from './quick-add.js';
 import { showToast, confirmDialog } from './ui-feedback.js';
+import {
+  normalizePersistedState,
+  applyPersistedState,
+  captureRecoverySnapshot,
+  restoreRecoverySnapshot,
+  refreshRecoveryUi
+} from './recovery.js';
 
 function on(id, event, handler) {
   $(id)?.addEventListener(event, handler);
@@ -105,9 +109,8 @@ export function bindEvents() {
 
   on('exportBtn', 'click', exportData);
   on('importInput', 'change', importData);
+  on('restoreBackupBtn', 'click', restoreLastSnapshot);
 
-  on('saveGoogleConfigBtn', 'click', onSaveGoogleConfig);
-  on('clearGoogleConfigBtn', 'click', onClearGoogleConfig);
   on('connectGoogleBtn', 'click', onConnectGoogle);
   on('disconnectGoogleBtn', 'click', onDisconnectGoogle);
   on('reloadGoogleEventsBtn', 'click', async () => {
@@ -121,12 +124,10 @@ export function bindEvents() {
   });
 
   on('eventAllDay', 'change', toggleEventTimeInputs);
+
+  refreshRecoveryUi();
 }
 
-export function hydrateSettingsInputs() {
-  if ($('focusMinutesTarget')) $('focusMinutesTarget').value = String(state.settings?.focusMinutesTarget ?? 180);
-  if ($('bufferMinutes')) $('bufferMinutes').value = String(state.settings?.bufferMinutes ?? 10);
-}
 
 export function saveSettingsInputs() {
   state.settings.focusMinutesTarget = Math.max(0, Number($('focusMinutesTarget')?.value || 0));
@@ -271,7 +272,7 @@ export async function onSubmitOneOffEvent(e) {
     if (target.googleEventId) {
       if (hasValidGoogleToken()) {
         try {
-          await updateGoogleEventFromLocal(target);
+          await upsertGoogleEventFromLocal(target);
           target.googleSyncStatus = 'synced';
         } catch {
           target.googleSyncStatus = 'outdated';
@@ -300,7 +301,7 @@ export async function onSubmitOneOffEvent(e) {
 
 async function tryCreateGoogleForLocalEvent(localEvent) {
   try {
-    const created = await createGoogleEventFromLocal(localEvent);
+    const created = await upsertGoogleEventFromLocal(localEvent);
     localEvent.googleEventId = created.id;
     localEvent.googleSyncStatus = 'synced';
   } catch {
@@ -468,6 +469,7 @@ export async function deleteFixedSchedule(id) {
   const item = state.fixedSchedules.find((entry) => entry.id === id);
   if (!item) return;
   const index = state.fixedSchedules.findIndex((entry) => entry.id === id);
+  captureRecoverySnapshot('delete-fixed');
   state.fixedSchedules = state.fixedSchedules.filter((entry) => entry.id !== id);
   saveState();
   renderAll();
@@ -512,7 +514,10 @@ export function duplicateOneOffEvent(id) {
   showToast('単発予定を複製しました。', { variant: 'ok', duration: 2200 });
 }
 
-export async function deleteEvent(id) { await deleteLocalEvent(id); }
+export async function deleteEvent(id) {
+  captureRecoverySnapshot('delete-event');
+  await deleteLocalEvent(id);
+}
 export async function syncEvent(id) { await syncLocalEventToGoogle(id); }
 export async function syncUpdatedEvent(id) { await syncUpdatedLocalEventToGoogle(id); }
 
@@ -563,6 +568,7 @@ export async function deleteTask(id) {
   const item = state.tasks.find((entry) => entry.id === id);
   if (!item) return;
   const index = state.tasks.findIndex((entry) => entry.id === id);
+  captureRecoverySnapshot('delete-task');
   state.tasks = state.tasks.filter((entry) => entry.id !== id);
   saveState();
   renderAll();
@@ -587,6 +593,7 @@ export async function deleteGoogleEvent(id) {
     danger: true
   });
   if (!ok) return;
+  captureRecoverySnapshot('delete-google-event');
   await deleteGoogleEventById(id, { removeLocalMirror: true });
 }
 
@@ -608,33 +615,68 @@ function exportData() {
 function importData(e) {
   const file = e.target.files?.[0];
   if (!file) return;
+  e.target.value = '';
+
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
+    let parsed;
     try {
-      const parsed = JSON.parse(String(reader.result));
-      state.fixedSchedules = (parsed.fixedSchedules || []).map(normalizeFixedSchedule);
-      state.oneOffEvents = (parsed.oneOffEvents || []).map(normalizeOneOffEvent);
-      state.tasks = (parsed.tasks || []).map(normalizeTask);
-      state.courses = (parsed.courses || []).map(normalizeCourse);
-      state.materials = (parsed.materials || []).map(normalizeMaterial);
-      state.assessments = (parsed.assessments || []).map(normalizeAssessment);
-      state.dayConditions = parsed.dayConditions || {};
-      state.settings = {
-        focusMinutesTarget: Number(parsed.settings?.focusMinutesTarget ?? state.settings.focusMinutesTarget),
-        bufferMinutes: Number(parsed.settings?.bufferMinutes ?? state.settings.bufferMinutes)
-      };
-      state.uiState = { plannerMode: parsed.uiState?.plannerMode || 'auto' };
-      saveState();
+      parsed = JSON.parse(String(reader.result));
+    } catch {
+      showToast('JSONの読み込みに失敗しました。', { variant: 'warn' });
+      return;
+    }
+
+    const ok = await confirmDialog({
+      title: 'バックアップを読み込みます',
+      message: '現在のデータはすべて上書きされます。続けますか？',
+      confirmText: '読み込む',
+      danger: true
+    });
+    if (!ok) return;
+
+    try {
+      const normalized = normalizePersistedState(parsed);
+      captureRecoverySnapshot('import-backup');
+      applyPersistedState(normalized);
       if ($('plannerMode')) $('plannerMode').value = state.uiState.plannerMode;
       if ($('selectedDate')) loadConditionInputsForDate($('selectedDate').value);
       hydrateSettingsInputs();
       renderAll();
       renderStudyManager();
-      showToast('バックアップを読み込みました。', { variant: 'ok', duration: 2200 });
-    } catch {
-      showToast('JSONの読み込みに失敗しました。', { variant: 'warn' });
+      showToast('バックアップを読み込みました。問題があれば「直前状態を復元」で戻せます。', { variant: 'ok', duration: 2600 });
+    } catch (error) {
+      showToast(error?.message || 'バックアップの読み込みに失敗しました。', { variant: 'warn' });
     }
   };
   reader.readAsText(file, 'utf-8');
-  e.target.value = '';
+}
+
+async function restoreLastSnapshot() {
+  const meta = window.localStorage.getItem('day-manager-last-snapshot-v1');
+  if (!meta) {
+    showToast('復元できる自動退避がありません。', { variant: 'warn' });
+    refreshRecoveryUi();
+    return;
+  }
+
+  const ok = await confirmDialog({
+    title: '直前状態を復元',
+    message: '最後に自動退避した状態へ戻します。現在の表示内容は巻き戻されます。続けますか？',
+    confirmText: '復元する',
+    danger: true
+  });
+  if (!ok) return;
+
+  try {
+    restoreRecoverySnapshot();
+    if ($('plannerMode')) $('plannerMode').value = state.uiState.plannerMode;
+    if ($('selectedDate')) loadConditionInputsForDate($('selectedDate').value);
+    hydrateSettingsInputs();
+    renderAll();
+    renderStudyManager();
+    showToast('直前状態を復元しました。', { variant: 'ok', duration: 2200 });
+  } catch (error) {
+    showToast(error?.message || '復元に失敗しました。', { variant: 'warn' });
+  }
 }

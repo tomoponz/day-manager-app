@@ -6,13 +6,21 @@
 
 このリポジトリは、**Cloudflare Workers を使う Google Calendar 連携版**です。
 
-- フロント本体: 静的ファイル
+- フロント本体: `public/` の静的ファイル
 - Google 認証 / Google Calendar API / 定期同期: `cloudflare-worker/`
 - 保存の中心: ブラウザ `localStorage`
 - Google 側の定期取得キャッシュ: Cloudflare KV
 
 そのため、**`index.html` をローカルで直接開くだけでは Google 連携は動きません。**  
 Google 連携を使う場合は、Cloudflare Workers 側の設定とデプロイが必要です。
+
+### 第4弾の配信構造整理
+
+現在の推奨構成では、**Worker が配信する静的 assets は `public/` のみ**です。
+
+- 以前の repo ルート直下の `index.html` / `style.css` / `app.js` / `js/` は、移行確認が終わるまでは残してもかまいません
+- ただし `wrangler.toml` は `public/` を向くように変更してください
+- 新しい静的ファイルは原則として `public/` 配下だけを更新してください
 
 ---
 
@@ -88,7 +96,7 @@ Google 連携を使う場合は、Cloudflare Workers 側の設定とデプロイ
 初心者向けに先に明示します。
 
 ### 普段見る本体フォルダ
-`day-manager-app-main`
+`day-manager-app-main/public`
 
 この中に少なくとも次がそろっているものを使ってください。
 
@@ -96,7 +104,8 @@ Google 連携を使う場合は、Cloudflare Workers 側の設定とデプロイ
 - `style.css`
 - `app.js`
 - `js/`
-- `cloudflare-worker/`
+- `icons/`
+- `sw.js`
 
 ### Worker の作業フォルダ
 `day-manager-app-main/cloudflare-worker`
@@ -108,7 +117,7 @@ Google 連携を使う場合は、Cloudflare Workers 側の設定とデプロイ
 ## ローカル確認
 
 ### Google 連携なしで画面確認したい場合
-本体フォルダを静的に開く
+`public/` を静的に開く
 
 ### Google 連携込みで確認したい場合
 Worker を起動または deploy した URL で確認する
@@ -163,7 +172,6 @@ npm run deploy
 - Google Calendar 連携は最初は **単発予定のみ** を同期対象にしています
 - 固定予定とタスクは Google Calendar へ自動同期しません
 - Google 側で直接作成した予定は、接続後に対象日ごとに読み込みます
-- `calendar-test.html` は **Worker OAuth 版の疎通確認ページ** として使います
 
 
 ## 本格カレンダーUI（追加）

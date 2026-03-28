@@ -10,6 +10,8 @@ docs/
 legacy-server/
 calendar-test.html
 calendar-test.js
+js/product-ui-tune.js
+js/google-config.js
 index.backup-before-drawer-fix.html
 download
 cloudflare-worker/download
