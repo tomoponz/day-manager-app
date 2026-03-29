@@ -1,10 +1,14 @@
 (() => {
+  const APP_VERSION = "v0.7.0";
+
   bootstrap().catch((error) => {
     console.error("Day Manager bootstrap failed:", error);
     showBootstrapError(error);
   });
 
   async function bootstrap() {
+    mountAppVersion();
+
     const [utilsModule, timeModule, renderModule, actionsModule, googleModule, calendarModule, studyModule, onboardingModule] = await Promise.all([
       import("./js/utils.js"),
       import("./js/time.js"),
@@ -85,10 +89,74 @@
     });
   }
 
+  function mountAppVersion() {
+    document.documentElement.dataset.appVersion = APP_VERSION;
+    const versionTargets = [
+      document.getElementById("appVersionMount"),
+      document.getElementById("appVersionText")
+    ];
+    versionTargets.forEach((node) => {
+      if (node) node.textContent = APP_VERSION;
+    });
+  }
+
   function registerServiceWorker() {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    if (!("serviceWorker" in navigator)) return;
+
+    let isRefreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (isRefreshing) return;
+      isRefreshing = true;
+      window.location.reload();
+    });
+
+    navigator.serviceWorker.register("./sw.js").then((registration) => {
+      if (registration.waiting) {
+        showAppUpdateBanner(registration);
+      }
+
+      registration.addEventListener("updatefound", () => {
+        const installing = registration.installing;
+        if (!installing) return;
+        installing.addEventListener("statechange", () => {
+          if (installing.state === "installed" && navigator.serviceWorker.controller) {
+            showAppUpdateBanner(registration);
+          }
+        });
+      });
+    }).catch(() => {});
+  }
+
+  function showAppUpdateBanner(registration) {
+    const existing = document.getElementById("appUpdateBanner");
+    if (existing) {
+      existing.hidden = false;
+      return;
     }
+
+    const banner = document.createElement("section");
+    banner.id = "appUpdateBanner";
+    banner.className = "app-update-banner";
+    banner.innerHTML = `
+      <div class="app-update-banner__text">
+        <strong>${APP_VERSION}</strong> より新しい更新があります。表示が古いときは、このまま更新して最新のJS/CSSへ切り替えてください。
+      </div>
+      <div class="app-update-banner__actions">
+        <button type="button" class="primary">更新して再読込</button>
+        <button type="button" class="ghost">あとで</button>
+      </div>
+    `;
+
+    const [reloadButton, laterButton] = banner.querySelectorAll("button");
+    reloadButton?.addEventListener("click", () => {
+      if (registration.waiting) {
+        registration.waiting.postMessage({ type: "SKIP_WAITING" });
+      } else {
+        window.location.reload();
+      }
+    });
+    laterButton?.addEventListener("click", () => banner.remove());
+    document.body.appendChild(banner);
   }
 
   function showBootstrapError(error) {

@@ -1,4 +1,4 @@
-const CACHE_NAME = "day-manager-cache-v16";
+const CACHE_NAME = "day-manager-cache-v17";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -35,6 +35,12 @@ const CORE_ASSETS = [
 const STATIC_ASSET_PATTERN = /\.(?:css|js|mjs|png|svg|jpg|jpeg|webp|gif|ico|woff2?|ttf|otf|json|webmanifest)$/i;
 const APP_CODE_PATTERN = /\.(?:css|js|mjs|json|webmanifest)$/i;
 const BYPASS_PREFIXES = ["/api/", "/auth/"];
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS)));
