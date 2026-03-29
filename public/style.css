@@ -1843,3 +1843,32 @@ body.editor-drawer-open {
     padding-inline: 1rem;
   }
 }
+
+
+/* Phase 3: utility shortcut feedback */
+.workspace-sidebar .workspace-utility-btn.is-active {
+  background: rgba(17, 24, 39, 0.1);
+  color: var(--text);
+  border-color: rgba(17, 24, 39, 0.12);
+}
+
+.utility-panel-highlight {
+  animation: utilityPanelPulse 1.15s ease;
+  border-color: rgba(17, 24, 39, 0.16);
+  box-shadow: 0 12px 30px rgba(28, 25, 23, 0.11);
+}
+
+@keyframes utilityPanelPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(17, 24, 39, 0.12);
+    background-color: rgba(255, 255, 255, 0.98);
+  }
+  45% {
+    box-shadow: 0 0 0 8px rgba(17, 24, 39, 0.08);
+    background-color: rgba(255, 255, 255, 1);
+  }
+  100% {
+    box-shadow: 0 12px 30px rgba(28, 25, 23, 0.11);
+    background-color: rgba(255, 255, 255, 0.98);
+  }
+}
