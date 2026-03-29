@@ -4,6 +4,7 @@ const STORAGE_KEY = 'day-manager-workspace-nav-v4';
 const NORMAL_MODE = 'normal';
 const FOCUS_MODE = 'focus';
 const COMPACT_SCROLL_Y = 32;
+const DESKTOP_SIDEBAR_MIN = 981;
 
 boot();
 
@@ -67,8 +68,11 @@ function init() {
   const openUtilityPanel = (panelId) => {
     const panel = document.getElementById(panelId);
     if (!panel) return;
-    openAncestorDetails(panel);
-    if (panel.tagName === 'DETAILS') panel.open = true;
+    let cursor = panel;
+    while (cursor) {
+      if (cursor.tagName === 'DETAILS') cursor.open = true;
+      cursor = cursor.parentElement?.closest('details');
+    }
     scrollToNode(panel);
   };
 
@@ -192,15 +196,6 @@ function requestCalendarRefresh(targetId) {
   });
 }
 
-
-function openAncestorDetails(node) {
-  let current = node.parentElement;
-  while (current) {
-    if (current.tagName === 'DETAILS') current.open = true;
-    current = current.parentElement;
-  }
-}
-
 function scrollToNode(node) {
   const top = node.getBoundingClientRect().top + window.scrollY - getStickyOffset() - 14;
   window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
@@ -214,7 +209,8 @@ function scrollNavIntoView(nav) {
 
 function syncStickyOffsets(nav) {
   const topbarHeight = document.querySelector('.topbar')?.offsetHeight || 0;
-  const navHeight = nav?.offsetHeight || 0;
+  const isDesktopSidebar = window.innerWidth >= DESKTOP_SIDEBAR_MIN;
+  const navHeight = isDesktopSidebar ? 0 : (nav?.offsetHeight || 0);
   document.documentElement.style.setProperty('--topbar-height', `${topbarHeight}px`);
   document.documentElement.style.setProperty('--workspace-nav-height', `${navHeight}px`);
 }
