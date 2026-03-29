@@ -1,6 +1,4 @@
 (() => {
-  const SERVICE_WORKER_VERSION = 'v16';
-
   bootstrap().catch((error) => {
     console.error("Day Manager bootstrap failed:", error);
     showBootstrapError(error);
@@ -49,6 +47,9 @@
       onEditTask: actionsModule.populateTaskForm,
       onDeleteTask: actionsModule.deleteTask,
       onCreateTask: actionsModule.openTaskFormForCreate,
+      onEditStudyLocation: actionsModule.populateStudyLocationForm,
+      onDeleteStudyLocation: actionsModule.deleteStudyLocation,
+      onCreateStudyLocation: actionsModule.openStudyLocationFormForCreate,
       onDeleteGoogleEvent: actionsModule.deleteGoogleEvent
     });
 
@@ -80,39 +81,9 @@
   }
 
   function registerServiceWorker() {
-    if (!("serviceWorker" in navigator)) return;
-
-    const hadController = Boolean(navigator.serviceWorker.controller);
-    let refreshed = false;
-
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (!hadController || refreshed) return;
-      refreshed = true;
-      window.location.reload();
-    });
-
-    navigator.serviceWorker
-      .register(`./sw.js?sw=${SERVICE_WORKER_VERSION}`)
-      .then((registration) => {
-        const activateWaitingWorker = (worker) => {
-          worker?.postMessage({ type: "SKIP_WAITING" });
-        };
-
-        if (registration.waiting) {
-          activateWaitingWorker(registration.waiting);
-        }
-
-        registration.addEventListener("updatefound", () => {
-          const installing = registration.installing;
-          if (!installing) return;
-          installing.addEventListener("statechange", () => {
-            if (installing.state === "installed" && navigator.serviceWorker.controller) {
-              activateWaitingWorker(installing);
-            }
-          });
-        });
-      })
-      .catch(() => {});
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    }
   }
 
   function showBootstrapError(error) {

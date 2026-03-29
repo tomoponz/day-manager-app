@@ -41,9 +41,9 @@
 <div class="workspace-sidebar__section workspace-sidebar__section--utility">
 <p class="workspace-sidebar__label">補助</p>
 <div class="workspace-sidebar__stack workspace-sidebar__stack--utility">
-<button aria-pressed="false" class="ghost workspace-utility-btn utility-shortcut" data-utility-target="studyToolsPanel" type="button">学習</button>
-<button aria-pressed="false" class="ghost workspace-utility-btn utility-shortcut" data-utility-target="appSettingsPanel" type="button">管理</button>
-<button aria-pressed="false" class="ghost workspace-utility-btn utility-shortcut" data-utility-target="assistToolsPanel" type="button">連携</button>
+<button class="ghost workspace-utility-btn utility-shortcut" data-utility-target="studyToolsPanel" type="button">学習</button>
+<button class="ghost workspace-utility-btn utility-shortcut" data-utility-target="appSettingsPanel" type="button">管理</button>
+<button class="ghost workspace-utility-btn utility-shortcut" data-utility-target="assistToolsPanel" type="button">連携</button>
 </div>
 </div>
 <div class="workspace-sidebar__footer">
@@ -407,6 +407,10 @@
 <article class="summary-box">
 <h3>残り空き時間（対象日）</h3>
 <div class="summary-list empty" id="freeTimeSummary">まだありません</div>
+</article>
+<article class="summary-box">
+<h3>今日使える自習場所</h3>
+<div class="summary-list empty" id="studyLocationSummary">まだありません</div>
 </article>
 </div>
 <div class="judgement-grid judgement-grid-bottom">
@@ -787,6 +791,77 @@
 <div>夜モード: 短い必須タスクと翌日の初手を優先します。</div>
 </div>
 </section>
+<section class="card inner-card" id="studyLocationManagementSection">
+<div class="card-header compact">
+<div>
+<h2>自習場所</h2>
+<p>大学図書館や県立図書館など、今日使える場所と開館時間を管理します。</p>
+</div>
+</div>
+<details class="subsection-fold" id="studyLocationFormPanel">
+<summary class="subsection-summary">自習場所を追加 / 編集</summary>
+<div class="subsection-body">
+<form class="form-grid" id="studyLocationForm">
+<input name="editId" type="hidden"/>
+<label>
+              場所名
+              <input name="name" placeholder="例: 鹿児島大学附属図書館" required="" type="text"/>
+</label>
+<label>
+              種別
+              <select name="kind">
+<option value="university_library">大学図書館</option>
+<option value="pref_library">県立図書館</option>
+<option value="city_library">市立図書館</option>
+<option value="cafe">カフェ</option>
+<option value="home">自宅</option>
+<option value="other">その他</option>
+</select>
+</label>
+<label>
+              移動時間(分)
+              <input min="0" name="travelMinutes" placeholder="例: 15" step="5" type="number"/>
+</label>
+<label class="full-span">
+              公式URL
+              <input name="sourceUrl" placeholder="例: https://..." type="url"/>
+</label>
+<label class="sync-option full-span">
+<input name="isPreferred" type="checkbox"/>
+<span>優先候補にする</span>
+</label>
+<div class="full-span">
+<div class="micro-note micro-note--block">営業時間は「09:00-21:00」または「休館」で入力します。</div>
+<div class="weekly-hours-grid">
+<label>日<input name="weekly0" placeholder="休館 / 09:00-17:00" type="text"/></label>
+<label>月<input name="weekly1" placeholder="休館 / 09:00-21:00" type="text"/></label>
+<label>火<input name="weekly2" placeholder="休館 / 09:00-21:00" type="text"/></label>
+<label>水<input name="weekly3" placeholder="休館 / 09:00-21:00" type="text"/></label>
+<label>木<input name="weekly4" placeholder="休館 / 09:00-21:00" type="text"/></label>
+<label>金<input name="weekly5" placeholder="休館 / 09:00-21:00" type="text"/></label>
+<label>土<input name="weekly6" placeholder="休館 / 09:00-17:00" type="text"/></label>
+</div>
+</div>
+<label class="full-span">
+              例外日
+              <textarea class="location-exceptions-textarea" name="exceptionsText" placeholder="例:
+2026-04-02 休館
+2026-04-15 10:00-18:00"></textarea>
+</label>
+<label class="full-span">
+              メモ
+              <input name="memo" placeholder="例: テスト前は混みやすい / 電源席あり" type="text"/>
+</label>
+<div class="form-actions full-span">
+<button class="primary" id="studyLocationSubmitBtn" type="submit">自習場所を追加</button>
+<button class="ghost" hidden="" id="studyLocationCancelBtn" type="button">編集を取り消す</button>
+</div>
+</form>
+</div>
+</details>
+<div class="list-wrap empty" id="studyLocationList">まだありません</div>
+</section>
+
 <section class="card inner-card">
 <div class="card-header compact">
 <div>

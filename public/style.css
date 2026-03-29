@@ -1845,30 +1845,28 @@ body.editor-drawer-open {
 }
 
 
-/* Phase 3: utility shortcut feedback */
-.workspace-sidebar .workspace-utility-btn.is-active {
-  background: rgba(17, 24, 39, 0.1);
-  color: var(--text);
-  border-color: rgba(17, 24, 39, 0.12);
+.weekly-hours-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.65rem;
 }
 
-.utility-panel-highlight {
-  animation: utilityPanelPulse 1.15s ease;
-  border-color: rgba(17, 24, 39, 0.16);
-  box-shadow: 0 12px 30px rgba(28, 25, 23, 0.11);
+.weekly-hours-grid label {
+  display: grid;
+  gap: 0.35rem;
 }
 
-@keyframes utilityPanelPulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(17, 24, 39, 0.12);
-    background-color: rgba(255, 255, 255, 0.98);
-  }
-  45% {
-    box-shadow: 0 0 0 8px rgba(17, 24, 39, 0.08);
-    background-color: rgba(255, 255, 255, 1);
-  }
-  100% {
-    box-shadow: 0 12px 30px rgba(28, 25, 23, 0.11);
-    background-color: rgba(255, 255, 255, 0.98);
-  }
+.micro-note--block {
+  display: block;
+  margin-bottom: 0.45rem;
+}
+
+.location-exceptions-textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.study-location-item .item-note {
+  word-break: break-word;
 }
