@@ -1477,58 +1477,6 @@ body.onboarding-open {
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
 }
-
-.topbar__pill--version {
-  background: var(--text);
-  color: #fff;
-  border-color: var(--text);
-  font-weight: 700;
-}
-.app-version-note {
-  margin: 0.45rem 0 0;
-}
-.app-update-banner {
-  position: fixed;
-  left: 50%;
-  bottom: 18px;
-  transform: translateX(-50%);
-  z-index: 1100;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  width: min(720px, calc(100vw - 28px));
-  padding: 0.85rem 1rem;
-  border: 1px solid rgba(65, 101, 138, 0.2);
-  border-radius: 16px;
-  background: rgba(250, 248, 245, 0.98);
-  box-shadow: 0 12px 28px rgba(28, 25, 23, 0.12);
-  backdrop-filter: blur(10px);
-}
-.app-update-banner strong {
-  margin-right: 0.25rem;
-}
-.app-update-banner__text {
-  flex: 1 1 280px;
-  color: var(--text);
-  font-size: 0.88rem;
-}
-.app-update-banner__actions {
-  display: flex;
-  gap: 0.55rem;
-  flex-wrap: wrap;
-}
-@media (max-width: 640px) {
-  .app-update-banner {
-    inset-inline: 14px;
-    left: 14px;
-    right: 14px;
-    width: auto;
-    transform: none;
-    bottom: 14px;
-  }
-}
-
 .topbar__add {
   box-shadow: none;
   white-space: nowrap;
@@ -1918,4 +1866,49 @@ body.editor-drawer-open {
 
 .course-link-actions button {
   box-shadow: none;
+}
+
+
+.policy-page {
+  max-width: 920px;
+  padding-top: 1.4rem;
+}
+.policy-page__header {
+  margin-bottom: 1rem;
+}
+.policy-page__lead {
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+.policy-section {
+  margin-bottom: 1rem;
+}
+.policy-section ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.25rem;
+}
+.oauth-guidance-box {
+  margin-top: 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: rgba(255,255,255,0.72);
+}
+.oauth-guidance-box strong {
+  display: block;
+  margin-bottom: 0.4rem;
+}
+.oauth-guidance-box ul {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: var(--muted);
+}
+.app-footer-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 1.2rem 0 0.2rem;
+  color: var(--muted);
+  font-size: 0.88rem;
 }

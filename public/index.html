@@ -21,7 +21,6 @@
 </div>
 </div>
 <div class="topbar__status">
-<span class="topbar__pill topbar__pill--version" id="appVersionMount">v--</span>
 <span class="topbar__pill" id="topbarDateMount">--</span>
 <span class="topbar__pill" id="topbarClockMount">--:--</span>
 </div>
@@ -892,7 +891,6 @@
 <button class="ghost" disabled="" id="restoreBackupBtn" type="button">直前状態を復元</button>
 </div>
 <p class="micro-note backup-recovery-note" id="recoveryStatusText">自動退避はまだありません。削除や読込の直前に自動退避されます。</p>
-<p class="micro-note app-version-note">アプリバージョン: <strong id="appVersionText">--</strong></p>
 </section>
 
 
@@ -1004,6 +1002,15 @@
 </div>
 <div class="calendar-status" id="googleStatusBox">Cloudflare Worker 側の secret が入っていれば、Googleで接続するだけで使えます。</div>
 <p class="calendar-note">資格情報の入力欄は出しません。接続に必要な値は <code>Cloudflare Worker secrets</code> と <code>cloudflare-worker/wrangler.toml</code> に設定します。</p>
+<p class="calendar-note">OAuth 同意画面用の公開ページ: <a class="subtle-link" href="./privacy.html" target="_blank" rel="noreferrer">プライバシーポリシー</a> / <a class="subtle-link" href="./terms.html" target="_blank" rel="noreferrer">利用規約</a></p>
+<div class="oauth-guidance-box">
+<strong>Google OAuth 公開前チェック</strong>
+<ul>
+<li>Google Cloud Console の OAuth 同意画面に、上の 2 ページの URL を登録する</li>
+<li>承認済みドメインと redirect URI を Cloudflare Worker の URL に合わせる</li>
+<li>公開前は test users に自分の Google アカウントを追加する</li>
+</ul>
+</div>
 <details class="subsection-fold" id="googleEventListPanel">
 <summary class="subsection-summary">対象日の Google 予定</summary>
 <div class="subsection-body">
@@ -1028,6 +1035,11 @@
 <div class="list-actions"></div>
 </article>
 </template>
+<footer class="app-footer-links">
+  <a class="subtle-link" href="./privacy.html" target="_blank" rel="noreferrer">プライバシーポリシー</a>
+  <span>・</span>
+  <a class="subtle-link" href="./terms.html" target="_blank" rel="noreferrer">利用規約</a>
+</footer>
 <script src="app.js"></script>
 <script src="./js/date-nav-ui.js" type="module"></script>
 </body>
