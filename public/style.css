@@ -1669,3 +1669,177 @@ body.workspace-chrome-compact .workspace-sidebar {
     padding-top: 1rem;
   }
 }
+
+
+/* Phase 2: planner editor drawer */
+body.editor-drawer-open {
+  overflow: hidden;
+}
+
+.planner-launch-section {
+  margin-top: 0.35rem;
+}
+.planner-launch-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+.planner-launch-card {
+  display: grid;
+  gap: 0.28rem;
+  align-content: start;
+  text-align: left;
+  padding: 1rem;
+  border: 1px solid rgba(28, 25, 23, 0.1);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(250,248,245,0.92) 100%);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+.planner-launch-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(28, 25, 23, 0.16);
+  box-shadow: 0 10px 24px rgba(28, 25, 23, 0.08);
+}
+.planner-launch-card strong {
+  font-size: 1rem;
+}
+.planner-launch-card__eyebrow {
+  color: var(--faint);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.planner-launch-note {
+  margin: 0.85rem 0 0;
+}
+
+.planner-editor-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  pointer-events: none;
+}
+.planner-editor-shell__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(28, 25, 23, 0.28);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+.planner-editor-shell__panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(520px, calc(100vw - 32px));
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  background: rgba(250, 248, 245, 0.98);
+  border-left: 1px solid rgba(28, 25, 23, 0.08);
+  box-shadow: -18px 0 40px rgba(28, 25, 23, 0.14);
+  transform: translateX(100%);
+  transition: transform 220ms ease;
+  backdrop-filter: blur(10px);
+}
+.planner-editor-shell.is-open {
+  pointer-events: auto;
+}
+.planner-editor-shell.is-open .planner-editor-shell__backdrop {
+  opacity: 1;
+}
+.planner-editor-shell.is-open .planner-editor-shell__panel {
+  transform: translateX(0);
+}
+.planner-editor-shell__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.9rem;
+  padding: 1.1rem 1.1rem 0.8rem;
+  border-bottom: 1px solid rgba(28, 25, 23, 0.08);
+}
+.planner-editor-shell__header h2 {
+  margin: 0.12rem 0 0;
+}
+.planner-editor-shell__header p {
+  margin: 0.28rem 0 0;
+  color: var(--muted);
+}
+.planner-editor-shell__eyebrow {
+  margin: 0;
+  color: var(--faint);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.planner-editor-shell__close {
+  flex: 0 0 auto;
+}
+.planner-editor-switcher {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  padding: 0.85rem 1.1rem 0.55rem;
+  border-bottom: 1px solid rgba(28, 25, 23, 0.08);
+}
+.planner-editor-switcher .ghost {
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(28, 25, 23, 0.1);
+  background: rgba(255,255,255,0.72);
+}
+.planner-editor-switcher .ghost.is-active {
+  background: var(--text);
+  color: #fff;
+  border-color: var(--text);
+}
+.planner-editor-shell__body {
+  overflow: auto;
+  padding: 1rem 1.1rem 1.4rem;
+  display: grid;
+  gap: 0.9rem;
+}
+.planner-editor-card {
+  margin: 0;
+}
+.planner-editor-card .card-header {
+  margin-bottom: 0.8rem;
+}
+.planner-editor-card .subsection-fold {
+  margin-top: 0;
+  border: 0;
+  background: transparent;
+}
+.planner-editor-card .subsection-summary {
+  display: none;
+}
+.planner-editor-card .subsection-body {
+  padding: 0;
+  border-top: 0;
+}
+.planner-editor-card:not(:has(.subsection-fold[open])) {
+  display: none;
+}
+.planner-editor-card .form-grid {
+  margin-top: 0;
+}
+
+@media (max-width: 980px) {
+  .planner-launch-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .planner-editor-shell__panel {
+    width: 100vw;
+    max-width: none;
+  }
+  .planner-editor-shell__header,
+  .planner-editor-switcher,
+  .planner-editor-shell__body {
+    padding-inline: 1rem;
+  }
+}

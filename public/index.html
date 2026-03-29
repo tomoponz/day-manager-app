@@ -13,47 +13,47 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="topbar__brand">
-    <span class="topbar__dot"></span>
-    <div>
-      <h1>Day Manager</h1>
-      <p class="topbar__subline">今日の判断を短時間で固める 1日マネージャー</p>
-    </div>
-  </div>
-  <div class="topbar__status">
-    <span class="topbar__pill" id="topbarDateMount">--</span>
-    <span class="topbar__pill" id="topbarClockMount">--:--</span>
-  </div>
-  <button class="primary topbar__add" data-open-quick-add="true" type="button">＋追加</button>
+<div class="topbar__brand">
+<span class="topbar__dot"></span>
+<div>
+<h1>Day Manager</h1>
+<p class="topbar__subline">今日の判断を短時間で固める 1日マネージャー</p>
+</div>
+</div>
+<div class="topbar__status">
+<span class="topbar__pill" id="topbarDateMount">--</span>
+<span class="topbar__pill" id="topbarClockMount">--:--</span>
+</div>
+<button class="primary topbar__add" data-open-quick-add="true" type="button">＋追加</button>
 </header>
 <div id="onboardingMount"></div>
 <div class="workspace-app-shell">
 <nav aria-label="画面移動" class="workspace-sidebar" id="workspaceNav">
-  <div class="workspace-sidebar__inner">
-    <div class="workspace-sidebar__section">
-      <p class="workspace-sidebar__label">主画面</p>
-      <div class="workspace-sidebar__stack" aria-label="主要セクション" role="toolbar">
-        <button aria-pressed="true" class="workspace-tab is-active" data-workspace-target="judgementSection" type="button">今日</button>
-        <button aria-pressed="false" class="workspace-tab" data-workspace-target="todayListSection" type="button">実行</button>
-        <button aria-pressed="false" class="workspace-tab" data-workspace-target="proCalendarSection" type="button">カレンダー</button>
-      </div>
-    </div>
-    <div class="workspace-sidebar__section workspace-sidebar__section--utility">
-      <p class="workspace-sidebar__label">補助</p>
-      <div class="workspace-sidebar__stack workspace-sidebar__stack--utility">
-        <button class="ghost workspace-utility-btn utility-shortcut" data-utility-target="studyToolsPanel" type="button">学習</button>
-        <button class="ghost workspace-utility-btn utility-shortcut" data-utility-target="appSettingsPanel" type="button">管理</button>
-        <button class="ghost workspace-utility-btn utility-shortcut" data-utility-target="assistToolsPanel" type="button">連携</button>
-      </div>
-    </div>
-    <div class="workspace-sidebar__footer">
-      <button aria-pressed="false" class="ghost workspace-mode-toggle" id="workspaceModeToggle" type="button">集中表示</button>
-      <div class="workspace-nav__stepper">
-        <button class="ghost" id="workspacePrevBtn" type="button">前</button>
-        <button class="ghost" id="workspaceNextBtn" type="button">次</button>
-      </div>
-    </div>
-  </div>
+<div class="workspace-sidebar__inner">
+<div class="workspace-sidebar__section">
+<p class="workspace-sidebar__label">主画面</p>
+<div aria-label="主要セクション" class="workspace-sidebar__stack" role="toolbar">
+<button aria-pressed="true" class="workspace-tab is-active" data-workspace-target="judgementSection" type="button">今日</button>
+<button aria-pressed="false" class="workspace-tab" data-workspace-target="todayListSection" type="button">実行</button>
+<button aria-pressed="false" class="workspace-tab" data-workspace-target="proCalendarSection" type="button">カレンダー</button>
+</div>
+</div>
+<div class="workspace-sidebar__section workspace-sidebar__section--utility">
+<p class="workspace-sidebar__label">補助</p>
+<div class="workspace-sidebar__stack workspace-sidebar__stack--utility">
+<button class="ghost workspace-utility-btn utility-shortcut" data-utility-target="studyToolsPanel" type="button">学習</button>
+<button class="ghost workspace-utility-btn utility-shortcut" data-utility-target="appSettingsPanel" type="button">管理</button>
+<button class="ghost workspace-utility-btn utility-shortcut" data-utility-target="assistToolsPanel" type="button">連携</button>
+</div>
+</div>
+<div class="workspace-sidebar__footer">
+<button aria-pressed="false" class="ghost workspace-mode-toggle" id="workspaceModeToggle" type="button">集中表示</button>
+<div class="workspace-nav__stepper">
+<button class="ghost" id="workspacePrevBtn" type="button">前</button>
+<button class="ghost" id="workspaceNextBtn" type="button">次</button>
+</div>
+</div>
+</div>
 </nav>
 <div class="workspace-main">
 <div class="quick-add-launcher-mobile">
@@ -70,7 +70,7 @@
 <button aria-label="追加パネルを閉じる" class="ghost quick-add-drawer__close" data-close-quick-add="true" type="button">閉じる</button>
 </div>
 <div class="quick-add-drawer__body">
-      <section class="card inner-card">
+<section class="card inner-card">
 <div class="card-header">
 <div>
 <h2>追加</h2>
@@ -94,9 +94,206 @@
 <p class="quick-add-note">押せる例をそのまま使えます。入力のしかたを覚えなくても追加できます。</p>
 <div class="quick-add-result" id="quickAddResult"></div>
 </div>
-      </section>
-    </div>
-  </aside>
+</section>
+</div>
+</aside>
+</div>
+<div aria-hidden="true" class="planner-editor-shell" id="plannerEditorShell">
+<div class="planner-editor-shell__backdrop" data-close-editor-drawer="true"></div>
+<aside aria-labelledby="plannerEditorTitle" class="planner-editor-shell__panel" role="dialog">
+<div class="planner-editor-shell__header">
+<div>
+<p class="planner-editor-shell__eyebrow" id="plannerEditorEyebrow">Planner editor</p>
+<h2 id="plannerEditorTitle">追加・編集</h2>
+<p id="plannerEditorDescription">固定予定・単発予定・タスクを右側で編集します。</p>
+</div>
+<button aria-label="編集パネルを閉じる" class="ghost planner-editor-shell__close" data-close-editor-drawer="true" type="button">閉じる</button>
+</div>
+<div aria-label="編集対象切替" class="planner-editor-switcher" role="toolbar">
+<button aria-pressed="false" class="ghost is-active" data-editor-target="fixed" type="button">固定予定</button>
+<button aria-pressed="false" class="ghost" data-editor-target="event" type="button">単発予定</button>
+<button aria-pressed="false" class="ghost" data-editor-target="task" type="button">タスク</button>
+</div>
+<div class="planner-editor-shell__body" id="plannerEditorBody"><section class="card inner-card planner-editor-card">
+<div class="card-header compact">
+<div>
+<h2>固定予定</h2>
+<p>毎週くり返す授業・通学・食事など</p>
+</div>
+</div>
+<details class="subsection-fold" id="fixedFormPanel">
+<summary class="subsection-summary">固定予定を追加 / 編集</summary>
+<div class="subsection-body">
+<form class="form-grid" id="fixedForm">
+<input name="editId" type="hidden"/>
+<label>
+                    タイトル
+                    <input name="title" placeholder="例: 応用数学I" required="" type="text"/>
+</label>
+<label>
+                    曜日
+                    <select name="weekday">
+<option value="0">日</option>
+<option value="1">月</option>
+<option value="2">火</option>
+<option value="3">水</option>
+<option value="4">木</option>
+<option value="5">金</option>
+<option value="6">土</option>
+</select>
+</label>
+<label>
+                    開始
+                    <input name="start" required="" type="time"/>
+</label>
+<label>
+                    終了
+                    <input name="end" required="" type="time"/>
+</label>
+<label class="full-span">
+                    補足
+                    <input name="note" placeholder="例: 移動込み / 教室情報" type="text"/>
+</label>
+<div class="form-actions full-span">
+<button class="primary" id="fixedSubmitBtn" type="submit">固定予定を追加</button>
+<button class="ghost" hidden="" id="fixedCancelBtn" type="button">編集を取り消す</button>
+</div>
+</form>
+</div>
+</details>
+</section><section class="card inner-card planner-editor-card">
+<div class="card-header compact">
+<div>
+<h2>単発予定</h2>
+<p>その日だけの予定・締切・外出など</p>
+</div>
+</div>
+<details class="subsection-fold" id="eventFormPanel">
+<summary class="subsection-summary">単発予定を追加 / 編集</summary>
+<div class="subsection-body">
+<form class="form-grid" id="eventForm">
+<input name="editId" type="hidden"/>
+<label>
+                    タイトル
+                    <input name="title" placeholder="例: 面談 / 提出期限" required="" type="text"/>
+</label>
+<label>
+                    日付
+                    <input name="date" required="" type="date"/>
+</label>
+<label class="full-span sync-option">
+<input id="eventAllDay" name="allDay" type="checkbox"/>
+<span>
+                      終日予定
+                      <span class="micro-note">オンにすると開始・終了時刻は使わず、Googleにも終日予定として登録します。</span>
+</span>
+</label>
+<label>
+                    開始
+                    <input name="start" type="time"/>
+</label>
+<label>
+                    終了
+                    <input name="end" type="time"/>
+</label>
+<label class="full-span">
+                    補足
+                    <input name="note" placeholder="例: 16:00までに提出 / 移動30分" type="text"/>
+</label>
+<label class="sync-option full-span">
+<input checked="" id="syncEventToGoogle" name="syncToGoogle" type="checkbox"/>
+<span>
+                      Google Calendar にも追加する
+                      <span class="micro-note">接続中ならローカル保存と同時に Google 側にも予定を作成します。未接続ならローカル保存のみです。</span>
+</span>
+</label>
+<div class="form-actions full-span">
+<button class="primary" id="eventSubmitBtn" type="submit">単発予定を追加</button>
+<button class="ghost" hidden="" id="eventCancelBtn" type="button">編集を取り消す</button>
+</div>
+</form>
+</div>
+</details>
+</section><section class="card inner-card planner-editor-card">
+<div class="card-header compact">
+<div>
+<h2>タスク</h2>
+<p>課題・復習・生活タスクなど。締切と見積時間を持たせます。</p>
+</div>
+</div>
+<details class="subsection-fold" id="taskFormPanel">
+<summary class="subsection-summary">タスクを追加 / 編集</summary>
+<div class="subsection-body">
+<form class="form-grid task-grid" id="taskForm">
+<input name="editId" type="hidden"/>
+<label>
+                  タスク名
+                  <input name="title" placeholder="例: 微分積分レポート" required="" type="text"/>
+</label>
+<label>
+                  分類
+                  <input name="category" placeholder="例: 数学 / 生活 / 英語" type="text"/>
+</label>
+<label>
+                  締切日
+                  <input name="deadlineDate" type="date"/>
+</label>
+<label>
+                  締切時刻
+                  <input name="deadlineTime" type="time"/>
+</label>
+<label>
+                  見積時間(分)
+                  <input min="0" name="estimate" placeholder="例: 60" step="10" type="number"/>
+</label>
+<label>
+                  優先度
+                  <select name="priority">
+<option value="高">高</option>
+<option selected="" value="中">中</option>
+<option value="低">低</option>
+</select>
+</label>
+<label>
+                  重要度
+                  <select name="importance">
+<option value="必須">必須</option>
+<option selected="" value="できれば">できれば</option>
+<option value="後回し">後回し</option>
+</select>
+</label>
+<label>
+                  状態
+                  <select name="status">
+<option selected="" value="未着手">未着手</option>
+<option value="進行中">進行中</option>
+<option value="完了">完了</option>
+</select>
+</label>
+<label>
+                  着手保留日
+                  <input name="deferUntilDate" type="date"/>
+</label>
+<label class="full-span sync-option">
+<input name="protectTimeBlock" type="checkbox"/>
+<span>
+                    守るべき時間ブロック
+                    <span class="micro-note">このタスクは自動時間割で優先的に守ります。重要で動かしたくない課題向け。</span>
+</span>
+</label>
+<label class="full-span">
+                  メモ
+                  <input name="note" placeholder="例: 問題3まで / 提出形式PDF" type="text"/>
+</label>
+<div class="form-actions full-span">
+<button class="primary" id="taskSubmitBtn" type="submit">タスクを追加</button>
+<button class="ghost" hidden="" id="taskCancelBtn" type="button">編集を取り消す</button>
+</div>
+</form>
+</div>
+</details>
+</section></div>
+</aside>
 </div>
 
 <main class="container workflow-shell">
@@ -196,7 +393,7 @@
 </div>
 <div class="judgement-grid judgement-grid-middle">
 <article class="summary-box">
-<h3>その日の予定</h3>
+<h3>対象日の予定</h3>
 <div class="summary-list empty" id="dayScheduleSummary">まだありません</div>
 </article>
 <article class="summary-box">
@@ -244,7 +441,6 @@
 </section>
 <p class="calendar-note" id="autoPlanNote">空き時間とタスクから自動候補を生成します。体力が低い日は重いタスクの優先度を少し下げます。</p>
 </section>
-
 <section class="card workspace-section" data-workspace-section="primary" id="todayListSection">
 <div class="card-header">
 <div>
@@ -282,7 +478,6 @@
 <div class="list-wrap empty" id="taskList">まだありません</div>
 </section>
 </section>
-
 <section class="card calendar-app-shell workspace-section" data-workspace-section="primary" id="proCalendarSection">
 <div class="card-header">
 <div>
@@ -322,7 +517,6 @@
 </aside>
 </div>
 </section>
-
 <details class="card settings-card utility-panel" id="studyToolsPanel"><summary class="settings-summary"><span><strong>大学学習管理</strong><span class="micro-note">毎日見る主画面から外し、必要なときだけ開きます。</span></span><span class="mode-chip">補助</span></summary><div class="settings-body management-stack"><section class="utility-section" id="studyManagerSection">
 <div class="card-header">
 <div>
@@ -540,7 +734,6 @@
 <div class="list-wrap empty" id="assessmentList">まだありません</div>
 </section>
 </section></div></details>
-
 <details class="card settings-card" id="appSettingsPanel">
 <summary class="settings-summary">
 <span>
@@ -611,192 +804,38 @@
 </div>
 <p class="micro-note backup-recovery-note" id="recoveryStatusText">自動退避はまだありません。削除や読込の直前に自動退避されます。</p>
 </section>
-<section class="grid two-col">
-<section class="card inner-card">
-<div class="card-header compact">
-<div>
-<h2>固定予定</h2>
-<p>毎週くり返す授業・通学・食事など</p>
-</div>
-</div>
-<details class="subsection-fold" id="fixedFormPanel">
-<summary class="subsection-summary">固定予定を追加 / 編集</summary>
-<div class="subsection-body">
-<form class="form-grid" id="fixedForm">
-<input name="editId" type="hidden"/>
-<label>
-                    タイトル
-                    <input name="title" placeholder="例: 応用数学I" required="" type="text"/>
-</label>
-<label>
-                    曜日
-                    <select name="weekday">
-<option value="0">日</option>
-<option value="1">月</option>
-<option value="2">火</option>
-<option value="3">水</option>
-<option value="4">木</option>
-<option value="5">金</option>
-<option value="6">土</option>
-</select>
-</label>
-<label>
-                    開始
-                    <input name="start" required="" type="time"/>
-</label>
-<label>
-                    終了
-                    <input name="end" required="" type="time"/>
-</label>
-<label class="full-span">
-                    補足
-                    <input name="note" placeholder="例: 移動込み / 教室情報" type="text"/>
-</label>
-<div class="form-actions full-span">
-<button class="primary" id="fixedSubmitBtn" type="submit">固定予定を追加</button>
-<button class="ghost" hidden="" id="fixedCancelBtn" type="button">編集を取り消す</button>
-</div>
-</form>
-</div>
-</details>
-</section>
-<section class="card inner-card">
-<div class="card-header compact">
-<div>
-<h2>単発予定</h2>
-<p>その日だけの予定・締切・外出など</p>
-</div>
-</div>
-<details class="subsection-fold" id="eventFormPanel">
-<summary class="subsection-summary">単発予定を追加 / 編集</summary>
-<div class="subsection-body">
-<form class="form-grid" id="eventForm">
-<input name="editId" type="hidden"/>
-<label>
-                    タイトル
-                    <input name="title" placeholder="例: 面談 / 提出期限" required="" type="text"/>
-</label>
-<label>
-                    日付
-                    <input name="date" required="" type="date"/>
-</label>
-<label class="full-span sync-option">
-<input id="eventAllDay" name="allDay" type="checkbox"/>
-<span>
-                      終日予定
-                      <span class="micro-note">オンにすると開始・終了時刻は使わず、Googleにも終日予定として登録します。</span>
-</span>
-</label>
-<label>
-                    開始
-                    <input name="start" type="time"/>
-</label>
-<label>
-                    終了
-                    <input name="end" type="time"/>
-</label>
-<label class="full-span">
-                    補足
-                    <input name="note" placeholder="例: 16:00までに提出 / 移動30分" type="text"/>
-</label>
-<label class="sync-option full-span">
-<input checked="" id="syncEventToGoogle" name="syncToGoogle" type="checkbox"/>
-<span>
-                      Google Calendar にも追加する
-                      <span class="micro-note">接続中ならローカル保存と同時に Google 側にも予定を作成します。未接続ならローカル保存のみです。</span>
-</span>
-</label>
-<div class="form-actions full-span">
-<button class="primary" id="eventSubmitBtn" type="submit">単発予定を追加</button>
-<button class="ghost" hidden="" id="eventCancelBtn" type="button">編集を取り消す</button>
-</div>
-</form>
-</div>
-</details>
-</section>
-</section>
-<section class="card inner-card">
-<div class="card-header compact">
-<div>
-<h2>タスク</h2>
-<p>課題・復習・生活タスクなど。締切と見積時間を持たせます。</p>
-</div>
-</div>
-<details class="subsection-fold" id="taskFormPanel">
-<summary class="subsection-summary">タスクを追加 / 編集</summary>
-<div class="subsection-body">
-<form class="form-grid task-grid" id="taskForm">
-<input name="editId" type="hidden"/>
-<label>
-                  タスク名
-                  <input name="title" placeholder="例: 微分積分レポート" required="" type="text"/>
-</label>
-<label>
-                  分類
-                  <input name="category" placeholder="例: 数学 / 生活 / 英語" type="text"/>
-</label>
-<label>
-                  締切日
-                  <input name="deadlineDate" type="date"/>
-</label>
-<label>
-                  締切時刻
-                  <input name="deadlineTime" type="time"/>
-</label>
-<label>
-                  見積時間(分)
-                  <input min="0" name="estimate" placeholder="例: 60" step="10" type="number"/>
-</label>
-<label>
-                  優先度
-                  <select name="priority">
-<option value="高">高</option>
-<option selected="" value="中">中</option>
-<option value="低">低</option>
-</select>
-</label>
-<label>
-                  重要度
-                  <select name="importance">
-<option value="必須">必須</option>
-<option selected="" value="できれば">できれば</option>
-<option value="後回し">後回し</option>
-</select>
-</label>
-<label>
-                  状態
-                  <select name="status">
-<option selected="" value="未着手">未着手</option>
-<option value="進行中">進行中</option>
-<option value="完了">完了</option>
-</select>
-</label>
-<label>
-                  着手保留日
-                  <input name="deferUntilDate" type="date"/>
-</label>
-<label class="full-span sync-option">
-<input name="protectTimeBlock" type="checkbox"/>
-<span>
-                    守るべき時間ブロック
-                    <span class="micro-note">このタスクは自動時間割で優先的に守ります。重要で動かしたくない課題向け。</span>
-</span>
-</label>
-<label class="full-span">
-                  メモ
-                  <input name="note" placeholder="例: 問題3まで / 提出形式PDF" type="text"/>
-</label>
-<div class="form-actions full-span">
-<button class="primary" id="taskSubmitBtn" type="submit">タスクを追加</button>
-<button class="ghost" hidden="" id="taskCancelBtn" type="button">編集を取り消す</button>
-</div>
-</form>
-</div>
-</details>
-</section>
-</div>
-</details>
 
+
+
+<section class="card inner-card planner-launch-section">
+<div class="card-header compact">
+<div>
+<h2>追加と編集</h2>
+<p>フォーム本体は右側ドロワーに分離し、ここでは入口だけに絞ります。</p>
+</div>
+<span class="mode-chip">右ドロワー</span>
+</div>
+<div class="planner-launch-grid">
+<button class="planner-launch-card" data-open-editor-target="fixed" type="button">
+<span class="planner-launch-card__eyebrow">Recurring schedule</span>
+<strong>固定予定を開く</strong>
+<span class="micro-note">授業・通学・食事など、毎週くり返す予定を編集します。</span>
+</button>
+<button class="planner-launch-card" data-open-editor-target="event" type="button">
+<span class="planner-launch-card__eyebrow">One-off event</span>
+<strong>単発予定を開く</strong>
+<span class="micro-note">面談・外出・締切など、その日だけの予定を追加します。</span>
+</button>
+<button class="planner-launch-card" data-open-editor-target="task" type="button">
+<span class="planner-launch-card__eyebrow">Task editor</span>
+<strong>タスクを開く</strong>
+<span class="micro-note">課題・復習・生活タスクを、右側でまとめて処理します。</span>
+</button>
+</div>
+<p class="micro-note planner-launch-note">一覧側の「編集」ボタンやカレンダー詳細からも同じドロワーを開きます。</p>
+</section>
+</div>
+</details>
 <details class="card settings-card utility-panel" id="assistToolsPanel">
 <summary class="settings-summary">
 <span>
@@ -854,11 +893,9 @@
 <div class="list-wrap empty" id="googleEventList">まだありません</div>
 </div>
 </details>
-
 </section>
 </div>
 </details>
-
 </main>
 </div>
 </div>
@@ -875,6 +912,5 @@
 </template>
 <script src="app.js"></script>
 <script src="./js/date-nav-ui.js" type="module"></script>
-
 </body>
 </html>
