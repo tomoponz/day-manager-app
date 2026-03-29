@@ -473,6 +473,17 @@ hr { border: none; border-top: 1px solid var(--line); margin: 1.5rem 0; }
   box-shadow: var(--shadow-xs);
 }
 
+.fc .fc-event-title,
+.fc .fc-event-time,
+.fc .fc-list-event-title a {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.fc .fc-daygrid-event-harness {
+  margin-top: 2px;
+}
+
 .fc-day-manager-fixed {
   background: #78716c !important;
   color: #fff !important;
@@ -513,17 +524,118 @@ hr { border: none; border-top: 1px solid var(--line); margin: 1.5rem 0; }
 }
 
 @media (max-width: 720px) {
+  .calendar-main-card {
+    padding: 0.65rem;
+  }
+
+  .calendar-side-card {
+    padding: 0.8rem;
+  }
+
+  .calendar-legend-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.15rem;
+  }
+
+  .legend-pill {
+    flex: 0 0 auto;
+    font-size: 0.74rem;
+    padding: 0.26rem 0.58rem;
+  }
+
   .calendar-view {
-    min-height: 620px;
+    min-height: 560px;
+  }
+
+  .fc {
+    font-size: 0.78rem;
+  }
+
+  .fc .fc-toolbar.fc-header-toolbar {
+    gap: 0.5rem;
+    align-items: stretch;
   }
 
   .fc .fc-toolbar-title {
-    font-size: 1rem;
+    font-size: 0.95rem;
+    text-align: center;
+    width: 100%;
+  }
+
+  .fc .fc-toolbar-chunk {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
   }
 
   .fc .fc-button {
-    padding: 0.4rem 0.65rem;
-    font-size: 0.82rem;
+    padding: 0.34rem 0.54rem;
+    font-size: 0.75rem;
+  }
+
+  .fc .fc-col-header-cell-cushion {
+    padding: 0.28rem 0.08rem;
+    font-size: 0.68rem;
+    line-height: 1.15;
+  }
+
+  .fc .fc-daygrid-day-number {
+    padding: 0.22rem 0.28rem;
+    font-size: 0.74rem;
+  }
+
+  .fc .fc-daygrid-event {
+    white-space: normal;
+    align-items: flex-start;
+    min-height: 1.75rem;
+  }
+
+  .fc .fc-daygrid-event .fc-event-time {
+    display: none;
+  }
+
+  .fc .fc-daygrid-event .fc-event-title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 0.64rem;
+    line-height: 1.15;
+  }
+
+  .fc .fc-timegrid-slot-label-cushion {
+    font-size: 0.64rem;
+  }
+
+  .fc .fc-timegrid-axis-cushion,
+  .fc .fc-timegrid-slot-label-cushion {
+    padding-inline: 0.12rem;
+  }
+
+  .fc .fc-timegrid-event-harness {
+    margin-inline: 1px;
+  }
+
+  .fc .fc-timegrid-event .fc-event-main {
+    padding: 1px 2px;
+  }
+
+  .fc .fc-timegrid-event .fc-event-time,
+  .fc .fc-timegrid-event .fc-event-title {
+    font-size: 0.64rem;
+    line-height: 1.15;
+    white-space: normal;
+  }
+
+  .fc .fc-list-event-time,
+  .fc .fc-list-event-title {
+    font-size: 0.78rem;
+  }
+
+  .fc .fc-list-day-cushion {
+    padding: 0.55rem 0.65rem;
   }
 }
 
@@ -1866,49 +1978,4 @@ body.editor-drawer-open {
 
 .course-link-actions button {
   box-shadow: none;
-}
-
-
-.policy-page {
-  max-width: 920px;
-  padding-top: 1.4rem;
-}
-.policy-page__header {
-  margin-bottom: 1rem;
-}
-.policy-page__lead {
-  color: var(--muted);
-  margin-bottom: 0.4rem;
-}
-.policy-section {
-  margin-bottom: 1rem;
-}
-.policy-section ul {
-  margin: 0.4rem 0 0;
-  padding-left: 1.25rem;
-}
-.oauth-guidance-box {
-  margin-top: 0.75rem;
-  padding: 0.9rem 1rem;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  background: rgba(255,255,255,0.72);
-}
-.oauth-guidance-box strong {
-  display: block;
-  margin-bottom: 0.4rem;
-}
-.oauth-guidance-box ul {
-  margin: 0;
-  padding-left: 1.15rem;
-  color: var(--muted);
-}
-.app-footer-links {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 0.55rem;
-  padding: 1.2rem 0 0.2rem;
-  color: var(--muted);
-  font-size: 0.88rem;
 }
