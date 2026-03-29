@@ -1845,28 +1845,25 @@ body.editor-drawer-open {
 }
 
 
-.weekly-hours-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 0.7rem;
-  margin-top: 0.65rem;
+.link-settings-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
-.weekly-hours-grid label {
-  display: grid;
-  gap: 0.35rem;
+.link-settings-actions {
+  margin-top: 0.75rem;
 }
 
-.micro-note--block {
-  display: block;
-  margin-bottom: 0.45rem;
+.course-syllabus-textarea {
+  min-height: 8rem;
 }
 
-.location-exceptions-textarea {
-  min-height: 7rem;
-  resize: vertical;
+.course-link-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
 }
 
-.study-location-item .item-note {
-  word-break: break-word;
+.course-link-actions button {
+  box-shadow: none;
 }

@@ -580,6 +580,18 @@
                   <input name="gradingMemo" placeholder="例: 期末70 / レポ30" type="text"/>
 </label>
 <label class="full-span">
+                  シラバス要約
+                  <textarea class="course-syllabus-textarea" name="syllabusSummary" placeholder="例: 到達目標 / 評価基準 / 毎週の進め方 / 重要な注意点"></textarea>
+</label>
+<label class="full-span">
+                  シラバスURL
+                  <input name="syllabusUrl" placeholder="例: https://..." type="url"/>
+</label>
+<label class="full-span">
+                  manaba / 授業ページURL
+                  <input name="coursePortalUrl" placeholder="例: https://..." type="url"/>
+</label>
+<label class="full-span">
                   メモ
                   <input name="note" placeholder="例: 抽象度が高く、証明理解が重い" type="text"/>
 </label>
@@ -929,6 +941,34 @@
 </div>
 </div>
 <div id="aiPolicyMount"></div>
+</section>
+<section class="card inner-card" id="assistQuickLinksSection">
+<div class="card-header compact">
+<div>
+<h2>クイックリンク</h2>
+<p>ChatGPT・Gemini・大学ポータルを、アプリからすぐ開けるようにします。</p>
+</div>
+</div>
+<div class="settings-grid link-settings-grid">
+<label>
+                ChatGPT URL
+                <input id="chatgptUrl" placeholder="https://chatgpt.com/" type="url"/>
+</label>
+<label>
+                Gemini URL
+                <input id="geminiUrl" placeholder="https://gemini.google.com/app" type="url"/>
+</label>
+<label>
+                大学ポータル / manaba URL
+                <input id="campusPortalUrl" placeholder="https://..." type="url"/>
+</label>
+</div>
+<div class="settings-actions-row link-settings-actions">
+<button class="ghost" id="openChatgptLinkBtn" type="button">ChatGPT を開く</button>
+<button class="ghost" id="openGeminiLinkBtn" type="button">Gemini を開く</button>
+<button class="ghost" id="openCampusPortalLinkBtn" type="button">大学ポータルを開く</button>
+</div>
+<p class="micro-note">URLを登録すると、別タブで即確認できます。科目ごとの manaba URL は科目フォーム側に登録します。</p>
 </section>
 <section class="card inner-card" id="promptAssistSection">
 <div class="card-header compact">
