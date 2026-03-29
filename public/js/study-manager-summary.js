@@ -31,11 +31,15 @@ export function renderStudyOverview() {
   const dueSoonCount = assessments.filter((item) => isAssessmentDueSoon(item)).length;
   const overdueCount = assessments.filter((item) => isAssessmentOverdue(item)).length;
   const focusCandidates = buildFocusCandidates().slice(0, 3);
+  const syllabusCount = courses.filter((course) => String(course.syllabusSummary || "").trim() || String(course.syllabusUrl || "").trim()).length;
+  const portalCount = courses.filter((course) => String(course.coursePortalUrl || "").trim()).length;
 
   const lines = [];
   if (courses.length) lines.push(`科目 ${courses.length}件`);
   if (materials.length) lines.push(`教材 ${materials.length}件`);
   if (assessments.length) lines.push(`締切管理 ${assessments.length}件`);
+  if (syllabusCount) lines.push(`シラバス登録 ${syllabusCount}件`);
+  if (portalCount) lines.push(`授業ページ登録 ${portalCount}件`);
   if (highRiskCount) lines.push(`危険科目 ${highRiskCount}件`);
   if (reviewCount) lines.push(`復習必要 ${reviewCount}件`);
   if (lowUnderstandingCount) lines.push(`理解度低め ${lowUnderstandingCount}件`);
@@ -77,7 +81,9 @@ export function buildStudyPromptSection() {
         const linkedCount = state.materials.filter((material) => material.courseId === course.id).length;
         const linkedAssessments = state.assessments.filter((assessment) => assessment.courseId === course.id && assessment.status !== "done").length;
         const credits = course.credits === "" ? "未入力" : String(course.credits);
-        return `- ${course.title} / 単位:${credits} / 危険度:${COURSE_RISK_LABELS[course.riskStatus] || "要注意"} / 教材:${linkedCount}件 / 未完了締切:${linkedAssessments}件 / 評価:${course.gradingMemo || "未入力"}${course.note ? ` / ${course.note}` : ""}`;
+        const syllabusSummary = trimForPrompt(course.syllabusSummary, 90);
+        const links = [course.syllabusUrl ? "シラバスURLあり" : "", course.coursePortalUrl ? "授業ページあり" : ""].filter(Boolean).join("・");
+        return `- ${course.title} / 単位:${credits} / 危険度:${COURSE_RISK_LABELS[course.riskStatus] || "要注意"} / 教材:${linkedCount}件 / 未完了締切:${linkedAssessments}件 / 評価:${course.gradingMemo || "未入力"}${syllabusSummary ? ` / シラバス:${syllabusSummary}` : ""}${links ? ` / ${links}` : ""}${course.note ? ` / ${course.note}` : ""}`;
       })
     : ["- なし"];
 
@@ -119,4 +125,11 @@ export function buildStudyPromptSection() {
     : ["- なし"];
 
   return { courseLines, materialLines, focusLines, riskLines, deadlineLines };
+}
+
+
+function trimForPrompt(text, maxLength = 80) {
+  const value = String(text || "").trim();
+  if (!value) return "";
+  return value.length > maxLength ? `${value.slice(0, maxLength)}…` : value;
 }

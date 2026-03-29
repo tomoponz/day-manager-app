@@ -213,6 +213,9 @@ export function bindEvents() {
   on('plannerMode', 'change', onPlannerModeChanged);
   on('focusMinutesTarget', 'input', saveSettingsInputs);
   on('bufferMinutes', 'input', saveSettingsInputs);
+  on('chatgptUrl', 'input', saveSettingsInputs);
+  on('geminiUrl', 'input', saveSettingsInputs);
+  on('campusPortalUrl', 'input', saveSettingsInputs);
 
   on('fatigueDownBtn', 'click', () => { adjustFatigue(-1); closeStateUpdateMenu(); });
   on('fatigueUpBtn', 'click', () => { adjustFatigue(1); closeStateUpdateMenu(); });
@@ -255,6 +258,10 @@ export function bindEvents() {
     importGoogleEventsToLocal($('selectedDate')?.value || '');
   });
 
+  on('openChatgptLinkBtn', 'click', () => openConfiguredExternalLink($('chatgptUrl')?.value || state.settings?.chatgptUrl, 'ChatGPT'));
+  on('openGeminiLinkBtn', 'click', () => openConfiguredExternalLink($('geminiUrl')?.value || state.settings?.geminiUrl, 'Gemini'));
+  on('openCampusPortalLinkBtn', 'click', () => openConfiguredExternalLink($('campusPortalUrl')?.value || state.settings?.campusPortalUrl, '大学ポータル'));
+
   on('eventAllDay', 'change', toggleEventTimeInputs);
 
   refreshRecoveryUi();
@@ -264,8 +271,26 @@ export function bindEvents() {
 export function saveSettingsInputs() {
   state.settings.focusMinutesTarget = Math.max(0, Number($('focusMinutesTarget')?.value || 0));
   state.settings.bufferMinutes = Math.max(0, Number($('bufferMinutes')?.value || 0));
+  state.settings.chatgptUrl = normalizeHttpUrl($('chatgptUrl')?.value || state.settings?.chatgptUrl || '');
+  state.settings.geminiUrl = normalizeHttpUrl($('geminiUrl')?.value || state.settings?.geminiUrl || '');
+  state.settings.campusPortalUrl = normalizeHttpUrl($('campusPortalUrl')?.value || state.settings?.campusPortalUrl || '');
   saveState();
   refreshPlannerOutputs();
+}
+
+function normalizeHttpUrl(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return /^https?:\/\//i.test(text) ? text : '';
+}
+
+function openConfiguredExternalLink(url, label) {
+  const normalized = normalizeHttpUrl(url);
+  if (!normalized) {
+    showToast(`${label} のURLが未設定です。`, { variant: 'warn' });
+    return;
+  }
+  window.open(normalized, '_blank', 'noopener,noreferrer');
 }
 
 export async function onDateChanged() {

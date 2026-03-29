@@ -91,6 +91,31 @@ export function hydrateSettingsInputs() {
   if ($("bufferMinutes")) {
     $("bufferMinutes").value = String(state.settings?.bufferMinutes ?? 10);
   }
+  if ($("chatgptUrl")) {
+    $("chatgptUrl").value = state.settings?.chatgptUrl || "";
+  }
+  if ($("geminiUrl")) {
+    $("geminiUrl").value = state.settings?.geminiUrl || "";
+  }
+  if ($("campusPortalUrl")) {
+    $("campusPortalUrl").value = state.settings?.campusPortalUrl || "";
+  }
+  syncExternalLinkButtons();
+}
+
+function syncExternalLinkButtons() {
+  const mappings = [
+    ["openChatgptLinkBtn", state.settings?.chatgptUrl],
+    ["openGeminiLinkBtn", state.settings?.geminiUrl],
+    ["openCampusPortalLinkBtn", state.settings?.campusPortalUrl]
+  ];
+  mappings.forEach(([id, url]) => {
+    const button = $(id);
+    if (!button) return;
+    const normalized = String(url || "").trim();
+    button.disabled = !/^https?:\/\//i.test(normalized);
+    button.title = normalized || "URL未設定";
+  });
 }
 
 export function loadConditionInputsForDate(date) {

@@ -1,6 +1,6 @@
 export const STORAGE_KEY = "day-manager-v1";
 export const GOOGLE_CONFIG_KEY = "day-manager-google-config-v1";
-export const STATE_SCHEMA_VERSION = 5;
+export const STATE_SCHEMA_VERSION = 6;
 
 export const INITIAL_STATE = {
   schemaVersion: STATE_SCHEMA_VERSION,
@@ -27,7 +27,10 @@ export const INITIAL_STATE = {
     protectFocusBlock: false,
     focusBlockMinutes: 90,
     aiDraftOnly: true,
-    confirmBeforeGoogleApply: true
+    confirmBeforeGoogleApply: true,
+    chatgptUrl: "https://chatgpt.com/",
+    geminiUrl: "https://gemini.google.com/app",
+    campusPortalUrl: ""
   },
   uiState: {
     plannerMode: "auto",
@@ -49,7 +52,10 @@ function normalizeSettings(settings) {
     protectFocusBlock: normalizeBooleanWithFallback(settings?.protectFocusBlock, INITIAL_STATE.settings.protectFocusBlock),
     focusBlockMinutes: normalizeNumberWithFallback(settings?.focusBlockMinutes, INITIAL_STATE.settings.focusBlockMinutes),
     aiDraftOnly: normalizeBooleanWithFallback(settings?.aiDraftOnly, INITIAL_STATE.settings.aiDraftOnly),
-    confirmBeforeGoogleApply: normalizeBooleanWithFallback(settings?.confirmBeforeGoogleApply, INITIAL_STATE.settings.confirmBeforeGoogleApply)
+    confirmBeforeGoogleApply: normalizeBooleanWithFallback(settings?.confirmBeforeGoogleApply, INITIAL_STATE.settings.confirmBeforeGoogleApply),
+    chatgptUrl: normalizeUrlWithFallback(settings?.chatgptUrl, INITIAL_STATE.settings.chatgptUrl),
+    geminiUrl: normalizeUrlWithFallback(settings?.geminiUrl, INITIAL_STATE.settings.geminiUrl),
+    campusPortalUrl: normalizeUrlWithFallback(settings?.campusPortalUrl, INITIAL_STATE.settings.campusPortalUrl)
   };
 }
 
@@ -73,6 +79,12 @@ function normalizeBooleanWithFallback(value, fallback) {
 function normalizeTimeValue(value, fallback) {
   const text = String(value || "").trim();
   return /^\d{2}:\d{2}$/.test(text) ? text : fallback;
+}
+
+function normalizeUrlWithFallback(value, fallback = "") {
+  const text = String(value || "").trim();
+  if (!text) return fallback;
+  return /^https?:\/\//i.test(text) ? text : fallback;
 }
 
 function normalizeOnboardingStep(value) {
@@ -261,6 +273,9 @@ export function normalizeCourse(item) {
     credits: normalizeOptionalNumber(item.credits),
     scheduleMemo: item.scheduleMemo || "",
     gradingMemo: item.gradingMemo || "",
+    syllabusSummary: item.syllabusSummary || "",
+    syllabusUrl: normalizeUrlWithFallback(item.syllabusUrl, ""),
+    coursePortalUrl: normalizeUrlWithFallback(item.coursePortalUrl, ""),
     riskStatus: item.riskStatus || "medium",
     note: item.note || ""
   };

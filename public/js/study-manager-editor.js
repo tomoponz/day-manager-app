@@ -74,16 +74,22 @@ export function renderCourseList() {
           course.instructor ? makeBadge(course.instructor, "blue") : null,
           makeBadge(`教材:${linkedMaterials}件`),
           makeBadge(`締切:${linkedAssessments}件`, linkedAssessments ? "warn" : ""),
+          course.syllabusSummary ? makeBadge("シラバス要約", "blue") : null,
+          course.syllabusUrl ? makeBadge("シラバスURL", "ok") : null,
+          (course.coursePortalUrl || state.settings?.campusPortalUrl) ? makeBadge("LMS", "ok") : null,
           riskEntry ? makeBadge(`総合:${riskEntry.levelLabel}`, riskEntry.level === "high" ? "danger" : riskEntry.level === "medium" ? "warn" : "ok") : null
         ].filter(Boolean),
         detail: [
           course.scheduleMemo ? `授業情報: ${course.scheduleMemo}` : "",
-          course.gradingMemo ? `評価: ${course.gradingMemo}` : ""
+          course.gradingMemo ? `評価: ${course.gradingMemo}` : "",
+          course.syllabusSummary ? `シラバス: ${truncateText(course.syllabusSummary, 90)}` : ""
         ].filter(Boolean).join(" / "),
         note: course.note || ""
       });
 
       const actions = item.querySelector(".list-actions");
+      if (course.syllabusUrl) actions.appendChild(makeButton("シラバス", () => openExternalUrl(course.syllabusUrl, `${course.title} のシラバス`)));
+      if (course.coursePortalUrl || state.settings?.campusPortalUrl) actions.appendChild(makeButton("manaba", () => openExternalUrl(course.coursePortalUrl || state.settings?.campusPortalUrl, `${course.title} の授業ページ`)));
       actions.appendChild(makeButton("編集", () => populateCourseForm(course.id)));
       actions.appendChild(makeDeleteButton(() => deleteCourse(course.id)));
       wrap.appendChild(item);
@@ -194,6 +200,9 @@ async function onSubmitCourse(event) {
     credits: String(data.get("credits") || "").trim(),
     scheduleMemo: String(data.get("scheduleMemo") || "").trim(),
     gradingMemo: String(data.get("gradingMemo") || "").trim(),
+    syllabusSummary: String(data.get("syllabusSummary") || "").trim(),
+    syllabusUrl: String(data.get("syllabusUrl") || "").trim(),
+    coursePortalUrl: String(data.get("coursePortalUrl") || "").trim(),
     riskStatus: String(data.get("riskStatus") || "medium"),
     note: String(data.get("note") || "").trim()
   });
@@ -309,6 +318,9 @@ function resetCourseForm() {
   if (!form) return;
   form.reset();
   form.elements.editId.value = "";
+  if (form.elements.syllabusSummary) form.elements.syllabusSummary.value = "";
+  if (form.elements.syllabusUrl) form.elements.syllabusUrl.value = "";
+  if (form.elements.coursePortalUrl) form.elements.coursePortalUrl.value = "";
   const submit = $("courseSubmitBtn");
   if (submit) submit.textContent = "科目を追加";
   const cancel = $("courseCancelBtn");
@@ -363,6 +375,9 @@ export function populateCourseForm(id) {
   form.elements.credits.value = course.credits;
   form.elements.scheduleMemo.value = course.scheduleMemo;
   form.elements.gradingMemo.value = course.gradingMemo;
+  if (form.elements.syllabusSummary) form.elements.syllabusSummary.value = course.syllabusSummary || "";
+  if (form.elements.syllabusUrl) form.elements.syllabusUrl.value = course.syllabusUrl || "";
+  if (form.elements.coursePortalUrl) form.elements.coursePortalUrl.value = course.coursePortalUrl || "";
   form.elements.riskStatus.value = course.riskStatus;
   form.elements.note.value = course.note;
 
@@ -373,6 +388,22 @@ export function populateCourseForm(id) {
   const panel = $("courseFormPanel");
   if (panel) panel.open = true;
   form.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+
+function truncateText(text, maxLength = 80) {
+  const value = String(text || "").trim();
+  if (!value) return "";
+  return value.length > maxLength ? `${value.slice(0, maxLength)}…` : value;
+}
+
+function openExternalUrl(url, label) {
+  const normalized = String(url || "").trim();
+  if (!/^https?:\/\//i.test(normalized)) {
+    showToast(`${label} のURLが未設定です。`, { variant: "warn" });
+    return;
+  }
+  window.open(normalized, "_blank", "noopener,noreferrer");
 }
 
 export function populateMaterialForm(id) {
