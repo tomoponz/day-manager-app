@@ -57,6 +57,7 @@ async function handleGoogleStart(request, env) {
 
   const url = new URL(request.url);
   const returnTo = sanitizeReturnTo(url.searchParams.get("returnTo"));
+  const forceConsent = url.searchParams.get("forceConsent") === "1";
   const state = crypto.randomUUID();
 
   await env.DM_STORE.put(`oauth_state:${state}`, JSON.stringify({ returnTo }), {
@@ -69,7 +70,7 @@ async function handleGoogleStart(request, env) {
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("scope", GOOGLE_SCOPES.join(" "));
   authUrl.searchParams.set("access_type", "offline");
-  authUrl.searchParams.set("prompt", "consent");
+  if (forceConsent) authUrl.searchParams.set("prompt", "consent");
   authUrl.searchParams.set("include_granted_scopes", "true");
   authUrl.searchParams.set("state", state);
 
@@ -674,7 +675,7 @@ function buildReauthResponse(request, error) {
 
   const url = new URL(request.url);
   const returnTo = sanitizeReturnTo(`${url.pathname}${url.search}`);
-  const reconnectUrl = `/auth/google/start?returnTo=${encodeURIComponent(returnTo)}`;
+  const reconnectUrl = `/auth/google/start?returnTo=${encodeURIComponent(returnTo)}&forceConsent=1`;
 
   return new Response(
     JSON.stringify({
