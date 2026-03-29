@@ -28,7 +28,6 @@ let calendar = null;
 let initialized = false;
 let suppressSelectedDateSync = false;
 let lastRangeKey = "";
-let lastDetailKey = "";
 
 export function initializeCalendarUi() {
   if (initialized) return;
@@ -104,13 +103,7 @@ export function initializeCalendarUi() {
     },
     eventClick(info) {
       info.jsEvent.preventDefault();
-      const sourceType = info.event.extendedProps.sourceType;
       renderCalendarDetail(info.event);
-      if (sourceType === 'local-oneoff') {
-        calendarHandlers.populateEventForm?.(info.event.extendedProps.entityId);
-      } else if (sourceType === 'fixed') {
-        calendarHandlers.populateFixedForm?.(info.event.extendedProps.entityId);
-      }
     },
     eventDrop: async (info) => {
       try {
@@ -508,8 +501,6 @@ function renderCalendarDetail(fcEvent) {
   const detail = $("calendarDetail");
   if (!detail || !fcEvent) return;
   const sourceType = fcEvent.extendedProps?.sourceType || "unknown";
-  const key = `${sourceType}:${fcEvent.id}`;
-  lastDetailKey = key;
 
   const note = fcEvent.extendedProps?.note || "";
   const timeText = fcEvent.allDay

@@ -423,9 +423,12 @@ export function renderSummaries() {
         )
       : []
   );
+  const orderedPending = sortPendingTasksForSummary(pending);
   fillSummary(
     $("pendingSummary"),
-    pending.length ? pending.slice(0, 8).map((task) => `${task.title} / ${task.category || "分類なし"} / ${task.status}`) : []
+    orderedPending.length
+      ? orderedPending.slice(0, 8).map((task) => `${task.title} / ${task.category || "分類なし"} / ${task.status}`)
+      : []
   );
   fillSummary($("freeTimeSummary"), buildFreeTimeSummaryLines(protectedBlocks, freeSlots));
 
@@ -520,6 +523,27 @@ function buildFreeTimeSummaryLines(protectedBlocks, freeSlots) {
     lines.push(`空き / ${slot.start} - ${slot.end} (${slot.minutes}分)`);
   });
   return lines.slice(0, 8);
+}
+
+function sortPendingTasksForSummary(tasks) {
+  const statusRank = { 未着手: 0, 進行中: 1, 完了: 2 };
+  const importanceRank = { 必須: 0, できれば: 1, 後回し: 2 };
+  const priorityOrder = { 高: 0, 中: 1, 低: 2 };
+
+  return [...(tasks || [])].sort((a, b) => {
+    if ((statusRank[a.status] ?? 9) !== (statusRank[b.status] ?? 9)) {
+      return (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9);
+    }
+    if ((importanceRank[a.importance] ?? 9) !== (importanceRank[b.importance] ?? 9)) {
+      return (importanceRank[a.importance] ?? 9) - (importanceRank[b.importance] ?? 9);
+    }
+
+    const deadlineA = `${a.deadlineDate || "9999-99-99"} ${a.deadlineTime || "99:99"}`;
+    const deadlineB = `${b.deadlineDate || "9999-99-99"} ${b.deadlineTime || "99:99"}`;
+    if (deadlineA !== deadlineB) return deadlineA.localeCompare(deadlineB);
+
+    return (priorityOrder[a.priority] ?? 9) - (priorityOrder[b.priority] ?? 9);
+  });
 }
 
 function updateActiveModeChip(ctx) {
