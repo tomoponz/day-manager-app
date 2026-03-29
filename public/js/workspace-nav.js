@@ -5,6 +5,7 @@ const NORMAL_MODE = 'normal';
 const FOCUS_MODE = 'focus';
 const COMPACT_SCROLL_Y = 32;
 const DESKTOP_SIDEBAR_MIN = 981;
+const UTILITY_HIGHLIGHT_MS = 1400;
 
 boot();
 
@@ -51,6 +52,7 @@ function init() {
     });
 
     updateStepButtons();
+    setActiveUtilityButton();
     syncModeUi();
     savePrefs(prefs);
 
@@ -65,14 +67,55 @@ function init() {
     }
   };
 
+  const setActiveUtilityButton = (panelId = "") => {
+    utilityButtons.forEach((button) => {
+      const isActive = button.dataset.utilityTarget === panelId;
+      button.classList.toggle('is-active', isActive);
+      button.setAttribute('aria-pressed', String(isActive));
+    });
+  };
+
+  const pulseUtilityPanel = (panel) => {
+    if (!panel) return;
+    panel.classList.remove('utility-panel-highlight');
+    void panel.offsetWidth;
+    panel.classList.add('utility-panel-highlight');
+    window.clearTimeout(window.__dayManagerUtilityHighlightTimer);
+    window.__dayManagerUtilityHighlightTimer = window.setTimeout(() => {
+      panel.classList.remove('utility-panel-highlight');
+    }, UTILITY_HIGHLIGHT_MS);
+  };
+
+  const closePlannerEditorDrawer = () => {
+    const shell = document.getElementById('plannerEditorShell');
+    if (!shell) return;
+    shell.classList.remove('is-open');
+    shell.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('editor-drawer-open');
+  };
+
   const openUtilityPanel = (panelId) => {
     const panel = document.getElementById(panelId);
     if (!panel) return;
+
+    closeQuickAddDrawer({ restoreFocus: false });
+    closePlannerEditorDrawer();
+
+    utilityButtons.forEach((button) => {
+      const siblingTarget = button.dataset.utilityTarget;
+      if (!siblingTarget || siblingTarget === panelId) return;
+      const siblingPanel = document.getElementById(siblingTarget);
+      if (siblingPanel?.tagName === 'DETAILS') siblingPanel.open = false;
+    });
+
     let cursor = panel;
     while (cursor) {
       if (cursor.tagName === 'DETAILS') cursor.open = true;
       cursor = cursor.parentElement?.closest('details');
     }
+
+    setActiveUtilityButton(panelId);
+    pulseUtilityPanel(panel);
     scrollToNode(panel);
   };
 
@@ -179,6 +222,7 @@ function init() {
     modeToggle.textContent = isFocus ? '通常表示' : '集中表示';
   }
 
+  setActiveUtilityButton();
   syncModeUi();
   syncStickyOffsets(nav);
   activateSection(prefs.activeSectionId, { skipScroll: true });
