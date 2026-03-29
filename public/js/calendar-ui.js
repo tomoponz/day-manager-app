@@ -28,6 +28,8 @@ let calendar = null;
 let initialized = false;
 let suppressSelectedDateSync = false;
 let lastRangeKey = "";
+let autoSwitchedFromWeekToDay = false;
+const CALENDAR_MOBILE_BREAKPOINT = 720;
 
 export function initializeCalendarUi() {
   if (initialized) return;
@@ -38,7 +40,7 @@ export function initializeCalendarUi() {
 
   calendar = new FullCalendar.Calendar(mount, {
     locale: "ja",
-    initialView: "timeGridWeek",
+    initialView: getResponsiveInitialView(),
     firstDay: 1,
     nowIndicator: true,
     navLinks: true,
@@ -56,11 +58,10 @@ export function initializeCalendarUi() {
       startTime: "08:30",
       endTime: "18:30"
     },
-    headerToolbar: {
-      left: "prev,next today refreshGoogleButton",
-      center: "title",
-      right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek"
-    },
+    headerToolbar: getResponsiveHeaderToolbar(),
+    dayHeaderFormat: getResponsiveDayHeaderFormat(),
+    eventTimeFormat: getResponsiveEventTimeFormat(),
+    slotLabelFormat: getResponsiveSlotLabelFormat(),
     customButtons: {
       refreshGoogleButton: {
         text: "Google再読込",
@@ -124,6 +125,9 @@ export function initializeCalendarUi() {
     eventAllow(dropInfo, draggedEvent) {
       return draggedEvent.extendedProps?.sourceType === "local-oneoff";
     },
+    windowResize() {
+      applyResponsiveCalendarLayout();
+    },
     datesSet: async (info) => {
       renderCalendarViewMeta(info.view);
       await preloadGoogleRange(info.start, info.end, { silent: true });
@@ -144,6 +148,7 @@ export function initializeCalendarUi() {
   });
 
   calendar.render();
+  applyResponsiveCalendarLayout({ forceView: true });
   renderCalendarConnectionMeta();
   ensureCalendarLegendPills();
   bindCalendarHelpers();
@@ -172,6 +177,7 @@ export function refreshCalendarUi() {
 
 export function resizeCalendarUi() {
   if (!calendar) return;
+  applyResponsiveCalendarLayout();
   calendar.updateSize();
 }
 
@@ -231,6 +237,70 @@ function buildCalendarEvents(fetchStart, fetchEndExclusive) {
     ...buildGoogleEvents(startDate, endDate),
     ...buildPlanningDraftEvents(startDate, endDate)
   ];
+}
+
+
+function isCompactCalendarScreen() {
+  return window.innerWidth <= CALENDAR_MOBILE_BREAKPOINT;
+}
+
+function getResponsiveInitialView() {
+  return isCompactCalendarScreen() ? "timeGridDay" : "timeGridWeek";
+}
+
+function getResponsiveHeaderToolbar() {
+  if (isCompactCalendarScreen()) {
+    return {
+      left: "prev,next today",
+      center: "title",
+      right: "dayGridMonth,timeGridDay,listWeek"
+    };
+  }
+  return {
+    left: "prev,next today refreshGoogleButton",
+    center: "title",
+    right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek"
+  };
+}
+
+function getResponsiveDayHeaderFormat() {
+  return isCompactCalendarScreen()
+    ? { weekday: "short", day: "numeric" }
+    : { month: "numeric", day: "numeric", weekday: "short" };
+}
+
+function getResponsiveEventTimeFormat() {
+  return isCompactCalendarScreen()
+    ? { hour: "numeric", minute: "2-digit", meridiem: false }
+    : { hour: "numeric", minute: "2-digit", meridiem: false };
+}
+
+function getResponsiveSlotLabelFormat() {
+  return isCompactCalendarScreen()
+    ? { hour: "numeric", minute: "2-digit", meridiem: false }
+    : { hour: "numeric", minute: "2-digit", meridiem: false };
+}
+
+function applyResponsiveCalendarLayout({ forceView = false } = {}) {
+  if (!calendar) return;
+
+  const compact = isCompactCalendarScreen();
+  calendar.setOption("headerToolbar", getResponsiveHeaderToolbar());
+  calendar.setOption("dayHeaderFormat", getResponsiveDayHeaderFormat());
+  calendar.setOption("eventTimeFormat", getResponsiveEventTimeFormat());
+  calendar.setOption("slotLabelFormat", getResponsiveSlotLabelFormat());
+
+  const currentView = calendar.view?.type;
+
+  if (compact) {
+    if (forceView || currentView === "timeGridWeek") {
+      if (currentView === "timeGridWeek") autoSwitchedFromWeekToDay = true;
+      if (currentView !== "timeGridDay") calendar.changeView("timeGridDay");
+    }
+  } else if (autoSwitchedFromWeekToDay && currentView === "timeGridDay") {
+    autoSwitchedFromWeekToDay = false;
+    calendar.changeView("timeGridWeek");
+  }
 }
 
 function buildFixedScheduleEvents(startDate, endDate) {
