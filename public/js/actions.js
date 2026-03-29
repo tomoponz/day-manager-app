@@ -67,6 +67,7 @@ const EDITOR_DRAWER_CONFIG = {
 };
 
 let editorDrawerBound = false;
+let lastEditorTrigger = null;
 
 function getEditorKeyByPanelId(panelId) {
   return Object.entries(EDITOR_DRAWER_CONFIG).find(([, config]) => config.panelId === panelId)?.[0] || null;
@@ -92,14 +93,14 @@ function bindEditorDrawerUi() {
   document.querySelectorAll('[data-open-editor-target]').forEach((button) => {
     button.addEventListener('click', () => {
       const editorKey = button.getAttribute('data-open-editor-target');
-      if (editorKey) openEditorDrawer(editorKey);
+      if (editorKey) openEditorDrawer(editorKey, { returnFocusEl: button });
     });
   });
 
   document.querySelectorAll('[data-editor-target]').forEach((button) => {
     button.addEventListener('click', () => {
       const editorKey = button.getAttribute('data-editor-target');
-      if (editorKey) openEditorDrawer(editorKey);
+      if (editorKey) openEditorDrawer(editorKey, { returnFocusEl: lastEditorTrigger || document.activeElement });
     });
   });
 
@@ -124,6 +125,9 @@ export function closeEditorDrawer() {
   }
   document.body.classList.remove('editor-drawer-open');
   Object.values(EDITOR_DRAWER_CONFIG).forEach(({ panelId }) => setPanelOpen(panelId, false));
+  if (lastEditorTrigger instanceof HTMLElement) {
+    window.setTimeout(() => lastEditorTrigger?.focus?.(), 0);
+  }
 }
 
 export function openEditorDrawer(editorKey, options = {}) {
@@ -131,6 +135,11 @@ export function openEditorDrawer(editorKey, options = {}) {
   const config = EDITOR_DRAWER_CONFIG[editorKey];
   const shell = $('plannerEditorShell');
   if (!config) return;
+
+  const fallbackFocus = options.returnFocusEl || document.activeElement;
+  if (fallbackFocus instanceof HTMLElement) {
+    lastEditorTrigger = fallbackFocus;
+  }
 
   const settingsPanel = $('appSettingsPanel');
   if (settingsPanel && !shell) {

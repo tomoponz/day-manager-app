@@ -501,6 +501,8 @@ function renderCalendarDetail(fcEvent) {
   const detail = $("calendarDetail");
   if (!detail || !fcEvent) return;
   const sourceType = fcEvent.extendedProps?.sourceType || "unknown";
+  const key = `${sourceType}:${fcEvent.id}`;
+  lastDetailKey = key;
 
   const note = fcEvent.extendedProps?.note || "";
   const timeText = fcEvent.allDay
