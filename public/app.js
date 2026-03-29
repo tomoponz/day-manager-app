@@ -50,6 +50,11 @@
       onEditStudyLocation: actionsModule.populateStudyLocationForm,
       onDeleteStudyLocation: actionsModule.deleteStudyLocation,
       onCreateStudyLocation: actionsModule.openStudyLocationFormForCreate,
+      onOpenStudyLocationSourceUrl: actionsModule.openStudyLocationSourceUrl,
+      onMarkStudyLocationCheckedOpen: actionsModule.markStudyLocationCheckedOpen,
+      onMarkStudyLocationCheckedClosed: actionsModule.markStudyLocationCheckedClosed,
+      onMarkStudyLocationCheckedShortened: actionsModule.markStudyLocationCheckedShortened,
+      onClearStudyLocationDateCheck: actionsModule.clearStudyLocationDateCheck,
       onDeleteGoogleEvent: actionsModule.deleteGoogleEvent
     });
 
