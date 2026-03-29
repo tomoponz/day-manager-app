@@ -1,4 +1,4 @@
-import { state, saveState, STATE_SCHEMA_VERSION, normalizeOneOffEvent, normalizeFixedSchedule, normalizeTask, normalizeCourse, normalizeMaterial, normalizeAssessment, normalizeWeeklyPlans, normalizeMilestone, normalizePlanningDraft } from './state.js';
+import { state, saveState, STATE_SCHEMA_VERSION, normalizeOneOffEvent, normalizeFixedSchedule, normalizeTask, normalizeStudyLocation, normalizeCourse, normalizeMaterial, normalizeAssessment, normalizeWeeklyPlans, normalizeMilestone, normalizePlanningDraft } from './state.js';
 import { $, debounce, getFormValue } from './utils.js';
 import { addDays, formatDateInput, formatTimeOnly, isSelectedDateToday, isValidTimeRange, roundToFiveMinutes } from './time.js';
 import { renderAll, renderCurrentClock, renderCurrentState, renderAutoPlan, renderSummaries, renderTodayActionDeck, updateStateNote, loadConditionInputsForDate, hydrateSettingsInputs } from './render.js';
@@ -197,10 +197,12 @@ export function bindEvents() {
   on('fixedForm', 'submit', onSubmitFixedSchedule);
   on('eventForm', 'submit', onSubmitOneOffEvent);
   on('taskForm', 'submit', onSubmitTask);
+  on('studyLocationForm', 'submit', onSubmitStudyLocation);
 
   on('fixedCancelBtn', 'click', resetFixedForm);
   on('eventCancelBtn', 'click', resetEventForm);
   on('taskCancelBtn', 'click', resetTaskForm);
+  on('studyLocationCancelBtn', 'click', resetStudyLocationForm);
 
   on('selectedDate', 'change', onDateChanged);
 
@@ -471,6 +473,46 @@ export function onSubmitTask(e) {
   renderAll();
 }
 
+export function onSubmitStudyLocation(e) {
+  e.preventDefault();
+  const fd = new FormData(e.currentTarget);
+  const editingId = String(fd.get('editId') || '');
+  const weeklyHours = Object.fromEntries(
+    Array.from({ length: 7 }, (_, weekday) => [String(weekday), String(fd.get(`weekly${weekday}`) || '').trim()])
+  );
+
+  const payload = normalizeStudyLocation({
+    id: editingId || crypto.randomUUID(),
+    name: String(fd.get('name') || '').trim(),
+    kind: String(fd.get('kind') || '').trim(),
+    sourceUrl: String(fd.get('sourceUrl') || '').trim(),
+    travelMinutes: String(fd.get('travelMinutes') || '').trim(),
+    weeklyHours,
+    exceptionsText: String(fd.get('exceptionsText') || '').trim(),
+    memo: String(fd.get('memo') || '').trim(),
+    isPreferred: Boolean(fd.get('isPreferred'))
+  });
+
+  if (!payload.name) {
+    showToast('自習場所名を入力してください。', { variant: 'warn' });
+    return;
+  }
+
+  if (editingId) {
+    const target = state.studyLocations.find((item) => item.id === editingId);
+    if (!target) return;
+    Object.assign(target, payload);
+    showToast('自習場所を更新しました。', { variant: 'ok', duration: 2200 });
+  } else {
+    state.studyLocations.push(payload);
+    showToast('自習場所を追加しました。', { variant: 'ok', duration: 2200 });
+  }
+
+  saveState();
+  resetStudyLocationForm();
+  renderAll();
+}
+
 export function handleQuickAdd() {
   const input = $('quickAddInput')?.value || '';
   const resultBox = $('quickAddResult');
@@ -516,6 +558,36 @@ export function resetEventForm() {
   if ($('eventAllDay')) $('eventAllDay').checked = false;
   toggleEventTimeInputs();
   closeEditorDrawer();
+}
+
+export function openStudyLocationFormForCreate() {
+  resetStudyLocationForm({ keepPanelOpen: true });
+  const form = $('studyLocationForm');
+  const appSettingsPanel = $('appSettingsPanel');
+  const formPanel = $('studyLocationFormPanel');
+  if (appSettingsPanel) appSettingsPanel.open = true;
+  if (formPanel) formPanel.open = true;
+  window.workspaceNavApi?.openUtilityPanel?.('appSettingsPanel');
+  requestAnimationFrame(() => form?.querySelector("input[name='name']")?.focus());
+}
+
+export function resetStudyLocationForm(options = {}) {
+  const form = $('studyLocationForm');
+  if (!form) return;
+  form.reset();
+  form.elements.editId.value = '';
+  for (let weekday = 0; weekday < 7; weekday += 1) {
+    if (form.elements[`weekly${weekday}`]) form.elements[`weekly${weekday}`].value = '';
+  }
+  form.elements.exceptionsText.value = '';
+  form.elements.memo.value = '';
+  form.elements.isPreferred.checked = false;
+  if ($('studyLocationSubmitBtn')) $('studyLocationSubmitBtn').textContent = '自習場所を追加';
+  if ($('studyLocationCancelBtn')) $('studyLocationCancelBtn').hidden = true;
+  if (!options.keepPanelOpen) {
+    const formPanel = $('studyLocationFormPanel');
+    if (formPanel) formPanel.open = false;
+  }
 }
 
 export function resetTaskForm() {
@@ -707,6 +779,53 @@ export async function deleteTask(id) {
       saveState();
       renderAll();
       showToast('タスクを元に戻しました。', { variant: 'ok', duration: 1800 });
+    }
+  });
+}
+
+export function populateStudyLocationForm(id) {
+  const item = state.studyLocations.find((entry) => entry.id === id);
+  if (!item) return;
+  const form = $('studyLocationForm');
+  const appSettingsPanel = $('appSettingsPanel');
+  const formPanel = $('studyLocationFormPanel');
+  if (!form) return;
+  if (appSettingsPanel) appSettingsPanel.open = true;
+  if (formPanel) formPanel.open = true;
+  form.elements.editId.value = item.id;
+  form.elements.name.value = item.name;
+  form.elements.kind.value = item.kind;
+  form.elements.sourceUrl.value = item.sourceUrl || '';
+  form.elements.travelMinutes.value = item.travelMinutes ?? '';
+  for (let weekday = 0; weekday < 7; weekday += 1) {
+    if (form.elements[`weekly${weekday}`]) form.elements[`weekly${weekday}`].value = item.weeklyHours?.[String(weekday)] || '';
+  }
+  form.elements.exceptionsText.value = item.exceptionsText || '';
+  form.elements.memo.value = item.memo || '';
+  form.elements.isPreferred.checked = Boolean(item.isPreferred);
+  if ($('studyLocationSubmitBtn')) $('studyLocationSubmitBtn').textContent = '自習場所を更新';
+  if ($('studyLocationCancelBtn')) $('studyLocationCancelBtn').hidden = false;
+  window.workspaceNavApi?.openUtilityPanel?.('appSettingsPanel');
+  requestAnimationFrame(() => form.querySelector("input[name='name']")?.focus());
+}
+
+export async function deleteStudyLocation(id) {
+  const item = state.studyLocations.find((entry) => entry.id === id);
+  if (!item) return;
+  const index = state.studyLocations.findIndex((entry) => entry.id === id);
+  captureRecoverySnapshot('delete-study-location');
+  state.studyLocations = state.studyLocations.filter((entry) => entry.id !== id);
+  saveState();
+  renderAll();
+  showToast('自習場所を削除しました。', {
+    variant: 'ok',
+    duration: 5000,
+    actionLabel: '元に戻す',
+    onAction: () => {
+      state.studyLocations.splice(index, 0, item);
+      saveState();
+      renderAll();
+      showToast('自習場所を元に戻しました。', { variant: 'ok', duration: 1800 });
     }
   });
 }

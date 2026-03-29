@@ -1,12 +1,13 @@
 export const STORAGE_KEY = "day-manager-v1";
 export const GOOGLE_CONFIG_KEY = "day-manager-google-config-v1";
-export const STATE_SCHEMA_VERSION = 3;
+export const STATE_SCHEMA_VERSION = 4;
 
 export const INITIAL_STATE = {
   schemaVersion: STATE_SCHEMA_VERSION,
   fixedSchedules: [],
   oneOffEvents: [],
   tasks: [],
+  studyLocations: [],
   courses: [],
   materials: [],
   assessments: [],
@@ -92,6 +93,7 @@ export function loadState() {
       fixedSchedules: (parsed.fixedSchedules || []).map(normalizeFixedSchedule),
       oneOffEvents: (parsed.oneOffEvents || []).map(normalizeOneOffEvent),
       tasks: (parsed.tasks || []).map(normalizeTask),
+      studyLocations: (parsed.studyLocations || []).map(normalizeStudyLocation),
       courses: (parsed.courses || []).map(normalizeCourse),
       materials: (parsed.materials || []).map(normalizeMaterial),
       assessments: (parsed.assessments || []).map(normalizeAssessment),
@@ -170,6 +172,51 @@ export function normalizeTask(item) {
     deferUntilDate: item.deferUntilDate || "",
     protectTimeBlock: Boolean(item.protectTimeBlock)
   };
+}
+
+export function normalizeStudyLocation(item) {
+  return {
+    id: item.id || crypto.randomUUID(),
+    name: item.name || "",
+    kind: normalizeStudyLocationKind(item.kind),
+    sourceUrl: item.sourceUrl || "",
+    travelMinutes: normalizeOptionalNumber(item.travelMinutes),
+    weeklyHours: normalizeStudyLocationWeeklyHours(item.weeklyHours),
+    exceptionsText: item.exceptionsText || "",
+    memo: item.memo || "",
+    isPreferred: Boolean(item.isPreferred)
+  };
+}
+
+function normalizeStudyLocationKind(kind) {
+  const raw = String(kind || "").trim();
+  return ["university_library", "pref_library", "city_library", "cafe", "home", "other"].includes(raw)
+    ? raw
+    : "university_library";
+}
+
+function normalizeStudyLocationWeeklyHours(weeklyHours) {
+  const source = weeklyHours && typeof weeklyHours === "object" && !Array.isArray(weeklyHours) ? weeklyHours : {};
+  return Object.fromEntries(
+    Array.from({ length: 7 }, (_, weekday) => [String(weekday), normalizeHoursWindowValue(source[weekday] ?? source[String(weekday)] ?? "")])
+  );
+}
+
+function normalizeHoursWindowValue(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const compact = raw
+    .replace(/[〜～‐‑‒–—―ー]/g, "-")
+    .replace(/\s+/g, "");
+  if (/^(休館|closed)$/i.test(compact)) return "休館";
+  const match = compact.match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);
+  if (!match) return raw;
+  return `${padHour(match[1])}-${padHour(match[2])}`;
+}
+
+function padHour(timeText) {
+  const [hour, minute] = String(timeText).split(":");
+  return `${String(Number(hour)).padStart(2, "0")}:${minute}`;
 }
 
 function normalizeOptionalNumber(value) {
@@ -298,6 +345,7 @@ function migrateParsedState(parsed) {
   next.assessments = Array.isArray(parsed.assessments)
     ? parsed.assessments.map((item) => ({ ...item, status: normalizeAssessmentStatus(item?.status) }))
     : [];
+  next.studyLocations = Array.isArray(parsed.studyLocations) ? parsed.studyLocations : [];
   return next;
 }
 

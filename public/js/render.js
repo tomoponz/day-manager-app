@@ -42,11 +42,35 @@ const handlers = {
   onEditTask: null,
   onDeleteTask: null,
   onCreateTask: null,
+  onEditStudyLocation: null,
+  onDeleteStudyLocation: null,
+  onCreateStudyLocation: null,
   onDeleteGoogleEvent: null
 };
 
 export function configureRenderHandlers(nextHandlers = {}) {
   Object.assign(handlers, nextHandlers);
+}
+
+
+
+function sortTasksForDisplay(items = []) {
+  const priorityOrder = { 高: 0, 中: 1, 低: 2 };
+  const statusRank = { 未着手: 0, 進行中: 1, 完了: 2 };
+  const importanceRank = { 必須: 0, できれば: 1, 後回し: 2 };
+
+  return [...items].sort((a, b) => {
+    if (statusRank[a.status] !== statusRank[b.status]) {
+      return statusRank[a.status] - statusRank[b.status];
+    }
+    if (importanceRank[a.importance] !== importanceRank[b.importance]) {
+      return importanceRank[a.importance] - importanceRank[b.importance];
+    }
+    const deadlineA = `${a.deadlineDate || "9999-99-99"} ${a.deadlineTime || "99:99"}`;
+    const deadlineB = `${b.deadlineDate || "9999-99-99"} ${b.deadlineTime || "99:99"}`;
+    if (deadlineA !== deadlineB) return deadlineA.localeCompare(deadlineB);
+    return (priorityOrder[a.priority] ?? 99) - (priorityOrder[b.priority] ?? 99);
+  });
 }
 
 
@@ -99,6 +123,7 @@ export function renderAll() {
   renderFixedSchedules();
   renderOneOffEvents();
   renderTasks();
+  renderStudyLocations();
   renderGoogleEventList();
   renderCurrentState();
   renderSummaries();
@@ -225,25 +250,7 @@ export function renderTasks() {
   const wrap = $("taskList");
   wrap.innerHTML = "";
 
-  const priorityOrder = { 高: 0, 中: 1, 低: 2 };
-  const statusRank = { 未着手: 0, 進行中: 1, 完了: 2 };
-  const importanceRank = { 必須: 0, できれば: 1, 後回し: 2 };
-
-  const items = [...state.tasks].sort((a, b) => {
-    if (statusRank[a.status] !== statusRank[b.status]) {
-      return statusRank[a.status] - statusRank[b.status];
-    }
-
-    if (importanceRank[a.importance] !== importanceRank[b.importance]) {
-      return importanceRank[a.importance] - importanceRank[b.importance];
-    }
-
-    const deadlineA = `${a.deadlineDate || "9999-99-99"} ${a.deadlineTime || "99:99"}`;
-    const deadlineB = `${b.deadlineDate || "9999-99-99"} ${b.deadlineTime || "99:99"}`;
-    if (deadlineA !== deadlineB) return deadlineA.localeCompare(deadlineB);
-
-    return priorityOrder[a.priority] - priorityOrder[b.priority];
-  });
+  const items = sortTasksForDisplay(state.tasks);
 
   if (!items.length) {
     renderEmptyState(wrap, {
@@ -345,6 +352,52 @@ export function renderTasks() {
   });
 }
 
+export function renderStudyLocations() {
+  const wrap = $("studyLocationList");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+
+  const items = sortStudyLocationsForDisplay(state.studyLocations || []);
+  if (!items.length) {
+    renderEmptyState(wrap, {
+      message: "自習場所がまだありません。大学図書館や県立図書館の開館時間を入れると、今日どこで勉強するか判断しやすくなります。",
+      primaryLabel: "＋ 自習場所を追加する",
+      onPrimary: () => handlers.onCreateStudyLocation?.()
+    });
+    return;
+  }
+
+  const selectedDate = $("selectedDate")?.value || formatDateInput(new Date());
+  const ctx = getNowContext(selectedDate, state.uiState?.plannerMode || "auto");
+  wrap.className = "list-wrap";
+
+  items.forEach((item) => {
+    const status = getStudyLocationStatus(item, selectedDate, ctx);
+    const detailParts = [];
+    if (status.hoursLabel) detailParts.push(`開館: ${status.hoursLabel}`);
+    if (Number.isFinite(Number(item.travelMinutes)) && String(item.travelMinutes) !== "") {
+      detailParts.push(`移動: ${item.travelMinutes}分`);
+    }
+    if (item.sourceUrl) detailParts.push(`URL: ${item.sourceUrl}`);
+
+    wrap.appendChild(createListItem({
+      title: item.name,
+      badges: [
+        makeBadge(getStudyLocationKindLabel(item.kind)),
+        makeBadge(status.statusLabel, status.variant),
+        ...(item.isPreferred ? [makeBadge("優先候補", "ok")] : [])
+      ],
+      detail: detailParts.join(" / "),
+      note: item.memo || buildStudyLocationExceptionNote(item, selectedDate),
+      actions: [
+        makeActionButton("編集", () => handlers.onEditStudyLocation?.(item.id)),
+        makeDeleteButton(() => handlers.onDeleteStudyLocation?.(item.id))
+      ],
+      itemClassName: "study-location-item"
+    }));
+  });
+}
+
 export function renderGoogleEventList() {
   const wrap = $("googleEventList");
   wrap.innerHTML = "";
@@ -423,14 +476,14 @@ export function renderSummaries() {
         )
       : []
   );
-  const orderedPending = sortPendingTasksForSummary(pending);
   fillSummary(
     $("pendingSummary"),
-    orderedPending.length
-      ? orderedPending.slice(0, 8).map((task) => `${task.title} / ${task.category || "分類なし"} / ${task.status}`)
+    pending.length
+      ? sortTasksForDisplay(pending).slice(0, 8).map((task) => `${task.title} / ${task.category || "分類なし"} / ${task.status}`)
       : []
   );
   fillSummary($("freeTimeSummary"), buildFreeTimeSummaryLines(protectedBlocks, freeSlots));
+  fillSummary($("studyLocationSummary"), buildStudyLocationSummaryLines(selectedDate, ctx));
 
   const split = splitSchedulesByNow(schedules, ctx);
   fillSummary($("immediateScheduleSummary"), buildTimelineStatusLines(split).slice(0, 5));
@@ -523,27 +576,6 @@ function buildFreeTimeSummaryLines(protectedBlocks, freeSlots) {
     lines.push(`空き / ${slot.start} - ${slot.end} (${slot.minutes}分)`);
   });
   return lines.slice(0, 8);
-}
-
-function sortPendingTasksForSummary(tasks) {
-  const statusRank = { 未着手: 0, 進行中: 1, 完了: 2 };
-  const importanceRank = { 必須: 0, できれば: 1, 後回し: 2 };
-  const priorityOrder = { 高: 0, 中: 1, 低: 2 };
-
-  return [...(tasks || [])].sort((a, b) => {
-    if ((statusRank[a.status] ?? 9) !== (statusRank[b.status] ?? 9)) {
-      return (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9);
-    }
-    if ((importanceRank[a.importance] ?? 9) !== (importanceRank[b.importance] ?? 9)) {
-      return (importanceRank[a.importance] ?? 9) - (importanceRank[b.importance] ?? 9);
-    }
-
-    const deadlineA = `${a.deadlineDate || "9999-99-99"} ${a.deadlineTime || "99:99"}`;
-    const deadlineB = `${b.deadlineDate || "9999-99-99"} ${b.deadlineTime || "99:99"}`;
-    if (deadlineA !== deadlineB) return deadlineA.localeCompare(deadlineB);
-
-    return (priorityOrder[a.priority] ?? 9) - (priorityOrder[b.priority] ?? 9);
-  });
 }
 
 function updateActiveModeChip(ctx) {
@@ -698,6 +730,133 @@ function getLocalEventSyncLabel(item) {
   if (item.googleSyncStatus === "failed") return "Google同期失敗";
   if (item.googleSyncStatus === "pending") return "Google未接続";
   return "ローカルのみ";
+}
+
+function sortStudyLocationsForDisplay(items = []) {
+  return [...items].sort((a, b) => {
+    if (Boolean(a.isPreferred) !== Boolean(b.isPreferred)) return Number(Boolean(b.isPreferred)) - Number(Boolean(a.isPreferred));
+    const travelA = a.travelMinutes === "" ? 9999 : Number(a.travelMinutes || 9999);
+    const travelB = b.travelMinutes === "" ? 9999 : Number(b.travelMinutes || 9999);
+    if (travelA !== travelB) return travelA - travelB;
+    return String(a.name || "").localeCompare(String(b.name || ""), "ja");
+  });
+}
+
+function buildStudyLocationSummaryLines(selectedDate, ctx) {
+  const items = sortStudyLocationsForDisplay(state.studyLocations || []);
+  if (!items.length) return [];
+
+  const rank = { '営業中': 0, '開館前': 1, '利用可': 2, '要確認': 3, '時間未設定': 4, '閉館後': 5, '休館': 6, '例外休館': 6 };
+  return items
+    .map((item) => ({ item, status: getStudyLocationStatus(item, selectedDate, ctx) }))
+    .sort((a, b) => {
+      const rankDiff = (rank[a.status.statusLabel] ?? 99) - (rank[b.status.statusLabel] ?? 99);
+      if (rankDiff !== 0) return rankDiff;
+      if (Boolean(a.item.isPreferred) !== Boolean(b.item.isPreferred)) return Number(Boolean(b.item.isPreferred)) - Number(Boolean(a.item.isPreferred));
+      const travelA = a.item.travelMinutes === '' ? 9999 : Number(a.item.travelMinutes || 9999);
+      const travelB = b.item.travelMinutes === '' ? 9999 : Number(b.item.travelMinutes || 9999);
+      return travelA - travelB;
+    })
+    .slice(0, 6)
+    .map(({ item, status }) => {
+      const parts = [item.name, status.statusLabel];
+      if (status.hoursLabel) parts.push(status.hoursLabel);
+      if (status.remainingLabel) parts.push(status.remainingLabel);
+      if (String(item.travelMinutes || '').trim()) parts.push(`移動${item.travelMinutes}分`);
+      return parts.join(' / ');
+    });
+}
+
+function getStudyLocationStatus(location, selectedDate, ctx) {
+  const hoursSource = getStudyLocationHoursSource(location, selectedDate);
+  const spec = parseStudyLocationHours(hoursSource);
+
+  if (spec.type === 'unset') {
+    return { statusLabel: '時間未設定', variant: '', hoursLabel: '', remainingLabel: '' };
+  }
+  if (spec.type === 'closed') {
+    return { statusLabel: hoursSource?.isException ? '例外休館' : '休館', variant: 'danger', hoursLabel: '休館', remainingLabel: '' };
+  }
+  if (spec.type === 'custom') {
+    return { statusLabel: '要確認', variant: 'warn', hoursLabel: spec.raw, remainingLabel: '' };
+  }
+
+  const hoursLabel = `${spec.open} - ${spec.close}`;
+  if (!ctx?.isToday || selectedDate !== formatDateInput(ctx.now || new Date())) {
+    return { statusLabel: '利用可', variant: 'ok', hoursLabel, remainingLabel: '' };
+  }
+
+  const nowMinutes = (ctx.now?.getHours?.() || 0) * 60 + (ctx.now?.getMinutes?.() || 0);
+  const openMinutes = toMinutes(spec.open);
+  const closeMinutes = toMinutes(spec.close);
+
+  if (nowMinutes < openMinutes) {
+    return { statusLabel: '開館前', variant: 'warn', hoursLabel, remainingLabel: `あと ${formatMinutes(openMinutes - nowMinutes)} で開館` };
+  }
+  if (nowMinutes >= closeMinutes) {
+    return { statusLabel: '閉館後', variant: 'danger', hoursLabel, remainingLabel: '' };
+  }
+  return { statusLabel: '営業中', variant: 'ok', hoursLabel, remainingLabel: `残り ${formatMinutes(closeMinutes - nowMinutes)}` };
+}
+
+function getStudyLocationHoursSource(location, selectedDate) {
+  const exceptionText = String(location?.exceptionsText || '');
+  const lines = exceptionText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  for (const line of lines) {
+    const match = line.match(/^(\d{4}-\d{2}-\d{2})[\s　]+(.+)$/);
+    if (match && match[1] === selectedDate) {
+      return { value: match[2].trim(), isException: true };
+    }
+  }
+  const weekday = new Date(`${selectedDate}T00:00:00`).getDay();
+  return { value: location?.weeklyHours?.[String(weekday)] || '', isException: false };
+}
+
+function parseStudyLocationHours(source) {
+  const raw = String(source?.value || '').trim();
+  if (!raw) return { type: 'unset' };
+  const compact = raw.replace(/[〜～‐‑‒–—―ー]/g, '-').replace(/\s+/g, '');
+  if (/^(休館|closed)$/i.test(compact)) return { type: 'closed' };
+  const match = compact.match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);
+  if (!match) return { type: 'custom', open: '', close: '', raw };
+  return { type: 'range', open: normalizeClockText(match[1]), close: normalizeClockText(match[2]) };
+}
+
+function normalizeClockText(value) {
+  const [hour, minute] = String(value).split(':');
+  return `${String(Number(hour)).padStart(2, '0')}:${minute}`;
+}
+
+function toMinutes(value) {
+  const [hour, minute] = String(value).split(':').map(Number);
+  return hour * 60 + minute;
+}
+
+function formatMinutes(minutes) {
+  const safe = Math.max(0, Number(minutes || 0));
+  const hour = Math.floor(safe / 60);
+  const minute = safe % 60;
+  if (!hour) return `${minute}分`;
+  if (!minute) return `${hour}時間`;
+  return `${hour}時間${minute}分`;
+}
+
+function getStudyLocationKindLabel(kind) {
+  return ({
+    university_library: '大学図書館',
+    pref_library: '県立図書館',
+    city_library: '市立図書館',
+    cafe: 'カフェ',
+    home: '自宅',
+    other: 'その他'
+  })[kind] || '自習場所';
+}
+
+function buildStudyLocationExceptionNote(location, selectedDate) {
+  const lines = String(location?.exceptionsText || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const hit = lines.find((line) => line.startsWith(`${selectedDate} `));
+  if (hit) return `例外日: ${hit}`;
+  return '';
 }
 
 function createListItem({ title, badges = [], detail = "", note, actions, itemClassName = "" }) {

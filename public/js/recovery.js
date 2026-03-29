@@ -6,6 +6,7 @@ import {
   normalizeFixedSchedule,
   normalizeOneOffEvent,
   normalizeTask,
+  normalizeStudyLocation,
   normalizeCourse,
   normalizeMaterial,
   normalizeAssessment,
@@ -22,6 +23,7 @@ const REASON_LABELS = {
   "delete-fixed": "固定予定削除前",
   "delete-event": "単発予定削除前",
   "delete-task": "タスク削除前",
+  "delete-study-location": "自習場所削除前",
   "delete-google-event": "Google予定削除前",
   "delete-course": "科目削除前",
   "delete-material": "教材削除前",
@@ -50,6 +52,7 @@ export function normalizePersistedState(parsed) {
     fixedSchedules: (parsed.fixedSchedules || []).map(normalizeFixedSchedule),
     oneOffEvents: (parsed.oneOffEvents || []).map(normalizeOneOffEvent),
     tasks: (parsed.tasks || []).map(normalizeTask),
+    studyLocations: (parsed.studyLocations || []).map(normalizeStudyLocation),
     courses: (parsed.courses || []).map(normalizeCourse),
     materials: (parsed.materials || []).map(normalizeMaterial),
     assessments: (parsed.assessments || []).map(normalizeAssessment),
@@ -70,6 +73,7 @@ export function applyPersistedState(normalized) {
   state.fixedSchedules = normalized.fixedSchedules;
   state.oneOffEvents = normalized.oneOffEvents;
   state.tasks = normalized.tasks;
+  state.studyLocations = normalized.studyLocations;
   state.courses = normalized.courses;
   state.materials = normalized.materials;
   state.assessments = normalized.assessments;

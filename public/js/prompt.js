@@ -27,6 +27,7 @@ export function generatePrompt() {
   const split = splitSchedulesByNow(schedules, ctx);
   const risks = buildRiskAlerts(selectedDate, ctx, schedules, fatigue);
   const study = buildStudyPromptSection();
+  const studyLocationLines = buildStudyLocationPromptLines(selectedDate, ctx);
 
   const text = [
     "今日の1日を設計して。",
@@ -60,6 +61,8 @@ export function generatePrompt() {
       : "- なし",
     "残り空き時間候補：",
     freeSlots.length ? freeSlots.map((slot) => `- ${slot.start} - ${slot.end} (${slot.minutes}分)`).join("\n") : "- ほぼなし",
+    "今日使える自習場所：",
+    studyLocationLines.length ? studyLocationLines.map((line) => `- ${line}`).join("\n") : "- なし",
     "危険アラート：",
     risks.length ? risks.map((line) => `- ${line}`).join("\n") : "- 特になし",
     "アプリ内の自動時間割候補：",
@@ -92,4 +95,92 @@ export async function copyPrompt() {
     document.execCommand("copy");
     showToast("コピーしました。", { variant: "ok", duration: 2200 });
   }
+}
+
+
+function buildStudyLocationPromptLines(selectedDate, ctx) {
+  const items = Array.isArray(state.studyLocations) ? [...state.studyLocations] : [];
+  if (!items.length) return [];
+
+  return items
+    .sort((a, b) => {
+      if (Boolean(a.isPreferred) !== Boolean(b.isPreferred)) return Number(Boolean(b.isPreferred)) - Number(Boolean(a.isPreferred));
+      const travelA = a.travelMinutes === "" ? 9999 : Number(a.travelMinutes || 9999);
+      const travelB = b.travelMinutes === "" ? 9999 : Number(b.travelMinutes || 9999);
+      if (travelA !== travelB) return travelA - travelB;
+      return String(a.name || "").localeCompare(String(b.name || ""), "ja");
+    })
+    .slice(0, 6)
+    .map((item) => {
+      const status = getStudyLocationStatus(item, selectedDate, ctx);
+      const parts = [item.name, getStudyLocationKindLabel(item.kind), status.statusLabel];
+      if (status.hoursLabel) parts.push(status.hoursLabel);
+      if (status.remainingLabel) parts.push(status.remainingLabel);
+      if (String(item.travelMinutes || "").trim()) parts.push(`移動${item.travelMinutes}分`);
+      if (item.isPreferred) parts.push('優先候補');
+      return parts.join(' / ');
+    });
+}
+
+function getStudyLocationStatus(location, selectedDate, ctx) {
+  const hoursText = getStudyLocationHoursText(location, selectedDate);
+  const raw = String(hoursText || '').trim();
+  if (!raw) return { statusLabel: '時間未設定', hoursLabel: '', remainingLabel: '' };
+  const compact = raw.replace(/[〜～‐‑‒–—―ー]/g, '-').replace(/\s+/g, '');
+  if (/^(休館|closed)$/i.test(compact)) return { statusLabel: '休館', hoursLabel: '休館', remainingLabel: '' };
+  const match = compact.match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);
+  if (!match) return { statusLabel: '要確認', hoursLabel: raw, remainingLabel: '' };
+
+  const open = normalizeClock(match[1]);
+  const close = normalizeClock(match[2]);
+  const hoursLabel = `${open} - ${close}`;
+  if (!ctx?.isToday || selectedDate !== `${ctx.now.getFullYear()}-${String(ctx.now.getMonth() + 1).padStart(2, '0')}-${String(ctx.now.getDate()).padStart(2, '0')}`) {
+    return { statusLabel: '利用可', hoursLabel, remainingLabel: '' };
+  }
+  const nowMinutes = ctx.now.getHours() * 60 + ctx.now.getMinutes();
+  const openMinutes = toMinutes(open);
+  const closeMinutes = toMinutes(close);
+  if (nowMinutes < openMinutes) return { statusLabel: '開館前', hoursLabel, remainingLabel: `あと ${formatMinutes(openMinutes - nowMinutes)} で開館` };
+  if (nowMinutes >= closeMinutes) return { statusLabel: '閉館後', hoursLabel, remainingLabel: '' };
+  return { statusLabel: '営業中', hoursLabel, remainingLabel: `残り ${formatMinutes(closeMinutes - nowMinutes)}` };
+}
+
+function getStudyLocationHoursText(location, selectedDate) {
+  const lines = String(location?.exceptionsText || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  for (const line of lines) {
+    const match = line.match(/^(\d{4}-\d{2}-\d{2})[\s　]+(.+)$/);
+    if (match && match[1] === selectedDate) return match[2].trim();
+  }
+  const weekday = new Date(`${selectedDate}T00:00:00`).getDay();
+  return location?.weeklyHours?.[String(weekday)] || '';
+}
+
+function getStudyLocationKindLabel(kind) {
+  return ({
+    university_library: '大学図書館',
+    pref_library: '県立図書館',
+    city_library: '市立図書館',
+    cafe: 'カフェ',
+    home: '自宅',
+    other: 'その他'
+  })[kind] || '自習場所';
+}
+
+function normalizeClock(value) {
+  const [hour, minute] = String(value).split(':');
+  return `${String(Number(hour)).padStart(2, '0')}:${minute}`;
+}
+
+function toMinutes(value) {
+  const [hour, minute] = String(value).split(':').map(Number);
+  return hour * 60 + minute;
+}
+
+function formatMinutes(minutes) {
+  const safe = Math.max(0, Number(minutes || 0));
+  const hour = Math.floor(safe / 60);
+  const minute = safe % 60;
+  if (!hour) return `${minute}分`;
+  if (!minute) return `${hour}時間`;
+  return `${hour}時間${minute}分`;
 }
