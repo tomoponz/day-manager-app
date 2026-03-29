@@ -45,6 +45,11 @@ const handlers = {
   onEditStudyLocation: null,
   onDeleteStudyLocation: null,
   onCreateStudyLocation: null,
+  onOpenStudyLocationSourceUrl: null,
+  onMarkStudyLocationCheckedOpen: null,
+  onMarkStudyLocationCheckedClosed: null,
+  onMarkStudyLocationCheckedShortened: null,
+  onClearStudyLocationDateCheck: null,
   onDeleteGoogleEvent: null
 };
 
@@ -378,21 +383,28 @@ export function renderStudyLocations() {
     if (Number.isFinite(Number(item.travelMinutes)) && String(item.travelMinutes) !== "") {
       detailParts.push(`移動: ${item.travelMinutes}分`);
     }
-    if (item.sourceUrl) detailParts.push(`URL: ${item.sourceUrl}`);
+    if (status.checkedAtLabel) detailParts.push(`確認: ${status.checkedAtLabel}`);
+
+    const actions = [];
+    if (item.sourceUrl) actions.push(makeActionButton("公式", () => handlers.onOpenStudyLocationSourceUrl?.(item.id)));
+    actions.push(makeActionButton("確認済", () => handlers.onMarkStudyLocationCheckedOpen?.(item.id)));
+    actions.push(makeActionButton("休館", () => handlers.onMarkStudyLocationCheckedClosed?.(item.id)));
+    actions.push(makeActionButton("短縮", () => handlers.onMarkStudyLocationCheckedShortened?.(item.id)));
+    if (status.isChecked) actions.push(makeActionButton("解除", () => handlers.onClearStudyLocationDateCheck?.(item.id)));
+    actions.push(makeActionButton("編集", () => handlers.onEditStudyLocation?.(item.id)));
+    actions.push(makeDeleteButton(() => handlers.onDeleteStudyLocation?.(item.id)));
 
     wrap.appendChild(createListItem({
       title: item.name,
       badges: [
         makeBadge(getStudyLocationKindLabel(item.kind)),
         makeBadge(status.statusLabel, status.variant),
+        makeBadge(status.sourceLabel, status.isChecked ? "ok" : status.sourceLabel === "要確認" ? "warn" : ""),
         ...(item.isPreferred ? [makeBadge("優先候補", "ok")] : [])
       ],
       detail: detailParts.join(" / "),
-      note: item.memo || buildStudyLocationExceptionNote(item, selectedDate),
-      actions: [
-        makeActionButton("編集", () => handlers.onEditStudyLocation?.(item.id)),
-        makeDeleteButton(() => handlers.onDeleteStudyLocation?.(item.id))
-      ],
+      note: status.noteLabel || item.memo || buildStudyLocationExceptionNote(item, selectedDate),
+      actions,
       itemClassName: "study-location-item"
     }));
   });
@@ -752,6 +764,7 @@ function buildStudyLocationSummaryLines(selectedDate, ctx) {
     .sort((a, b) => {
       const rankDiff = (rank[a.status.statusLabel] ?? 99) - (rank[b.status.statusLabel] ?? 99);
       if (rankDiff !== 0) return rankDiff;
+      if (Boolean(a.status.isChecked) !== Boolean(b.status.isChecked)) return Number(Boolean(b.status.isChecked)) - Number(Boolean(a.status.isChecked));
       if (Boolean(a.item.isPreferred) !== Boolean(b.item.isPreferred)) return Number(Boolean(b.item.isPreferred)) - Number(Boolean(a.item.isPreferred));
       const travelA = a.item.travelMinutes === '' ? 9999 : Number(a.item.travelMinutes || 9999);
       const travelB = b.item.travelMinutes === '' ? 9999 : Number(b.item.travelMinutes || 9999);
@@ -759,7 +772,7 @@ function buildStudyLocationSummaryLines(selectedDate, ctx) {
     })
     .slice(0, 6)
     .map(({ item, status }) => {
-      const parts = [item.name, status.statusLabel];
+      const parts = [item.name, status.sourceLabel, status.statusLabel];
       if (status.hoursLabel) parts.push(status.hoursLabel);
       if (status.remainingLabel) parts.push(status.remainingLabel);
       if (String(item.travelMinutes || '').trim()) parts.push(`移動${item.travelMinutes}分`);
@@ -770,20 +783,27 @@ function buildStudyLocationSummaryLines(selectedDate, ctx) {
 function getStudyLocationStatus(location, selectedDate, ctx) {
   const hoursSource = getStudyLocationHoursSource(location, selectedDate);
   const spec = parseStudyLocationHours(hoursSource);
+  const checkedAtLabel = formatStudyLocationCheckedAt(hoursSource.checkedAt);
+  const noteLabel = hoursSource.note || '';
+  const sourceLabel = hoursSource.isChecked
+    ? '確認済み'
+    : hoursSource.isException
+      ? '例外日'
+      : '要確認';
 
   if (spec.type === 'unset') {
-    return { statusLabel: '時間未設定', variant: '', hoursLabel: '', remainingLabel: '' };
+    return { statusLabel: '時間未設定', variant: '', hoursLabel: '', remainingLabel: '', isChecked: Boolean(hoursSource.isChecked), sourceLabel, checkedAtLabel, noteLabel };
   }
   if (spec.type === 'closed') {
-    return { statusLabel: hoursSource?.isException ? '例外休館' : '休館', variant: 'danger', hoursLabel: '休館', remainingLabel: '' };
+    return { statusLabel: hoursSource?.isException && !hoursSource.isChecked ? '例外休館' : '休館', variant: 'danger', hoursLabel: '休館', remainingLabel: '', isChecked: Boolean(hoursSource.isChecked), sourceLabel, checkedAtLabel, noteLabel };
   }
   if (spec.type === 'custom') {
-    return { statusLabel: '要確認', variant: 'warn', hoursLabel: spec.raw, remainingLabel: '' };
+    return { statusLabel: '要確認', variant: 'warn', hoursLabel: spec.raw, remainingLabel: '', isChecked: Boolean(hoursSource.isChecked), sourceLabel, checkedAtLabel, noteLabel };
   }
 
   const hoursLabel = `${spec.open} - ${spec.close}`;
   if (!ctx?.isToday || selectedDate !== formatDateInput(ctx.now || new Date())) {
-    return { statusLabel: '利用可', variant: 'ok', hoursLabel, remainingLabel: '' };
+    return { statusLabel: '利用可', variant: 'ok', hoursLabel, remainingLabel: '', isChecked: Boolean(hoursSource.isChecked), sourceLabel, checkedAtLabel, noteLabel };
   }
 
   const nowMinutes = (ctx.now?.getHours?.() || 0) * 60 + (ctx.now?.getMinutes?.() || 0);
@@ -791,25 +811,52 @@ function getStudyLocationStatus(location, selectedDate, ctx) {
   const closeMinutes = toMinutes(spec.close);
 
   if (nowMinutes < openMinutes) {
-    return { statusLabel: '開館前', variant: 'warn', hoursLabel, remainingLabel: `あと ${formatMinutes(openMinutes - nowMinutes)} で開館` };
+    return { statusLabel: '開館前', variant: 'warn', hoursLabel, remainingLabel: `あと ${formatMinutes(openMinutes - nowMinutes)} で開館`, isChecked: Boolean(hoursSource.isChecked), sourceLabel, checkedAtLabel, noteLabel };
   }
   if (nowMinutes >= closeMinutes) {
-    return { statusLabel: '閉館後', variant: 'danger', hoursLabel, remainingLabel: '' };
+    return { statusLabel: '閉館後', variant: 'danger', hoursLabel, remainingLabel: '', isChecked: Boolean(hoursSource.isChecked), sourceLabel, checkedAtLabel, noteLabel };
   }
-  return { statusLabel: '営業中', variant: 'ok', hoursLabel, remainingLabel: `残り ${formatMinutes(closeMinutes - nowMinutes)}` };
+  return { statusLabel: '営業中', variant: 'ok', hoursLabel, remainingLabel: `残り ${formatMinutes(closeMinutes - nowMinutes)}`, isChecked: Boolean(hoursSource.isChecked), sourceLabel, checkedAtLabel, noteLabel };
 }
 
 function getStudyLocationHoursSource(location, selectedDate) {
+  const check = getStudyLocationDateCheck(location, selectedDate);
+  if (check) {
+    if (check.status === 'checked_closed') {
+      return { value: '休館', isException: true, isChecked: true, checkedAt: check.checkedAt, note: check.note || '' };
+    }
+    if (check.overrideHours) {
+      return { value: check.overrideHours, isException: true, isChecked: true, checkedAt: check.checkedAt, note: check.note || '' };
+    }
+    const scheduled = getScheduledStudyLocationHoursSource(location, selectedDate);
+    return { ...scheduled, isChecked: true, checkedAt: check.checkedAt, note: check.note || scheduled.note || '' };
+  }
+  return getScheduledStudyLocationHoursSource(location, selectedDate);
+}
+
+function getStudyLocationDateCheck(location, selectedDate) {
+  const source = location?.checksByDate && typeof location.checksByDate === 'object' ? location.checksByDate : {};
+  const raw = source?.[selectedDate];
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    status: String(raw.status || ''),
+    overrideHours: String(raw.overrideHours || '').trim(),
+    checkedAt: String(raw.checkedAt || ''),
+    note: String(raw.note || '').trim()
+  };
+}
+
+function getScheduledStudyLocationHoursSource(location, selectedDate) {
   const exceptionText = String(location?.exceptionsText || '');
   const lines = exceptionText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   for (const line of lines) {
     const match = line.match(/^(\d{4}-\d{2}-\d{2})[\s　]+(.+)$/);
     if (match && match[1] === selectedDate) {
-      return { value: match[2].trim(), isException: true };
+      return { value: match[2].trim(), isException: true, isChecked: false, checkedAt: '', note: '' };
     }
   }
   const weekday = new Date(`${selectedDate}T00:00:00`).getDay();
-  return { value: location?.weeklyHours?.[String(weekday)] || '', isException: false };
+  return { value: location?.weeklyHours?.[String(weekday)] || '', isException: false, isChecked: false, checkedAt: '', note: '' };
 }
 
 function parseStudyLocationHours(source) {
@@ -839,6 +886,13 @@ function formatMinutes(minutes) {
   if (!hour) return `${minute}分`;
   if (!minute) return `${hour}時間`;
   return `${hour}時間${minute}分`;
+}
+
+function formatStudyLocationCheckedAt(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 function getStudyLocationKindLabel(kind) {

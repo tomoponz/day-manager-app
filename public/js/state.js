@@ -1,6 +1,6 @@
 export const STORAGE_KEY = "day-manager-v1";
 export const GOOGLE_CONFIG_KEY = "day-manager-google-config-v1";
-export const STATE_SCHEMA_VERSION = 4;
+export const STATE_SCHEMA_VERSION = 5;
 
 export const INITIAL_STATE = {
   schemaVersion: STATE_SCHEMA_VERSION,
@@ -184,7 +184,8 @@ export function normalizeStudyLocation(item) {
     weeklyHours: normalizeStudyLocationWeeklyHours(item.weeklyHours),
     exceptionsText: item.exceptionsText || "",
     memo: item.memo || "",
-    isPreferred: Boolean(item.isPreferred)
+    isPreferred: Boolean(item.isPreferred),
+    checksByDate: normalizeStudyLocationChecksByDate(item.checksByDate)
   };
 }
 
@@ -200,6 +201,33 @@ function normalizeStudyLocationWeeklyHours(weeklyHours) {
   return Object.fromEntries(
     Array.from({ length: 7 }, (_, weekday) => [String(weekday), normalizeHoursWindowValue(source[weekday] ?? source[String(weekday)] ?? "")])
   );
+}
+
+function normalizeStudyLocationChecksByDate(checksByDate) {
+  const source = checksByDate && typeof checksByDate === "object" && !Array.isArray(checksByDate) ? checksByDate : {};
+  return Object.fromEntries(
+    Object.entries(source)
+      .filter(([date]) => /^\d{4}-\d{2}-\d{2}$/.test(String(date)))
+      .map(([date, value]) => [date, normalizeStudyLocationCheck(value)])
+      .filter(([, value]) => value.status || value.overrideHours || value.checkedAt || value.note)
+  );
+}
+
+function normalizeStudyLocationCheck(value) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const status = normalizeStudyLocationCheckStatus(source.status);
+  const overrideHours = normalizeHoursWindowValue(source.overrideHours);
+  return {
+    status,
+    overrideHours: status === "checked_closed" ? "休館" : overrideHours,
+    checkedAt: source.checkedAt || "",
+    note: source.note || ""
+  };
+}
+
+function normalizeStudyLocationCheckStatus(status) {
+  const raw = String(status || "").trim();
+  return ["checked_open", "checked_closed", "checked_shortened"].includes(raw) ? raw : "";
 }
 
 function normalizeHoursWindowValue(value) {

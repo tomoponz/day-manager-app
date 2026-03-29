@@ -830,6 +830,117 @@ export async function deleteStudyLocation(id) {
   });
 }
 
+export function openStudyLocationSourceUrl(id) {
+  const item = state.studyLocations.find((entry) => entry.id === id);
+  if (!item?.sourceUrl) {
+    showToast('公式URLが未設定です。', { variant: 'warn' });
+    return;
+  }
+  window.open(item.sourceUrl, '_blank', 'noopener,noreferrer');
+}
+
+export function markStudyLocationCheckedOpen(id) {
+  const item = state.studyLocations.find((entry) => entry.id === id);
+  if (!item) return;
+  const selectedDate = $('selectedDate')?.value || formatDateInput(new Date());
+  const defaultHours = getStudyLocationScheduledHoursText(item, selectedDate);
+  let overrideHours = '';
+  if (!defaultHours || !isRecognizedHoursText(defaultHours)) {
+    const input = window.prompt(`${selectedDate} の営業時間を入力してください。\n例: 09:00-21:00`, defaultHours || '');
+    if (input === null) return;
+    overrideHours = String(input).trim();
+    if (!overrideHours) {
+      showToast('営業時間を入力してください。', { variant: 'warn' });
+      return;
+    }
+  }
+  upsertStudyLocationDateCheck(item, selectedDate, {
+    status: 'checked_open',
+    overrideHours,
+    note: ''
+  });
+  showToast(`${item.name} を確認済みにしました。`, { variant: 'ok', duration: 1800 });
+}
+
+export function markStudyLocationCheckedClosed(id) {
+  const item = state.studyLocations.find((entry) => entry.id === id);
+  if (!item) return;
+  const selectedDate = $('selectedDate')?.value || formatDateInput(new Date());
+  upsertStudyLocationDateCheck(item, selectedDate, {
+    status: 'checked_closed',
+    overrideHours: '休館',
+    note: ''
+  });
+  showToast(`${item.name} を休館として記録しました。`, { variant: 'ok', duration: 1800 });
+}
+
+export function markStudyLocationCheckedShortened(id) {
+  const item = state.studyLocations.find((entry) => entry.id === id);
+  if (!item) return;
+  const selectedDate = $('selectedDate')?.value || formatDateInput(new Date());
+  const defaultHours = getStudyLocationScheduledHoursText(item, selectedDate);
+  const input = window.prompt(`${selectedDate} の営業時間を入力してください。\n例: 10:00-17:00`, defaultHours || '');
+  if (input === null) return;
+  const overrideHours = String(input).trim();
+  if (!overrideHours) {
+    showToast('営業時間を入力してください。', { variant: 'warn' });
+    return;
+  }
+  const noteInput = window.prompt(`${selectedDate} の補足メモ（任意）`, '');
+  if (noteInput === null) return;
+  upsertStudyLocationDateCheck(item, selectedDate, {
+    status: 'checked_shortened',
+    overrideHours,
+    note: String(noteInput).trim()
+  });
+  showToast(`${item.name} の確認結果を記録しました。`, { variant: 'ok', duration: 1800 });
+}
+
+export function clearStudyLocationDateCheck(id) {
+  const item = state.studyLocations.find((entry) => entry.id === id);
+  if (!item) return;
+  const selectedDate = $('selectedDate')?.value || formatDateInput(new Date());
+  if (!item.checksByDate?.[selectedDate]) {
+    showToast('この日の確認記録はありません。', { variant: 'warn' });
+    return;
+  }
+  item.checksByDate = { ...(item.checksByDate || {}) };
+  delete item.checksByDate[selectedDate];
+  saveState();
+  renderAll();
+  showToast(`${item.name} の確認記録を解除しました。`, { variant: 'ok', duration: 1800 });
+}
+
+function upsertStudyLocationDateCheck(item, selectedDate, patch) {
+  item.checksByDate = { ...(item.checksByDate || {}) };
+  item.checksByDate[selectedDate] = {
+    status: patch.status || '',
+    overrideHours: patch.status === 'checked_closed' ? '休館' : String(patch.overrideHours || '').trim(),
+    checkedAt: new Date().toISOString(),
+    note: String(patch.note || '').trim()
+  };
+  saveState();
+  renderAll();
+}
+
+function getStudyLocationScheduledHoursText(item, selectedDate) {
+  const lines = String(item?.exceptionsText || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  for (const line of lines) {
+    const match = line.match(/^(\d{4}-\d{2}-\d{2})[\s　]+(.+)$/);
+    if (match && match[1] === selectedDate) return match[2].trim();
+  }
+  const weekday = new Date(`${selectedDate}T00:00:00`).getDay();
+  return item?.weeklyHours?.[String(weekday)] || '';
+}
+
+function isRecognizedHoursText(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return false;
+  const compact = raw.replace(/[〜～‐‑‒–—―ー]/g, '-').replace(/\s+/g, '');
+  if (/^(休館|closed)$/i.test(compact)) return true;
+  return /^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/.test(compact);
+}
+
 export async function deleteGoogleEvent(id) {
   const ok = await confirmDialog({
     title: 'Google予定を削除',
