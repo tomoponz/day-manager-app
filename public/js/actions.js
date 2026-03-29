@@ -1,7 +1,7 @@
 import { state, saveState, STATE_SCHEMA_VERSION, normalizeOneOffEvent, normalizeFixedSchedule, normalizeTask, normalizeCourse, normalizeMaterial, normalizeAssessment, normalizeWeeklyPlans, normalizeMilestone, normalizePlanningDraft } from './state.js';
 import { $, debounce, getFormValue } from './utils.js';
 import { addDays, formatDateInput, formatTimeOnly, isSelectedDateToday, isValidTimeRange, roundToFiveMinutes } from './time.js';
-import { renderAll, renderCurrentState, renderAutoPlan, renderSummaries, updateStateNote, loadConditionInputsForDate, hydrateSettingsInputs } from './render.js';
+import { renderAll, renderCurrentClock, renderCurrentState, renderAutoPlan, renderSummaries, renderTodayActionDeck, updateStateNote, loadConditionInputsForDate, hydrateSettingsInputs } from './render.js';
 import { renderStudyManager } from './study-manager.js';
 import {
   loadGoogleEventsForDate,
@@ -172,6 +172,15 @@ function closeStateUpdateMenu() {
   if (menu) menu.open = false;
 }
 
+
+function refreshPlannerOutputs({ includeClock = false } = {}) {
+  if (includeClock) renderCurrentClock();
+  renderCurrentState();
+  renderSummaries();
+  renderAutoPlan();
+  renderTodayActionDeck();
+}
+
 export function bindEvents() {
   bindEditorDrawerUi();
   const debouncedSaveCurrentConditionInputs = debounce(saveCurrentConditionInputs, 400);
@@ -245,9 +254,7 @@ export function saveSettingsInputs() {
   state.settings.focusMinutesTarget = Math.max(0, Number($('focusMinutesTarget')?.value || 0));
   state.settings.bufferMinutes = Math.max(0, Number($('bufferMinutes')?.value || 0));
   saveState();
-  renderCurrentState();
-  renderSummaries();
-  renderAutoPlan();
+  refreshPlannerOutputs();
 }
 
 export async function onDateChanged() {
@@ -269,8 +276,7 @@ export function saveCurrentConditionInputs() {
     note: $('conditionNote')?.value.trim() || ''
   };
   saveState();
-  renderCurrentState();
-  renderAutoPlan();
+  refreshPlannerOutputs();
 }
 
 export function adjustFatigue(delta) {
@@ -310,16 +316,14 @@ export function setPlannerMode(mode) {
   state.uiState.plannerMode = mode;
   saveState();
   if ($('plannerMode')) $('plannerMode').value = mode;
-  renderCurrentState();
-  renderAutoPlan();
+  refreshPlannerOutputs({ includeClock: true });
   generatePrompt();
 }
 
 export function onPlannerModeChanged() {
   state.uiState.plannerMode = $('plannerMode')?.value || 'auto';
   saveState();
-  renderCurrentState();
-  renderAutoPlan();
+  refreshPlannerOutputs({ includeClock: true });
 }
 
 export async function onSubmitFixedSchedule(e) {

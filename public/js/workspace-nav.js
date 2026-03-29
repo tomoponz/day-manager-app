@@ -67,6 +67,7 @@ function init() {
   const openUtilityPanel = (panelId) => {
     const panel = document.getElementById(panelId);
     if (!panel) return;
+    openAncestorDetails(panel);
     if (panel.tagName === 'DETAILS') panel.open = true;
     scrollToNode(panel);
   };
@@ -189,6 +190,15 @@ function requestCalendarRefresh(targetId) {
       refreshCalendarUi();
     });
   });
+}
+
+
+function openAncestorDetails(node) {
+  let current = node.parentElement;
+  while (current) {
+    if (current.tagName === 'DETAILS') current.open = true;
+    current = current.parentElement;
+  }
 }
 
 function scrollToNode(node) {
