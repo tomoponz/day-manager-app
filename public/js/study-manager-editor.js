@@ -63,15 +63,18 @@ export function renderCourseList() {
     .sort((a, b) => a.title.localeCompare(b.title, "ja"))
     .forEach((course) => {
       const linkedMaterials = state.materials.filter((material) => material.courseId === course.id).length;
-      const linkedAssessments = state.assessments.filter((assessment) => assessment.courseId === course.id).length;
       const pendingAssessments = state.assessments.filter((assessment) => assessment.courseId === course.id && assessment.status !== "done").length;
       const riskEntry = ranking.find((entry) => entry.courseId === course.id);
 
-      const detailLines = [
+      const detailParts = [
         course.scheduleMemo ? `授業情報: ${course.scheduleMemo}` : "",
-        course.gradingMemo ? `評価: ${course.gradingMemo}` : "",
+        course.gradingMemo ? `評価: ${course.gradingMemo}` : ""
+      ].filter(Boolean);
+
+      const noteParts = [
+        course.syllabusSummary ? `シラバス: ${truncateText(course.syllabusSummary, 42)}` : "",
         course.instructor ? `教員: ${course.instructor}` : "",
-        course.syllabusSummary ? `シラバス: ${truncateText(course.syllabusSummary, 56)}` : ""
+        course.note ? truncateText(course.note, 42) : ""
       ].filter(Boolean);
 
       const item = createListItem({
@@ -83,8 +86,8 @@ export function renderCourseList() {
           linkedMaterials ? makeBadge(`教材:${linkedMaterials}件`) : null,
           riskEntry ? makeBadge(`総合:${riskEntry.levelLabel}`, riskEntry.level === "high" ? "danger" : riskEntry.level === "medium" ? "warn" : "ok") : null
         ].filter(Boolean),
-        detail: detailLines.join(" / "),
-        note: course.note || "",
+        detail: detailParts.join(" / "),
+        note: noteParts.join(" / "),
         itemClassName: "course-item-compact"
       });
 

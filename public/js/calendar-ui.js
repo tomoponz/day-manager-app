@@ -60,6 +60,7 @@ export function initializeCalendarUi() {
     },
     headerToolbar: getResponsiveHeaderToolbar(),
     dayHeaderFormat: getResponsiveDayHeaderFormat(),
+    titleFormat: getResponsiveTitleFormat(),
     eventTimeFormat: getResponsiveEventTimeFormat(),
     slotLabelFormat: getResponsiveSlotLabelFormat(),
     customButtons: {
@@ -263,6 +264,12 @@ function getResponsiveHeaderToolbar() {
   };
 }
 
+function getResponsiveTitleFormat() {
+  return isCompactCalendarScreen()
+    ? { month: "short", day: "numeric" }
+    : { year: "numeric", month: "long" };
+}
+
 function getResponsiveDayHeaderFormat() {
   return isCompactCalendarScreen()
     ? { weekday: "short", day: "numeric" }
@@ -287,6 +294,7 @@ function applyResponsiveCalendarLayout({ forceView = false } = {}) {
   const compact = isCompactCalendarScreen();
   calendar.setOption("headerToolbar", getResponsiveHeaderToolbar());
   calendar.setOption("dayHeaderFormat", getResponsiveDayHeaderFormat());
+  calendar.setOption("titleFormat", getResponsiveTitleFormat());
   calendar.setOption("eventTimeFormat", getResponsiveEventTimeFormat());
   calendar.setOption("slotLabelFormat", getResponsiveSlotLabelFormat());
 
