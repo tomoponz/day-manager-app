@@ -73,20 +73,9 @@ function getEditorKeyByPanelId(panelId) {
   return Object.entries(EDITOR_DRAWER_CONFIG).find(([, config]) => config.panelId === panelId)?.[0] || null;
 }
 
-
-function setActiveEditorCard(editorKey) {
-  const body = $('plannerEditorBody');
-  if (body) body.setAttribute('data-active-editor', editorKey || ''');
-  document.querySelectorAll('[data-editor-card]').forEach((card) => {
-    const isActive = card.getAttribute('data-editor-card') === editorKey;
-    card.hidden = !isActive;
-    card.classList.toggle('is-active', isActive);
-  });
-}
 function updateEditorDrawerHeader(editorKey) {
   const config = EDITOR_DRAWER_CONFIG[editorKey];
   if (!config) return;
-  setActiveEditorCard(editorKey);
   if ($('plannerEditorTitle')) $('plannerEditorTitle').textContent = config.title;
   if ($('plannerEditorEyebrow')) $('plannerEditorEyebrow').textContent = config.eyebrow;
   if ($('plannerEditorDescription')) $('plannerEditorDescription').textContent = config.description;
@@ -136,7 +125,6 @@ export function closeEditorDrawer() {
   }
   document.body.classList.remove('editor-drawer-open');
   Object.values(EDITOR_DRAWER_CONFIG).forEach(({ panelId }) => setPanelOpen(panelId, false));
-  setActiveEditorCard('');
   if (lastEditorTrigger instanceof HTMLElement) {
     window.setTimeout(() => lastEditorTrigger?.focus?.(), 0);
   }
@@ -431,10 +419,6 @@ export async function onSubmitOneOffEvent(e) {
     return;
   }
   const shouldSyncToGoogle = Boolean(fd.get('syncToGoogle'));
-  if (shouldSyncToGoogle && !payload.allDay && (!payload.start || !payload.end)) {
-    showToast('Googleにも追加する場合は、終日予定にするか開始・終了時刻の両方を入力してください。ローカルのみで保存するなら Google 追加をオフにしてください。', { variant: 'warn', duration: 5000 });
-    return;
-  }
   let target = editingId ? state.oneOffEvents.find((item) => item.id === editingId) : null;
   if (target) {
     Object.assign(target, payload);
@@ -473,11 +457,8 @@ async function tryCreateGoogleForLocalEvent(localEvent) {
     const created = await upsertGoogleEventFromLocal(localEvent);
     localEvent.googleEventId = created.id;
     localEvent.googleSyncStatus = 'synced';
-    return true;
-  } catch (error) {
+  } catch {
     localEvent.googleSyncStatus = 'failed';
-    showToast(`Google Calendar 追加に失敗しました。${error?.message ? ` ${error.message}` : ''}`.trim(), { variant: 'warn', duration: 5000 });
-    return false;
   }
 }
 
