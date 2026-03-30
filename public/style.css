@@ -2092,3 +2092,55 @@ body.editor-drawer-open {
 .manual-page__content li {
   color: var(--text);
 }
+
+
+.share-guide-box {
+  display: grid;
+  gap: 0.85rem;
+}
+.share-guide-box__row {
+  display: grid;
+  gap: 0.35rem;
+}
+.share-guide-box__label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.share-guide-box__url {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--text);
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+}
+.share-guide-box__actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.share-guide-box__steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: var(--text);
+  display: grid;
+  gap: 0.45rem;
+}
+.share-guide-box__note {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .share-guide-box__actions {
+    flex-direction: column;
+  }
+  .share-guide-box__actions > * {
+    width: 100%;
+  }
+}

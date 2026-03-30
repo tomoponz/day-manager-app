@@ -1013,6 +1013,31 @@
                 <textarea id="promptOutput" placeholder="ここに生成されます" rows="18"></textarea>
 </label>
 </section>
+<section class="card inner-card" id="sharingGuideSection">
+<div class="card-header compact">
+<div>
+<h2>共有とログイン案内</h2>
+<p>友人に試してもらうときに必要な URL と、最初に伝えるべきことだけをまとめます。</p>
+</div>
+<span class="mode-chip">友人向け</span>
+</div>
+<div class="share-guide-box">
+<div class="share-guide-box__row">
+<span class="share-guide-box__label">共有URL</span>
+<code class="share-guide-box__url" id="appShareUrlText">--</code>
+</div>
+<div class="share-guide-box__actions">
+<button class="ghost" id="copyAppShareUrlBtn" type="button">URL をコピー</button>
+<button class="ghost" id="openAppShareUrlBtn" type="button">別タブで開く</button>
+</div>
+<ol class="share-guide-box__steps">
+<li>Google 連携を使う場合は、使ってもらう Gmail を <strong>test users</strong> に追加する</li>
+<li>相手には <strong>同じ Google アカウントでログインする</strong> よう伝える</li>
+<li>未確認アプリ警告が出る場合は、開発中アプリとして進めるケースがあることを事前に伝える</li>
+</ol>
+<p class="micro-note share-guide-box__note">Google 連携を使わず、ローカルの予定とタスクだけでも利用できます。まずは固定予定・タスク・自習場所の3つだけ入れれば十分です。</p>
+</div>
+</section>
 <section class="card inner-card" id="googleSettingsPanel">
 <div class="card-header compact settings-inline-header">
 <div>

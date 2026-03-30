@@ -1,6 +1,6 @@
 (() => {
-  const APP_VERSION = "v0.7.0";
-  const APP_RELEASE_NOTE = "最新更新: 初回案内とスマホ表示を改善";
+  const APP_VERSION = "v0.7.1";
+  const APP_RELEASE_NOTE = "最新更新: 共有URL案内と友人向けログイン導線を改善";
 
   bootstrap().catch((error) => {
     console.error("Day Manager bootstrap failed:", error);
@@ -9,6 +9,7 @@
 
   async function bootstrap() {
     mountAppVersion();
+    mountShareGuide();
 
     const [utilsModule, timeModule, renderModule, actionsModule, googleModule, calendarModule, studyModule, onboardingModule] = await Promise.all([
       import("./js/utils.js"),
@@ -105,6 +106,31 @@
     ];
     releaseTargets.forEach((node) => {
       if (node) node.textContent = APP_RELEASE_NOTE;
+    });
+  }
+
+  function mountShareGuide() {
+    const shareUrl = `${window.location.origin}/`;
+    const shareText = document.getElementById("appShareUrlText");
+    if (shareText) shareText.textContent = shareUrl;
+
+    const copyButton = document.getElementById("copyAppShareUrlBtn");
+    copyButton?.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+      } catch {
+        const temp = document.createElement("input");
+        temp.value = shareUrl;
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand("copy");
+        temp.remove();
+      }
+    });
+
+    const openButton = document.getElementById("openAppShareUrlBtn");
+    openButton?.addEventListener("click", () => {
+      window.open(shareUrl, "_blank", "noopener,noreferrer");
     });
   }
 
