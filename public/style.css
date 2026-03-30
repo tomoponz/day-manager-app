@@ -1925,84 +1925,170 @@ body.editor-drawer-open {
 }
 
 
+/* ===== Finish polish: version/manual/quickstart ===== */
 .topbar__pill--version {
-  background: rgba(255,255,255,0.9);
-  color: var(--accent-hover);
-  border-color: rgba(192, 83, 58, 0.18);
+  gap: 0.35rem;
+}
+.topbar__pill--version strong {
   font-weight: 700;
+  color: var(--text);
 }
-
-.friend-guidance-box {
-  margin-top: 0.9rem;
+.topbar__release-note {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.25;
+  max-width: 320px;
 }
-
-.help-version-meta {
+.quickstart-guide {
+  margin-top: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(250,248,245,0.94) 100%);
+  box-shadow: var(--shadow-xs);
+  padding: 1rem 1.05rem;
+}
+.quickstart-guide__header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.8rem;
+  margin-bottom: 0.8rem;
+}
+.quickstart-guide__header h3 {
+  margin-bottom: 0.25rem;
+}
+.quickstart-guide__header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+.quickstart-guide__steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.65rem;
+}
+.quickstart-guide__steps li {
+  padding-left: 0.2rem;
+}
+.quickstart-guide__steps strong {
+  display: block;
+  margin-bottom: 0.12rem;
+}
+.quickstart-guide__steps span {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+.quickstart-guide__actions {
+  display: flex;
   flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
 }
-
-.manual-page {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 1.4rem 1rem 2.4rem;
-}
-
-.manual-page__header {
-  margin-bottom: 1rem;
-}
-
-.manual-page__back {
-  display: inline-flex;
-  margin-bottom: 0.85rem;
+.quickstart-guide__link {
   text-decoration: none;
 }
-
-.manual-page__lead {
+.quickstart-guide__note {
+  margin: 0.7rem 0 0;
+}
+.assist-manual-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+.assist-manual-links__item {
+  text-decoration: none;
+}
+.oauth-guidance-box__note {
+  margin: 0.65rem 0 0;
+}
+.app-footer-links {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: center;
+  padding: 1.2rem 0 0.4rem;
   color: var(--muted);
-  margin-bottom: 0;
+  font-size: 0.88rem;
+}
+.app-footer-links__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.55rem;
+}
+.app-footer-links__version strong {
+  color: var(--text);
+}
+.app-footer-links__release {
+  color: var(--muted);
+}
+.course-item-compact .list-actions {
+  align-items: flex-start;
+}
+.course-item-compact .item-detail {
+  line-height: 1.5;
+}
+.course-item-compact .item-note {
+  background: transparent;
+  padding: 0;
+  border: 0;
+}
+@media (max-width: 980px) {
+  .topbar__release-note {
+    max-width: none;
+    width: 100%;
+  }
+}
+@media (max-width: 720px) {
+  .quickstart-guide__header {
+    flex-direction: column;
+  }
+  .app-footer-links__row {
+    gap: 0.4rem;
+  }
 }
 
-.manual-card {
+
+/* ===== public manuals ===== */
+.manual-page {
+  background: var(--bg);
+}
+.manual-page__shell {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 2rem;
+}
+.manual-page__header,
+.manual-page__content {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm);
-  padding: 1.2rem 1.25rem;
+  padding: 1.2rem 1.3rem;
+}
+.manual-page__header {
   margin-bottom: 1rem;
 }
-
-.manual-card h2 {
-  margin-bottom: 0.65rem;
+.manual-page__header p {
+  color: var(--muted);
 }
-
-.manual-card h3 {
+.manual-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+}
+.manual-page__content h1,
+.manual-page__content h2 {
   margin-top: 1rem;
 }
-
-.manual-card ul,
-.manual-card ol {
-  margin: 0.5rem 0 0;
-  padding-left: 1.35rem;
+.manual-page__content h1:first-child,
+.manual-page__content h2:first-child {
+  margin-top: 0;
 }
-
-.manual-card li + li {
-  margin-top: 0.35rem;
-}
-
-.manual-card code {
-  background: var(--bg-2);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 0.08rem 0.35rem;
-}
-
-@media (max-width: 640px) {
-  .app-footer-links {
-    flex-wrap: wrap;
-    line-height: 1.7;
-    padding-inline: 1rem;
-  }
+.manual-page__content p,
+.manual-page__content li {
+  color: var(--text);
 }

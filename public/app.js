@@ -1,5 +1,6 @@
 (() => {
   const APP_VERSION = "v0.7.0";
+  const APP_RELEASE_NOTE = "最新更新: 初回案内とスマホ表示を改善";
 
   bootstrap().catch((error) => {
     console.error("Day Manager bootstrap failed:", error);
@@ -98,6 +99,13 @@
     versionTargets.forEach((node) => {
       if (node) node.textContent = APP_VERSION;
     });
+    const releaseTargets = [
+      document.getElementById("appReleaseNoteMount"),
+      document.getElementById("appReleaseNoteText")
+    ];
+    releaseTargets.forEach((node) => {
+      if (node) node.textContent = APP_RELEASE_NOTE;
+    });
   }
 
   function registerServiceWorker() {
@@ -139,7 +147,7 @@
     banner.className = "app-update-banner";
     banner.innerHTML = `
       <div class="app-update-banner__text">
-        <strong>${APP_VERSION}</strong> より新しい更新があります。表示が古いときは、このまま更新して最新のJS/CSSへ切り替えてください。
+        <strong>${APP_VERSION}</strong> より新しい更新があります。${APP_RELEASE_NOTE}。表示が古いときは、このまま更新して最新のJS/CSSへ切り替えてください。
       </div>
       <div class="app-update-banner__actions">
         <button type="button" class="primary">更新して再読込</button>

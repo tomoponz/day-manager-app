@@ -23,7 +23,8 @@
 <div class="topbar__status">
 <span class="topbar__pill" id="topbarDateMount">--</span>
 <span class="topbar__pill" id="topbarClockMount">--:--</span>
-<span class="topbar__pill topbar__pill--version" id="appVersionMount">--</span>
+<span class="topbar__pill topbar__pill--version">Version <strong id="appVersionMount">--</strong></span>
+<span class="topbar__release-note" id="appReleaseNoteText">最新更新: 初回案内とスマホ表示を改善</span>
 </div>
 <button class="primary topbar__add" data-open-quick-add="true" type="button">＋追加</button>
 </header>
@@ -377,6 +378,27 @@
 </label>
 </div>
 <p class="status-note" id="stateNote">人間は状態変化を報告し、アプリは現在地点を整理してAIに渡します。</p>
+<section class="quickstart-guide" id="quickstartGuide">
+<div class="quickstart-guide__header">
+<div>
+<h3>最初にやること</h3>
+<p>友人に触ってもらう段階では、全部を埋める必要はありません。まず 3 つだけ入れれば十分です。</p>
+</div>
+<span class="mode-chip">初回ガイド</span>
+</div>
+<ol class="quickstart-guide__steps">
+<li><strong>固定予定かタスクを 1 件追加</strong><span>今日の判断が空にならないように、授業・課題・生活タスクのどれかを先に 1 件入れます。</span></li>
+<li><strong>自習場所を登録</strong><span>大学図書館や県立図書館を入れると、今日使える場所を AI にも渡せます。</span></li>
+<li><strong>必要なら Google 連携</strong><span>予定を読みたいときだけ接続します。ローカル運用だけでも使えます。</span></li>
+</ol>
+<div class="quickstart-guide__actions">
+<button class="ghost" data-open-editor-target="fixed" type="button">固定予定を開く</button>
+<button class="ghost" data-open-editor-target="task" type="button">タスクを開く</button>
+<a class="ghost quickstart-guide__link" href="#appSettingsPanel">自習場所へ</a>
+<a class="ghost quickstart-guide__link" href="#assistToolsPanel">AI・連携へ</a>
+</div>
+<p class="micro-note quickstart-guide__note">Google ログインで警告が出る場合は、対象アカウントが test user に追加されているか確認してください。</p>
+</section>
 <div class="judgement-stack">
 <div class="judgement-grid judgement-grid-top">
 <article class="summary-box">
@@ -970,6 +992,10 @@
 <button class="ghost" id="openCampusPortalLinkBtn" type="button">大学ポータルを開く</button>
 </div>
 <p class="micro-note">URLを登録すると、別タブで即確認できます。科目ごとの manaba URL は科目フォーム側に登録します。</p>
+<section class="assist-manual-links" aria-label="マニュアル">
+  <a class="ghost assist-manual-links__item" href="./manual-simple.html" target="_blank" rel="noreferrer">簡易マニュアル</a>
+  <a class="ghost assist-manual-links__item" href="./manual-detailed.html" target="_blank" rel="noreferrer">詳細マニュアル</a>
+</section>
 </section>
 <section class="card inner-card" id="promptAssistSection">
 <div class="card-header compact">
@@ -986,27 +1012,6 @@
                 ChatGPTに貼る文章
                 <textarea id="promptOutput" placeholder="ここに生成されます" rows="18"></textarea>
 </label>
-</section>
-<section class="card inner-card" id="helpAndVersionSection">
-<div class="card-header compact">
-<div>
-<h2>ヘルプとバージョン</h2>
-<p>友人に共有するときの簡易案内と、操作マニュアルへの導線です。</p>
-</div>
-<span class="mode-chip" id="appVersionText">--</span>
-</div>
-<div class="settings-actions-row link-settings-actions">
-<button class="ghost" onclick="window.open('./manual-simple.html','_blank','noopener,noreferrer')" type="button">簡易マニュアル</button>
-<button class="ghost" onclick="window.open('./manual-detailed.html','_blank','noopener,noreferrer')" type="button">詳細マニュアル</button>
-</div>
-<div class="oauth-guidance-box friend-guidance-box">
-<strong>友人向けの共有前メモ</strong>
-<ul>
-<li>Google ログインは、追加済みアカウントまたは公開範囲の設定に従って利用できます。</li>
-<li>接続が古いときは、先にハードリロードしてから Google で接続し直してください。</li>
-<li>困ったときは、まず簡易マニュアルを開いて確認します。</li>
-</ul>
-</div>
 </section>
 <section class="card inner-card" id="googleSettingsPanel">
 <div class="card-header compact settings-inline-header">
@@ -1032,6 +1037,7 @@
 <li>承認済みドメインと redirect URI を Cloudflare Worker の URL に合わせる</li>
 <li>公開前は test users に自分の Google アカウントを追加する</li>
 </ul>
+<p class="micro-note oauth-guidance-box__note">友人に試してもらう段階では、一般公開よりも test users 追加のほうが安全です。Calendar 権限は予定の読込・追加・更新のためだけに使います。</p>
 </div>
 <details class="subsection-fold" id="googleEventListPanel">
 <summary class="subsection-summary">対象日の Google 予定</summary>
@@ -1058,13 +1064,19 @@
 </article>
 </template>
 <footer class="app-footer-links">
-  <a class="subtle-link" href="./manual-simple.html" target="_blank" rel="noreferrer">簡易マニュアル</a>
-  <span>・</span>
-  <a class="subtle-link" href="./manual-detailed.html" target="_blank" rel="noreferrer">詳細マニュアル</a>
-  <span>・</span>
-  <a class="subtle-link" href="./privacy.html" target="_blank" rel="noreferrer">プライバシーポリシー</a>
-  <span>・</span>
-  <a class="subtle-link" href="./terms.html" target="_blank" rel="noreferrer">利用規約</a>
+  <div class="app-footer-links__row">
+    <span class="app-footer-links__version">Version <strong id="appVersionText">--</strong></span>
+    <span class="app-footer-links__release" id="appReleaseNoteMount">最新更新: 初回案内とスマホ表示を改善</span>
+  </div>
+  <div class="app-footer-links__row">
+    <a class="subtle-link" href="./manual-simple.html" target="_blank" rel="noreferrer">簡易マニュアル</a>
+    <span>・</span>
+    <a class="subtle-link" href="./manual-detailed.html" target="_blank" rel="noreferrer">詳細マニュアル</a>
+    <span>・</span>
+    <a class="subtle-link" href="./privacy.html" target="_blank" rel="noreferrer">プライバシーポリシー</a>
+    <span>・</span>
+    <a class="subtle-link" href="./terms.html" target="_blank" rel="noreferrer">利用規約</a>
+  </div>
 </footer>
 <script src="app.js"></script>
 <script src="./js/date-nav-ui.js" type="module"></script>
