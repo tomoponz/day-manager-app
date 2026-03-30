@@ -1923,3 +1923,86 @@ body.editor-drawer-open {
   color: var(--muted);
   font-size: 0.88rem;
 }
+
+
+.topbar__pill--version {
+  background: rgba(255,255,255,0.9);
+  color: var(--accent-hover);
+  border-color: rgba(192, 83, 58, 0.18);
+  font-weight: 700;
+}
+
+.friend-guidance-box {
+  margin-top: 0.9rem;
+}
+
+.help-version-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.manual-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1.4rem 1rem 2.4rem;
+}
+
+.manual-page__header {
+  margin-bottom: 1rem;
+}
+
+.manual-page__back {
+  display: inline-flex;
+  margin-bottom: 0.85rem;
+  text-decoration: none;
+}
+
+.manual-page__lead {
+  color: var(--muted);
+  margin-bottom: 0;
+}
+
+.manual-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 1.2rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.manual-card h2 {
+  margin-bottom: 0.65rem;
+}
+
+.manual-card h3 {
+  margin-top: 1rem;
+}
+
+.manual-card ul,
+.manual-card ol {
+  margin: 0.5rem 0 0;
+  padding-left: 1.35rem;
+}
+
+.manual-card li + li {
+  margin-top: 0.35rem;
+}
+
+.manual-card code {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.08rem 0.35rem;
+}
+
+@media (max-width: 640px) {
+  .app-footer-links {
+    flex-wrap: wrap;
+    line-height: 1.7;
+    padding-inline: 1rem;
+  }
+}

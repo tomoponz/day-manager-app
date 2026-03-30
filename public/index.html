@@ -23,6 +23,7 @@
 <div class="topbar__status">
 <span class="topbar__pill" id="topbarDateMount">--</span>
 <span class="topbar__pill" id="topbarClockMount">--:--</span>
+<span class="topbar__pill topbar__pill--version" id="appVersionMount">--</span>
 </div>
 <button class="primary topbar__add" data-open-quick-add="true" type="button">＋追加</button>
 </header>
@@ -986,6 +987,27 @@
                 <textarea id="promptOutput" placeholder="ここに生成されます" rows="18"></textarea>
 </label>
 </section>
+<section class="card inner-card" id="helpAndVersionSection">
+<div class="card-header compact">
+<div>
+<h2>ヘルプとバージョン</h2>
+<p>友人に共有するときの簡易案内と、操作マニュアルへの導線です。</p>
+</div>
+<span class="mode-chip" id="appVersionText">--</span>
+</div>
+<div class="settings-actions-row link-settings-actions">
+<button class="ghost" onclick="window.open('./manual-simple.html','_blank','noopener,noreferrer')" type="button">簡易マニュアル</button>
+<button class="ghost" onclick="window.open('./manual-detailed.html','_blank','noopener,noreferrer')" type="button">詳細マニュアル</button>
+</div>
+<div class="oauth-guidance-box friend-guidance-box">
+<strong>友人向けの共有前メモ</strong>
+<ul>
+<li>Google ログインは、追加済みアカウントまたは公開範囲の設定に従って利用できます。</li>
+<li>接続が古いときは、先にハードリロードしてから Google で接続し直してください。</li>
+<li>困ったときは、まず簡易マニュアルを開いて確認します。</li>
+</ul>
+</div>
+</section>
 <section class="card inner-card" id="googleSettingsPanel">
 <div class="card-header compact settings-inline-header">
 <div>
@@ -1036,6 +1058,10 @@
 </article>
 </template>
 <footer class="app-footer-links">
+  <a class="subtle-link" href="./manual-simple.html" target="_blank" rel="noreferrer">簡易マニュアル</a>
+  <span>・</span>
+  <a class="subtle-link" href="./manual-detailed.html" target="_blank" rel="noreferrer">詳細マニュアル</a>
+  <span>・</span>
   <a class="subtle-link" href="./privacy.html" target="_blank" rel="noreferrer">プライバシーポリシー</a>
   <span>・</span>
   <a class="subtle-link" href="./terms.html" target="_blank" rel="noreferrer">利用規約</a>
