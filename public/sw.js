@@ -1,4 +1,4 @@
-const CACHE_NAME = "day-manager-cache-v25";
+const CACHE_NAME = "day-manager-cache-v26";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -110,3 +110,10 @@ async function staleWhileRevalidate(request) {
 
   return cached || fetchPromise || Response.error();
 }
+
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});

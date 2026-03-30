@@ -1923,3 +1923,28 @@ body.editor-drawer-open {
     align-self: flex-start;
   }
 }
+
+
+.calendar-actions--secondary {
+  margin-top: -0.1rem;
+}
+
+.calendar-status--subtle {
+  background: var(--bg-2);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+.calendar-status[data-variant="ok"],
+.calendar-status--subtle[data-variant="ok"] {
+  background: var(--ok-bg);
+  color: var(--ok);
+  border-color: rgba(61, 122, 85, 0.22);
+}
+
+.calendar-status[data-variant="warn"],
+.calendar-status--subtle[data-variant="warn"] {
+  background: var(--warn-bg);
+  color: var(--warn);
+  border-color: rgba(180, 83, 9, 0.22);
+}

@@ -1004,6 +1004,12 @@
 <button class="ghost" id="importGoogleToLocalBtn" type="button">Google予定を取込</button>
 </div>
 <div class="calendar-status" id="googleStatusBox">Cloudflare Worker 側の secret が入っていれば、Googleで接続するだけで使えます。</div>
+<div class="calendar-status calendar-status--subtle" id="appStateSyncStatusBox">同じGoogleアカウントで接続すると、タスク・予定・学習データを端末間で同期できます。</div>
+<div class="calendar-actions calendar-actions--secondary">
+<button class="ghost" id="pullCloudAppStateBtn" type="button">この端末へ同期</button>
+<button class="ghost" id="pushCloudAppStateBtn" type="button">この端末の内容をアップロード</button>
+</div>
+<p class="calendar-note">Google Calendar 連携とは別に、同じGoogleアカウントならタスク・予定・学習データも同期できます。スマホで編集した内容を、PC側へ取り込めます。</p>
 <p class="calendar-note">資格情報の入力欄は出しません。接続に必要な値は <code>Cloudflare Worker secrets</code> と <code>cloudflare-worker/wrangler.toml</code> に設定します。</p>
 <details class="subsection-fold" id="googleEventListPanel">
 <summary class="subsection-summary">対象日の Google 予定</summary>
