@@ -1,15 +1,18 @@
 (() => {
-  const APP_VERSION = "v0.7.1";
-  const APP_RELEASE_NOTE = "最新更新: 共有URL案内と友人向けログイン導線を改善";
+  const APP_VERSION = "v0.7.2";
+  const APP_RELEASE_NOTE = "最新更新: 初回ガイドの整理とスマホカレンダー表示を調整";
 
   bootstrap().catch((error) => {
     console.error("Day Manager bootstrap failed:", error);
     showBootstrapError(error);
   });
 
+  const QUICKSTART_DISMISSED_KEY = "day-manager-quickstart-dismissed-v1";
+
   async function bootstrap() {
     mountAppVersion();
     mountShareGuide();
+    mountQuickstartGuide();
 
     const [utilsModule, timeModule, renderModule, actionsModule, googleModule, calendarModule, studyModule, onboardingModule] = await Promise.all([
       import("./js/utils.js"),
@@ -131,6 +134,27 @@
     const openButton = document.getElementById("openAppShareUrlBtn");
     openButton?.addEventListener("click", () => {
       window.open(shareUrl, "_blank", "noopener,noreferrer");
+    });
+  }
+
+  function mountQuickstartGuide() {
+    const guide = document.getElementById("quickstartGuide");
+    if (!guide) return;
+
+    const dismissed = localStorage.getItem(QUICKSTART_DISMISSED_KEY) === "1";
+    if (dismissed) {
+      guide.hidden = true;
+    }
+
+    document.getElementById("dismissQuickstartGuideBtn")?.addEventListener("click", () => {
+      guide.hidden = true;
+      localStorage.setItem(QUICKSTART_DISMISSED_KEY, "1");
+    });
+
+    document.getElementById("showQuickstartGuideBtn")?.addEventListener("click", () => {
+      guide.hidden = false;
+      localStorage.removeItem(QUICKSTART_DISMISSED_KEY);
+      guide.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }
 

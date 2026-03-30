@@ -1,4 +1,4 @@
-const CACHE_NAME = "day-manager-cache-v18";
+const CACHE_NAME = "day-manager-cache-v19";
 const CORE_ASSETS = [
   "./",
   "./index.html",

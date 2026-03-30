@@ -24,7 +24,7 @@
 <span class="topbar__pill" id="topbarDateMount">--</span>
 <span class="topbar__pill" id="topbarClockMount">--:--</span>
 <span class="topbar__pill topbar__pill--version">Version <strong id="appVersionMount">--</strong></span>
-<span class="topbar__release-note" id="appReleaseNoteText">最新更新: 初回案内とスマホ表示を改善</span>
+<span class="topbar__release-note" id="appReleaseNoteText">最新更新: 初回ガイドの整理とスマホカレンダー表示を調整</span>
 </div>
 <button class="primary topbar__add" data-open-quick-add="true" type="button">＋追加</button>
 </header>
@@ -384,7 +384,10 @@
 <h3>最初にやること</h3>
 <p>友人に触ってもらう段階では、全部を埋める必要はありません。まず 3 つだけ入れれば十分です。</p>
 </div>
+<div class="quickstart-guide__header-actions">
 <span class="mode-chip">初回ガイド</span>
+<button class="ghost quickstart-guide__dismiss" id="dismissQuickstartGuideBtn" type="button">閉じる</button>
+</div>
 </div>
 <ol class="quickstart-guide__steps">
 <li><strong>固定予定かタスクを 1 件追加</strong><span>今日の判断が空にならないように、授業・課題・生活タスクのどれかを先に 1 件入れます。</span></li>
@@ -996,6 +999,9 @@
   <a class="ghost assist-manual-links__item" href="./manual-simple.html" target="_blank" rel="noreferrer">簡易マニュアル</a>
   <a class="ghost assist-manual-links__item" href="./manual-detailed.html" target="_blank" rel="noreferrer">詳細マニュアル</a>
 </section>
+<div class="settings-actions-row assist-manual-links__secondary">
+  <button class="ghost" id="showQuickstartGuideBtn" type="button">初回ガイドを再表示</button>
+</div>
 </section>
 <section class="card inner-card" id="promptAssistSection">
 <div class="card-header compact">
@@ -1091,7 +1097,7 @@
 <footer class="app-footer-links">
   <div class="app-footer-links__row">
     <span class="app-footer-links__version">Version <strong id="appVersionText">--</strong></span>
-    <span class="app-footer-links__release" id="appReleaseNoteMount">最新更新: 初回案内とスマホ表示を改善</span>
+    <span class="app-footer-links__release" id="appReleaseNoteMount">最新更新: 初回ガイドの整理とスマホカレンダー表示を調整</span>
   </div>
   <div class="app-footer-links__row">
     <a class="subtle-link" href="./manual-simple.html" target="_blank" rel="noreferrer">簡易マニュアル</a>

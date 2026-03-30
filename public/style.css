@@ -528,13 +528,44 @@ hr { border: none; border-top: 1px solid var(--line); margin: 1.5rem 0; }
     min-width: 760px;
   }
 
+  .fc .fc-toolbar.fc-header-toolbar {
+    gap: 0.45rem;
+    align-items: flex-start;
+  }
+
+  .fc .fc-toolbar-chunk {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .fc .fc-button-group {
+    display: flex;
+    gap: 0.2rem;
+  }
+
+  .fc .fc-button-group > .fc-button {
+    margin: 0 !important;
+    border-radius: 999px !important;
+  }
+
   .fc .fc-toolbar-title {
-    font-size: 1rem;
+    font-size: 0.95rem;
+    white-space: nowrap;
   }
 
   .fc .fc-button {
-    padding: 0.4rem 0.65rem;
-    font-size: 0.82rem;
+    padding: 0.36rem 0.58rem;
+    font-size: 0.78rem;
+  }
+
+  .calendar-legend-row {
+    gap: 0.35rem;
+  }
+
+  .legend-pill {
+    padding: 0.22rem 0.5rem;
+    font-size: 0.74rem;
   }
 }
 
@@ -1954,6 +1985,16 @@ body.editor-drawer-open {
   gap: 0.8rem;
   margin-bottom: 0.8rem;
 }
+.quickstart-guide__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.quickstart-guide__dismiss {
+  box-shadow: none;
+  min-height: 34px;
+}
 .quickstart-guide__header h3 {
   margin-bottom: 0.25rem;
 }
@@ -2000,6 +2041,9 @@ body.editor-drawer-open {
 .assist-manual-links__item {
   text-decoration: none;
 }
+.assist-manual-links__secondary {
+  margin-top: 0.55rem;
+}
 .oauth-guidance-box__note {
   margin: 0.65rem 0 0;
 }
@@ -2034,6 +2078,9 @@ body.editor-drawer-open {
   background: transparent;
   padding: 0;
   border: 0;
+  color: var(--muted);
+  display: block;
+  margin-top: 0.15rem;
 }
 @media (max-width: 980px) {
   .topbar__release-note {
@@ -2044,6 +2091,10 @@ body.editor-drawer-open {
 @media (max-width: 720px) {
   .quickstart-guide__header {
     flex-direction: column;
+  }
+  .quickstart-guide__header-actions {
+    width: 100%;
+    justify-content: space-between;
   }
   .app-footer-links__row {
     gap: 0.4rem;
