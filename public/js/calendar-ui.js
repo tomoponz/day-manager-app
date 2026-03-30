@@ -251,7 +251,7 @@ function getResponsiveInitialView() {
 function getResponsiveHeaderToolbar() {
   if (isCompactCalendarScreen()) {
     return {
-      left: "prev,next today",
+      left: "prev,next",
       center: "title",
       right: "dayGridMonth,timeGridDay,listWeek"
     };
@@ -293,9 +293,12 @@ function applyResponsiveCalendarLayout({ forceView = false } = {}) {
   const currentView = calendar.view?.type;
 
   if (compact) {
-    if (forceView || currentView === "timeGridWeek") {
+    const shouldUseDayView = !["dayGridMonth", "listWeek", "timeGridDay"].includes(currentView || "");
+    if (forceView || shouldUseDayView) {
       if (currentView === "timeGridWeek") autoSwitchedFromWeekToDay = true;
-      if (currentView !== "timeGridDay") calendar.changeView("timeGridDay");
+      if (currentView !== "timeGridDay" && currentView !== "dayGridMonth" && currentView !== "listWeek") {
+        calendar.changeView("timeGridDay");
+      }
     }
   } else if (autoSwitchedFromWeekToDay && currentView === "timeGridDay") {
     autoSwitchedFromWeekToDay = false;

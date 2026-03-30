@@ -64,27 +64,28 @@ export function renderCourseList() {
     .forEach((course) => {
       const linkedMaterials = state.materials.filter((material) => material.courseId === course.id).length;
       const linkedAssessments = state.assessments.filter((assessment) => assessment.courseId === course.id).length;
+      const pendingAssessments = state.assessments.filter((assessment) => assessment.courseId === course.id && assessment.status !== "done").length;
       const riskEntry = ranking.find((entry) => entry.courseId === course.id);
+
+      const detailLines = [
+        course.scheduleMemo ? `授業情報: ${course.scheduleMemo}` : "",
+        course.gradingMemo ? `評価: ${course.gradingMemo}` : "",
+        course.instructor ? `教員: ${course.instructor}` : "",
+        course.syllabusSummary ? `シラバス: ${truncateText(course.syllabusSummary, 56)}` : ""
+      ].filter(Boolean);
 
       const item = createListItem({
         title: course.title,
         badges: [
           makeBadge(`危険度:${COURSE_RISK_LABELS[course.riskStatus] || "要注意"}`, course.riskStatus === "high" ? "danger" : course.riskStatus === "low" ? "ok" : "warn"),
           course.credits !== "" ? makeBadge(`単位:${course.credits}`) : null,
-          course.instructor ? makeBadge(course.instructor, "blue") : null,
-          makeBadge(`教材:${linkedMaterials}件`),
-          makeBadge(`締切:${linkedAssessments}件`, linkedAssessments ? "warn" : ""),
-          course.syllabusSummary ? makeBadge("シラバス要約", "blue") : null,
-          course.syllabusUrl ? makeBadge("シラバスURL", "ok") : null,
-          (course.coursePortalUrl || state.settings?.campusPortalUrl) ? makeBadge("LMS", "ok") : null,
+          makeBadge(`未完了締切:${pendingAssessments}件`, pendingAssessments ? "warn" : "ok"),
+          linkedMaterials ? makeBadge(`教材:${linkedMaterials}件`) : null,
           riskEntry ? makeBadge(`総合:${riskEntry.levelLabel}`, riskEntry.level === "high" ? "danger" : riskEntry.level === "medium" ? "warn" : "ok") : null
         ].filter(Boolean),
-        detail: [
-          course.scheduleMemo ? `授業情報: ${course.scheduleMemo}` : "",
-          course.gradingMemo ? `評価: ${course.gradingMemo}` : "",
-          course.syllabusSummary ? `シラバス: ${truncateText(course.syllabusSummary, 90)}` : ""
-        ].filter(Boolean).join(" / "),
-        note: course.note || ""
+        detail: detailLines.join(" / "),
+        note: course.note || "",
+        itemClassName: "course-item-compact"
       });
 
       const actions = item.querySelector(".list-actions");
