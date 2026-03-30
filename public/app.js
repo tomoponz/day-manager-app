@@ -1,13 +1,13 @@
 (() => {
-  const APP_VERSION = "v0.7.2";
-  const APP_RELEASE_NOTE = "最新更新: 初回ガイドの整理とスマホカレンダー表示を調整";
+  const APP_VERSION = "v0.7.3";
+  const APP_RELEASE_NOTE = "最新更新: 起動エラーを修正";
+
+  const QUICKSTART_DISMISSED_KEY = "day-manager-quickstart-dismissed-v1";
 
   bootstrap().catch((error) => {
     console.error("Day Manager bootstrap failed:", error);
     showBootstrapError(error);
   });
-
-  const QUICKSTART_DISMISSED_KEY = "day-manager-quickstart-dismissed-v1";
 
   async function bootstrap() {
     mountAppVersion();
