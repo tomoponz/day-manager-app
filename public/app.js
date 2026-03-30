@@ -1,6 +1,6 @@
 (() => {
-  const APP_VERSION = "v0.7.3";
-  const APP_RELEASE_NOTE = "最新更新: 起動エラーを修正";
+  const APP_VERSION = "v0.7.4";
+  const APP_RELEASE_NOTE = "最新更新: 共有導線とマニュアルを含む最終調整版";
 
   const QUICKSTART_DISMISSED_KEY = "day-manager-quickstart-dismissed-v1";
 
