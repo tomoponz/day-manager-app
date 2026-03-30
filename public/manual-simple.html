@@ -1,25 +1,27 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Day Manager 簡易マニュアル</title>
-<link rel="stylesheet" href="./style.css"/>
-</head>
-<body class="manual-page">
-<main class="manual-page__shell">
-  <header class="manual-page__header">
-    <h1>Day Manager 簡易マニュアル</h1>
-    <p>Day Manager の公開用マニュアルです。</p>
-    <div class="manual-page__actions">
-      <a class="ghost subtle-link" href="./">アプリに戻る</a>
-      <a class="ghost subtle-link" href="./manual-simple.html">簡易版</a>
-      <a class="ghost subtle-link" href="./manual-detailed.html">詳細版</a>
-    </div>
-  </header>
-  <article class="manual-page__content">
-    <h1>Day Manager 簡易マニュアル</h1><p>対象バージョン: v0.7.0</p><h2>毎日の基本手順</h2><ol><li>対象日を確認する</li><li>睡眠時間・体力・メモを更新する</li><li>予定・タスクを必要分だけ直す</li><li>自習場所を公式サイトで確認し、その日の状態を記録する</li><li>AI用文章を生成して ChatGPT / Gemini に渡す</li><li>提案を見て、必要なものだけ採用する</li></ol><h2>どこを見るか</h2><ul><li>今日: 現在地、危険アラート、空き時間</li><li>実行: 予定とタスクの一覧</li><li>カレンダー: 日付と予定の確認</li><li>大学学習管理: 科目・教材・締切</li><li>管理・設定: 自習場所、バックアップ</li><li>AI・連携: ChatGPT / Gemini / Google 連携</li></ul><h2>困ったとき</h2><ul><li>反映されない: Ctrl + Shift + R</li><li>まだ古い: Service Worker / Cache Storage を削除</li><li>図書館情報が怪しい: 公式サイトを見て確認状態を更新</li></ul>
-  </article>
-</main>
-</body>
-</html>
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Day Manager 簡易マニュアル</title><link rel="stylesheet" href="./style.css"><style>
+.manual-page{background:#f5f2ee;}
+.manual-shell{max-width:1120px;margin:0 auto;padding:28px 18px 52px;}
+.manual-hero{display:grid;grid-template-columns:1.4fr .9fr;gap:18px;margin-bottom:18px;}
+.manual-card,.manual-section{background:#faf8f5;border:1px solid rgba(28,25,23,.08);border-radius:22px;box-shadow:0 8px 24px rgba(28,25,23,.06);}
+.manual-card{padding:26px;}
+.manual-section{padding:22px 24px;margin-top:16px;}
+.manual-kicker{font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:#c0533a;font-weight:700;margin:0 0 10px;}
+.manual-title{font-size:clamp(2rem,4vw,3rem);line-height:1.08;margin:0 0 10px;}
+.manual-lead{color:#5c544e;line-height:1.85;margin:0;}
+.manual-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;background:#ede9e3;color:#5f554e;font-size:.9rem;font-weight:600;margin-top:16px;}
+.manual-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;}
+.manual-actions a{text-decoration:none;}
+.manual-aside-list{list-style:none;padding:0;margin:0;display:grid;gap:8px;}
+.manual-aside-list a{display:block;padding:10px 12px;background:#fff;border:1px solid rgba(28,25,23,.08);border-radius:12px;color:#1c1917;text-decoration:none;}
+.manual-note{margin-top:14px;color:#756d67;font-size:.92rem;line-height:1.75;}
+.manual-content h1{display:none;}
+.manual-content h2{font-size:1.35rem;margin:0 0 10px;color:#c0533a;}
+.manual-content h3{font-size:1rem;margin:16px 0 8px;color:#7c4a3f;}
+.manual-content p,.manual-content li{color:#4f4742;line-height:1.85;}
+.manual-content ul,.manual-content ol{padding-left:1.2rem;}
+.manual-content table{width:100%;border-collapse:collapse;margin-top:12px;}
+.manual-content th,.manual-content td{border:1px solid rgba(28,25,23,.12);padding:10px 12px;vertical-align:top;text-align:left;}
+.manual-content th{background:#ede9e3;}
+.manual-callout{background:#fff;border:1px solid rgba(28,25,23,.08);border-left:4px solid #c0533a;border-radius:14px;padding:14px 16px;}
+@media (max-width:860px){.manual-hero{grid-template-columns:1fr;}.manual-card,.manual-section{padding:18px;}.manual-shell{padding-inline:14px;}}
+</style></head><body class="manual-page"><main class="manual-shell"><section class="manual-hero"><article class="manual-card"><p class="manual-kicker">Day Manager Manual</p><h1 class="manual-title">Day Manager 簡易マニュアル</h1><p class="manual-lead">毎日の運用を最短で始めるための版</p><div class="manual-pill">対象バージョン <strong>v0.7.0</strong> <span>・</span> <span>最新更新: 初回案内とスマホ表示を改善</span></div><div class="manual-actions"><a class="ghost subtle-link" href="./">アプリに戻る</a><a class="ghost subtle-link" href="./manual-simple.html">簡易版</a><a class="ghost subtle-link" href="./manual-detailed.html">詳細版</a></div></article><aside class="manual-card"><h2 style="margin-top:0;font-size:1.1rem;">この版で分かること</h2><ul class="manual-aside-list"><li><a href="#これは何のアプリか">アプリの目的</a></li><li><a href="#最初にやること（3分）">最初の3分</a></li><li><a href="#まず見る場所">まず見る場所</a></li><li><a href="#毎日の基本手順">毎日の基本手順</a></li><li><a href="#困ったとき">困ったとき</a></li></ul><p class="manual-note">友人に共有するときは、簡易版は入口、詳細版は運用ルールとトラブル対処の確認用として使うのが向いています。</p></aside></section><article class="manual-section manual-content"><h1>Day Manager 簡易マニュアル</h1><p>対象バージョン: v0.7.0</p><h2 id="これは何のアプリか">これは何のアプリか</h2><p>Day Manager は、予定・タスク・体調・学習情報・自習場所を 1 か所に集めて、「今日いま何をするか」を短時間で固めるための個人用マネージャーです。</p><p>AI は提案まで、人間が採用判断をする前提で使います。</p><h2 id="最初にやること（3分）">最初にやること（3分）</h2><ol><li>**対象日** を今日に合わせる</li><li>**睡眠時間・体力・メモ** を入れる</li><li>次のどちらかを 1 件だけ登録する</li></ol><p>   - 固定予定（授業・通学・食事など）</p><p>   - タスク（レポート・復習・生活タスクなど）</p><ol><li>図書館などを使うなら **自習場所** を 1 件登録する</li><li>必要なら **Google Calendar 連携** を行う</li></ol><h2 id="まず見る場所">まず見る場所</h2><ul><li>**今日**: 現在地点、危険アラート、空き時間、最優先3件</li><li>**実行**: 固定予定・単発予定・タスクの一覧</li><li>**カレンダー**: 対象日の予定確認、詳細確認、編集導線</li><li>**大学学習管理**: 科目・教材・締切を整理</li><li>**管理・設定**: 自習場所、バックアップ、時間防衛ルール</li><li>**AI・連携**: ChatGPT / Gemini、Google 連携、マニュアル</li></ul><h2 id="毎日の基本手順">毎日の基本手順</h2><ol><li>対象日を確認する</li><li>体調と睡眠を入れる</li><li>今日の予定・タスクを必要分だけ直す</li><li>図書館を使う日は **自習場所の確認状態** を更新する</li><li>「今日を設計する文章を生成」して AI に渡す</li><li>AI の提案から、必要なものだけ採用する</li></ol><h2 id="よく使う操作">よく使う操作</h2><h3>予定を入れる</h3><ul><li>右側の **追加と編集** から、固定予定 / 単発予定 / タスクを開く</li><li>またはカレンダーから該当日を見て編集する</li></ul><h3>図書館を使う</h3><ul><li>管理・設定 → **自習場所**</li><li>公式 URL を開く</li><li>その日の状態を「確認済 / 休館 / 短縮」で記録する</li></ul><h3>学業情報をまとめる</h3><ul><li>大学学習管理で、科目・教材・締切を入れる</li><li>科目ごとに **シラバス要約 / シラバス URL / manaba URL** を持たせられる</li></ul><h2 id="困ったとき">困ったとき</h2><ul><li>**反映されない**: `Ctrl + Shift + R`</li><li>**まだ古い**: Service Worker / Cache Storage を削除して再読込</li><li>**Google に入れない**: test users に追加されている Google アカウントか確認</li><li>**図書館情報が怪しい**: 公式サイトを開き、その日の確認状態を更新する</li></ul><h2 id="友人向けの注意">友人向けの注意</h2><ul><li>Google 連携は必須ではありません</li><li>連携する場合は、許可画面で Google Calendar の権限を求められます</li><li>これは **予定の読込・追加・更新** のために使います</li></ul></article></main></body></html>
