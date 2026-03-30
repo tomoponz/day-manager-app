@@ -1,5 +1,6 @@
 export const STORAGE_KEY = "day-manager-v1";
 export const GOOGLE_CONFIG_KEY = "day-manager-google-config-v1";
+export const APP_STATE_UPDATED_AT_KEY = "day-manager-app-state-updated-at-v1";
 export const STATE_SCHEMA_VERSION = 6;
 
 export const INITIAL_STATE = {
@@ -99,6 +100,9 @@ export function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return structuredClone(INITIAL_STATE);
+    if (!getLocalStateUpdatedAt()) {
+      setLocalStateUpdatedAt(new Date().toISOString());
+    }
     const parsed = migrateParsedState(JSON.parse(raw));
     return {
       schemaVersion: STATE_SCHEMA_VERSION,
@@ -121,9 +125,40 @@ export function loadState() {
   }
 }
 
-export function saveState() {
+export function saveState(options = {}) {
+  const { markUpdated = true, dispatch = true } = options;
   state.schemaVersion = STATE_SCHEMA_VERSION;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (markUpdated) {
+    setLocalStateUpdatedAt(new Date().toISOString());
+  }
+  if (dispatch && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("day-manager:state-saved", {
+      detail: { updatedAt: getLocalStateUpdatedAt() }
+    }));
+  }
+}
+
+export function serializePersistableState() {
+  return JSON.parse(JSON.stringify({ ...state, schemaVersion: STATE_SCHEMA_VERSION }));
+}
+
+export function getLocalStateUpdatedAt() {
+  try {
+    return localStorage.getItem(APP_STATE_UPDATED_AT_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function setLocalStateUpdatedAt(value = "") {
+  try {
+    if (!value) {
+      localStorage.removeItem(APP_STATE_UPDATED_AT_KEY);
+      return;
+    }
+    localStorage.setItem(APP_STATE_UPDATED_AT_KEY, value);
+  } catch {}
 }
 
 export function loadGoogleConfig() {

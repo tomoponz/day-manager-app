@@ -1,4 +1,5 @@
-import { state, saveState, normalizeOneOffEvent } from "./state.js";
+import { state, saveState, normalizeOneOffEvent, serializePersistableState, getLocalStateUpdatedAt, setLocalStateUpdatedAt } from "./state.js";
+import { normalizePersistedState, applyPersistedState } from "./recovery.js";
 import { $ } from "./utils.js";
 import { formatDateInput, formatTimeOnly } from "./time.js";
 import { confirmDialog, showToast } from "./ui-feedback.js";
@@ -11,8 +12,17 @@ export const googleState = {
   rangeLoaded: {
     start: "",
     end: ""
+  },
+  appStateSync: {
+    remoteUpdatedAt: "",
+    lastSyncedAt: "",
+    mode: "",
+    connectedAccount: ""
   }
 };
+
+let appStatePushTimer = null;
+let suppressAutoAppStatePush = false;
 
 const ui = {
   renderAll: null,
@@ -31,6 +41,35 @@ function notifyStatus(message, variant = "") {
 function rerender() {
   ui.renderAll?.();
   ui.updateGoogleConnectionBadge?.();
+}
+
+function setAppStateSyncStatus(message, variant = "") {
+  const box = $("appStateSyncStatusBox");
+  if (!box) return;
+  box.textContent = message;
+  box.dataset.variant = variant || "";
+}
+
+function updateAppStateSyncButtons() {
+  const disabled = !googleState.connected;
+  [$("pullCloudAppStateBtn"), $("pushCloudAppStateBtn")].forEach((button) => {
+    if (!button) return;
+    button.disabled = disabled;
+  });
+}
+
+function getSyncStatusTail() {
+  return googleState.appStateSync.lastSyncedAt
+    ? ` / 最終同期: ${new Date(googleState.appStateSync.lastSyncedAt).toLocaleString("ja-JP")}`
+    : "";
+}
+
+function scheduleAppStatePush() {
+  if (suppressAutoAppStatePush || !googleState.connected) return;
+  clearTimeout(appStatePushTimer);
+  appStatePushTimer = setTimeout(() => {
+    pushLocalAppState({ silent: true }).catch(() => {});
+  }, 1200);
 }
 
 async function api(path, options = {}) {
@@ -65,6 +104,125 @@ async function api(path, options = {}) {
   return response.json();
 }
 
+async function getRemoteAppState() {
+  return api("/api/app-state");
+}
+
+async function putRemoteAppState(payload) {
+  return api("/api/app-state", {
+    method: "PUT",
+    body: JSON.stringify(payload)
+  });
+}
+
+async function applyRemoteAppState(remote, { silent = false } = {}) {
+  if (!remote?.state) {
+    if (!silent) setAppStateSyncStatus("クラウド側に同期済みデータはまだありません。", "warn");
+    return null;
+  }
+
+  suppressAutoAppStatePush = true;
+  try {
+    const normalized = normalizePersistedState(remote.state);
+    applyPersistedState(normalized);
+    setLocalStateUpdatedAt(remote.updatedAt || new Date().toISOString());
+    googleState.appStateSync.remoteUpdatedAt = remote.updatedAt || "";
+    googleState.appStateSync.lastSyncedAt = new Date().toISOString();
+    googleState.appStateSync.mode = "pull";
+    try {
+      const studyModule = await import("./study-manager.js");
+      studyModule.renderStudyManager?.();
+    } catch {}
+    rerender();
+    setAppStateSyncStatus(`同じGoogleアカウントの保存データをこの端末へ同期しました。${getSyncStatusTail()}`, "ok");
+    if (!silent) notifyStatus("クラウドのタスク・予定・学習データをこの端末へ同期しました。", "ok");
+    return normalized;
+  } finally {
+    setTimeout(() => {
+      suppressAutoAppStatePush = false;
+    }, 0);
+  }
+}
+
+async function pushLocalAppState({ silent = false } = {}) {
+  if (!googleState.connected) {
+    if (!silent) setAppStateSyncStatus("Googleで接続すると、同じアカウント間でタスクや予定を同期できます。", "warn");
+    return null;
+  }
+
+  const updatedAt = getLocalStateUpdatedAt() || new Date().toISOString();
+  const payload = {
+    updatedAt,
+    state: serializePersistableState()
+  };
+
+  const result = await putRemoteAppState(payload);
+  const syncedAt = result?.updatedAt || updatedAt;
+  googleState.appStateSync.remoteUpdatedAt = syncedAt;
+  googleState.appStateSync.lastSyncedAt = new Date().toISOString();
+  googleState.appStateSync.mode = "push";
+  setLocalStateUpdatedAt(syncedAt);
+  setAppStateSyncStatus(`この端末のデータをクラウドへ保存しました。${getSyncStatusTail()}`, "ok");
+  if (!silent) notifyStatus("この端末のタスク・予定・学習データをクラウドへ保存しました。", "ok");
+  return result;
+}
+
+export async function syncAppStateWithCloud({ silent = false, forcePull = false, forcePush = false } = {}) {
+  if (!googleState.connected) {
+    updateAppStateSyncButtons();
+    if (!silent) setAppStateSyncStatus("Googleで接続すると、同じアカウント間でタスクや予定を同期できます。", "");
+    return null;
+  }
+
+  try {
+    if (forcePush) {
+      return await pushLocalAppState({ silent });
+    }
+
+    const remote = await getRemoteAppState();
+    const remoteUpdatedAt = remote?.updatedAt || "";
+    const localUpdatedAt = getLocalStateUpdatedAt();
+    googleState.appStateSync.remoteUpdatedAt = remoteUpdatedAt;
+
+    if (forcePull) {
+      return await applyRemoteAppState(remote, { silent });
+    }
+
+    if (!remote?.state) {
+      if (localUpdatedAt) {
+        return await pushLocalAppState({ silent: true });
+      }
+      setAppStateSyncStatus("クラウド側に同期済みデータはまだありません。", "");
+      return remote;
+    }
+
+    if (!localUpdatedAt) {
+      return await applyRemoteAppState(remote, { silent: true });
+    }
+
+    if (remoteUpdatedAt && remoteUpdatedAt > localUpdatedAt) {
+      return await applyRemoteAppState(remote, { silent: true });
+    }
+
+    if (!remoteUpdatedAt || localUpdatedAt > remoteUpdatedAt) {
+      return await pushLocalAppState({ silent: true });
+    }
+
+    googleState.appStateSync.lastSyncedAt = new Date().toISOString();
+    googleState.appStateSync.mode = "same";
+    setAppStateSyncStatus(`同じGoogleアカウントの端末間データは最新です。${getSyncStatusTail()}`, "ok");
+    return remote;
+  } catch (error) {
+    if (!silent) {
+      setAppStateSyncStatus(`端末間同期に失敗しました: ${getErrorMessage(error)}`, "warn");
+      notifyStatus(`端末間同期に失敗しました: ${getErrorMessage(error)}`, "warn");
+    }
+    throw error;
+  } finally {
+    updateAppStateSyncButtons();
+  }
+}
+
 function isReconnectRequiredError(error) {
   return error?.status === 401 || error?.code === "GOOGLE_REAUTH_REQUIRED";
 }
@@ -72,6 +230,8 @@ function isReconnectRequiredError(error) {
 function handleReconnectRequired(error, fallbackMessage) {
   googleState.connected = false;
   clearGoogleCache();
+  updateAppStateSyncButtons();
+  setAppStateSyncStatus("Google の接続期限が切れました。再接続後に端末間同期が再開します。", "warn");
   rerender();
 
   const message =
@@ -83,12 +243,35 @@ function handleReconnectRequired(error, fallbackMessage) {
 }
 
 export async function initializeGoogleBackgroundSync() {
+  $("pullCloudAppStateBtn")?.addEventListener("click", async () => {
+    try {
+      await syncAppStateWithCloud({ forcePull: true, silent: false });
+    } catch {}
+  });
+  $("pushCloudAppStateBtn")?.addEventListener("click", async () => {
+    try {
+      await syncAppStateWithCloud({ forcePush: true, silent: false });
+    } catch {}
+  });
+
+  window.addEventListener("day-manager:state-saved", () => {
+    scheduleAppStatePush();
+  });
+
   await refreshGoogleStatus({ silent: false });
+  if (googleState.connected) {
+    try {
+      await syncAppStateWithCloud({ silent: true });
+    } catch {}
+  }
 
   document.addEventListener("visibilitychange", async () => {
     if (document.visibilityState === "visible" && googleState.connected) {
       await refreshGoogleStatus({ silent: true });
       await loadGoogleEventsForSelectedDate({ silent: true });
+      try {
+        await syncAppStateWithCloud({ silent: true });
+      } catch {}
     }
   });
 
@@ -96,6 +279,9 @@ export async function initializeGoogleBackgroundSync() {
     if (googleState.connected) {
       await refreshGoogleStatus({ silent: true });
       await loadGoogleEventsForSelectedDate({ silent: true });
+      try {
+        await syncAppStateWithCloud({ silent: true });
+      } catch {}
     }
   });
 }
@@ -119,8 +305,14 @@ export async function refreshGoogleStatus({ silent = false } = {}) {
         );
       } else {
         clearGoogleCache();
+        updateAppStateSyncButtons();
+        setAppStateSyncStatus("Googleで接続すると、同じアカウントでタスク・予定・学習データも同期できます。", "");
         notifyStatus("Googleで接続すると、この Worker が Google Calendar と同期します。");
       }
+    }
+    if (googleState.connected) {
+      updateAppStateSyncButtons();
+      setAppStateSyncStatus(`同じGoogleアカウントなら、タスク・予定・学習データも同期できます。${getSyncStatusTail()}`, "");
     }
     return data;
   } catch (error) {
@@ -130,6 +322,8 @@ export async function refreshGoogleStatus({ silent = false } = {}) {
     }
 
     googleState.connected = false;
+    updateAppStateSyncButtons();
+    setAppStateSyncStatus("Google状態の取得に失敗したため、端末間同期も停止しています。", "warn");
     rerender();
     if (!silent) notifyStatus(`Google状態の取得に失敗しました: ${getErrorMessage(error)}`, "warn");
     return null;
@@ -216,8 +410,10 @@ export async function onDisconnectGoogle() {
     await api("/api/google/disconnect", { method: "POST", body: "{}" });
     googleState.connected = false;
     clearGoogleCache();
+    updateAppStateSyncButtons();
+    setAppStateSyncStatus("接続解除中です。この端末のローカルデータは残ります。", "");
     rerender();
-    notifyStatus("Google との接続を解除しました。");
+    notifyStatus("Google との接続を解除しました。", "ok");
   } catch (error) {
     notifyStatus(`接続解除に失敗しました: ${getErrorMessage(error)}`, "warn");
   }
