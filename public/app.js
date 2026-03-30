@@ -1,6 +1,6 @@
 (() => {
-  const APP_VERSION = "v0.7.5";
-  const APP_RELEASE_NOTE = "最新更新: 端末間同期と起動安定性を改善";
+  const APP_VERSION = "v0.7.3";
+  const APP_RELEASE_NOTE = "最新更新: 起動エラーを修正";
 
   const QUICKSTART_DISMISSED_KEY = "day-manager-quickstart-dismissed-v1";
 
@@ -14,18 +14,16 @@
     mountShareGuide();
     mountQuickstartGuide();
 
-    const [utilsModule, timeModule, renderModule, actionsModule, googleModule, calendarModule, studyModule, onboardingModule] = await Promise.all([
-      import("./js/utils.js"),
-      import("./js/time.js"),
-      import("./js/render.js"),
-      import("./js/actions.js"),
-      import("./js/google-calendar.js"),
-      import("./js/calendar-ui.js"),
-      import("./js/study-manager.js"),
-      import("./js/onboarding.js")
-    ]);
+    const utilsModule = await importModule("utils.js", "./js/utils.js");
+    const timeModule = await importModule("time.js", "./js/time.js");
+    const renderModule = await importModule("render.js", "./js/render.js");
+    const actionsModule = await importModule("actions.js", "./js/actions.js");
+    const googleModule = await importModule("google-calendar.js", "./js/google-calendar.js");
+    const calendarModule = await importModule("calendar-ui.js", "./js/calendar-ui.js");
+    const studyModule = await importModule("study-manager.js", "./js/study-manager.js");
+    const onboardingModule = await importModule("onboarding.js", "./js/onboarding.js");
 
-    await import("./js/main-screen-layout.js");
+    await importModule("main-screen-layout.js", "./js/main-screen-layout.js");
 
     googleModule.configureGoogleUi({
       renderAll: renderModule.renderAll,
@@ -92,6 +90,16 @@
         renderModule.renderAutoPlan();
       }
     });
+  }
+
+  async function importModule(label, path) {
+    try {
+      return await import(path);
+    } catch (error) {
+      const nextError = error instanceof Error ? error : new Error(String(error));
+      nextError.message = `${label} の読み込みに失敗しました: ${nextError.message}`;
+      throw nextError;
+    }
   }
 
   function mountAppVersion() {

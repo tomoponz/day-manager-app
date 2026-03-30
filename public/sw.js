@@ -1,7 +1,11 @@
-const CACHE_NAME = "day-manager-cache-v26";
+const CACHE_NAME = "day-manager-cache-v20";
 const CORE_ASSETS = [
   "./",
   "./index.html",
+  "./manual-simple.html",
+  "./manual-detailed.html",
+  "./privacy.html",
+  "./terms.html",
   "./style.css",
   "./app.js",
   "./manifest.webmanifest",
