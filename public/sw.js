@@ -1,9 +1,7 @@
-const CACHE_NAME = "day-manager-cache-v20";
+const CACHE_NAME = "day-manager-cache-v28";
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./manual-simple.html",
-  "./manual-detailed.html",
   "./privacy.html",
   "./terms.html",
   "./style.css",
@@ -53,6 +51,12 @@ self.addEventListener("activate", (event) => {
   })());
 });
 
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
@@ -114,10 +118,3 @@ async function staleWhileRevalidate(request) {
 
   return cached || fetchPromise || Response.error();
 }
-
-
-self.addEventListener("message", (event) => {
-  if (event.data?.type === "SKIP_WAITING") {
-    self.skipWaiting();
-  }
-});

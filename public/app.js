@@ -1,29 +1,35 @@
 (() => {
-  const APP_VERSION = "v0.7.3";
-  const APP_RELEASE_NOTE = "最新更新: 起動エラーを修正";
-
-  const QUICKSTART_DISMISSED_KEY = "day-manager-quickstart-dismissed-v1";
+  const APP_VERSION = "v0.7.6";
+  const APP_RELEASE_NOTE = "最新更新: 起動エラー対策としてモジュール読込を安定化";
+  const MODULE_VERSION = APP_VERSION;
 
   bootstrap().catch((error) => {
     console.error("Day Manager bootstrap failed:", error);
     showBootstrapError(error);
   });
 
+  async function importModule(path, label) {
+    const url = `${path}?v=${encodeURIComponent(MODULE_VERSION)}`;
+    try {
+      return await import(url);
+    } catch (error) {
+      const reason = error?.message || String(error);
+      throw new Error(`${label} の読み込みに失敗しました: ${reason}`);
+    }
+  }
+
   async function bootstrap() {
     mountAppVersion();
-    mountShareGuide();
-    mountQuickstartGuide();
 
-    const utilsModule = await importModule("utils.js", "./js/utils.js");
-    const timeModule = await importModule("time.js", "./js/time.js");
-    const renderModule = await importModule("render.js", "./js/render.js");
-    const actionsModule = await importModule("actions.js", "./js/actions.js");
-    const googleModule = await importModule("google-calendar.js", "./js/google-calendar.js");
-    const calendarModule = await importModule("calendar-ui.js", "./js/calendar-ui.js");
-    const studyModule = await importModule("study-manager.js", "./js/study-manager.js");
-    const onboardingModule = await importModule("onboarding.js", "./js/onboarding.js");
-
-    await importModule("main-screen-layout.js", "./js/main-screen-layout.js");
+    const utilsModule = await importModule("./js/utils.js", "utils.js");
+    const timeModule = await importModule("./js/time.js", "time.js");
+    const renderModule = await importModule("./js/render.js", "render.js");
+    const actionsModule = await importModule("./js/actions.js", "actions.js");
+    const googleModule = await importModule("./js/google-calendar.js", "google-calendar.js");
+    const calendarModule = await importModule("./js/calendar-ui.js", "calendar-ui.js");
+    const studyModule = await importModule("./js/study-manager.js", "study-manager.js");
+    const onboardingModule = await importModule("./js/onboarding.js", "onboarding.js");
+    await importModule("./js/main-screen-layout.js", "main-screen-layout.js");
 
     googleModule.configureGoogleUi({
       renderAll: renderModule.renderAll,
@@ -79,7 +85,7 @@
     });
 
     registerServiceWorker();
-    await import("./js/ai-gemini-assist.js");
+    await importModule("./js/ai-gemini-assist.js", "ai-gemini-assist.js");
     await googleModule.initializeGoogleBackgroundSync();
 
     timeModule.startClock(() => {
@@ -92,16 +98,6 @@
     });
   }
 
-  async function importModule(label, path) {
-    try {
-      return await import(path);
-    } catch (error) {
-      const nextError = error instanceof Error ? error : new Error(String(error));
-      nextError.message = `${label} の読み込みに失敗しました: ${nextError.message}`;
-      throw nextError;
-    }
-  }
-
   function mountAppVersion() {
     document.documentElement.dataset.appVersion = APP_VERSION;
     const versionTargets = [
@@ -111,58 +107,13 @@
     versionTargets.forEach((node) => {
       if (node) node.textContent = APP_VERSION;
     });
+
     const releaseTargets = [
       document.getElementById("appReleaseNoteMount"),
       document.getElementById("appReleaseNoteText")
     ];
     releaseTargets.forEach((node) => {
       if (node) node.textContent = APP_RELEASE_NOTE;
-    });
-  }
-
-  function mountShareGuide() {
-    const shareUrl = `${window.location.origin}/`;
-    const shareText = document.getElementById("appShareUrlText");
-    if (shareText) shareText.textContent = shareUrl;
-
-    const copyButton = document.getElementById("copyAppShareUrlBtn");
-    copyButton?.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-      } catch {
-        const temp = document.createElement("input");
-        temp.value = shareUrl;
-        document.body.appendChild(temp);
-        temp.select();
-        document.execCommand("copy");
-        temp.remove();
-      }
-    });
-
-    const openButton = document.getElementById("openAppShareUrlBtn");
-    openButton?.addEventListener("click", () => {
-      window.open(shareUrl, "_blank", "noopener,noreferrer");
-    });
-  }
-
-  function mountQuickstartGuide() {
-    const guide = document.getElementById("quickstartGuide");
-    if (!guide) return;
-
-    const dismissed = localStorage.getItem(QUICKSTART_DISMISSED_KEY) === "1";
-    if (dismissed) {
-      guide.hidden = true;
-    }
-
-    document.getElementById("dismissQuickstartGuideBtn")?.addEventListener("click", () => {
-      guide.hidden = true;
-      localStorage.setItem(QUICKSTART_DISMISSED_KEY, "1");
-    });
-
-    document.getElementById("showQuickstartGuideBtn")?.addEventListener("click", () => {
-      guide.hidden = false;
-      localStorage.removeItem(QUICKSTART_DISMISSED_KEY);
-      guide.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }
 
@@ -176,7 +127,7 @@
       window.location.reload();
     });
 
-    navigator.serviceWorker.register("./sw.js").then((registration) => {
+    navigator.serviceWorker.register(`./sw.js?v=${encodeURIComponent(MODULE_VERSION)}`).then((registration) => {
       if (registration.waiting) {
         showAppUpdateBanner(registration);
       }
@@ -205,7 +156,7 @@
     banner.className = "app-update-banner";
     banner.innerHTML = `
       <div class="app-update-banner__text">
-        <strong>${APP_VERSION}</strong> より新しい更新があります。${APP_RELEASE_NOTE}。表示が古いときは、このまま更新して最新のJS/CSSへ切り替えてください。
+        <strong>${APP_VERSION}</strong> より新しい更新があります。表示が古いときは、このまま更新して最新のJS/CSSへ切り替えてください。
       </div>
       <div class="app-update-banner__actions">
         <button type="button" class="primary">更新して再読込</button>
