@@ -1732,3 +1732,46 @@ body.workspace-chrome-compact .workspace-sidebar {
     padding-inline: 0.15rem;
   }
 }
+
+
+/* Hotfix: editor drawer action buttons must remain clickable */
+.planner-editor-shell__panel {
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+.planner-editor-shell__body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: calc(2.25rem + env(safe-area-inset-bottom, 0px));
+}
+
+.planner-editor-shell__body #taskForm .form-actions,
+.planner-editor-shell__body #eventForm .form-actions,
+.planner-editor-shell__body #fixedForm .form-actions {
+  position: static;
+  z-index: auto;
+  padding-top: 0.9rem;
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  background: transparent;
+  border-top: 0;
+  box-shadow: none;
+}
+
+.planner-editor-shell__body .form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: flex-start;
+}
+
+.planner-editor-shell__body .form-actions > button {
+  min-height: 44px;
+}
+
+@media (max-width: 980px) {
+  .planner-editor-shell__body {
+    padding-bottom: calc(2.7rem + env(safe-area-inset-bottom, 0px));
+  }
+}
