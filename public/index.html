@@ -6,7 +6,10 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <meta content="#111827" name="theme-color"/>
 <link href="manifest.webmanifest" rel="manifest"/>
-<link href="icons/icon-192.png" rel="icon"/>
+<link href="favicon.ico" rel="icon" sizes="any"/>
+<link href="favicon-32.png" rel="icon" type="image/png" sizes="32x32"/>
+<link href="favicon-16.png" rel="icon" type="image/png" sizes="16x16"/>
+<link href="apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180"/>
 <title>Day Manager</title>
 <link href="style.css" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js"></script>
@@ -24,7 +27,7 @@
 <span class="topbar__pill" id="topbarDateMount">--</span>
 <span class="topbar__pill" id="topbarClockMount">--:--</span>
 <span class="topbar__pill topbar__pill--version">Version <strong id="appVersionMount">--</strong></span>
-<span class="topbar__release-note" id="appReleaseNoteText">最新更新: 共有導線とマニュアルを含む最終調整版</span>
+<span class="topbar__release-note" id="appReleaseNoteText">最新更新: 初回ガイドの整理とスマホカレンダー表示を調整</span>
 </div>
 <button class="primary topbar__add" data-open-quick-add="true" type="button">＋追加</button>
 </header>
@@ -1024,7 +1027,6 @@
 <div>
 <h2>共有とログイン案内</h2>
 <p>友人に試してもらうときに必要な URL と、最初に伝えるべきことだけをまとめます。</p>
-<p class="micro-note">この段階は一般公開版ではなく、友人向けの試用版として配布する前提です。</p>
 </div>
 <span class="mode-chip">友人向け</span>
 </div>
@@ -1098,7 +1100,7 @@
 <footer class="app-footer-links">
   <div class="app-footer-links__row">
     <span class="app-footer-links__version">Version <strong id="appVersionText">--</strong></span>
-    <span class="app-footer-links__release" id="appReleaseNoteMount">最新更新: 共有導線とマニュアルを含む最終調整版</span>
+    <span class="app-footer-links__release" id="appReleaseNoteMount">最新更新: 初回ガイドの整理とスマホカレンダー表示を調整</span>
   </div>
   <div class="app-footer-links__row">
     <a class="subtle-link" href="./manual-simple.html" target="_blank" rel="noreferrer">簡易マニュアル</a>
