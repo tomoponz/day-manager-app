@@ -6,10 +6,7 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <meta content="#111827" name="theme-color"/>
 <link href="manifest.webmanifest" rel="manifest"/>
-<link href="favicon.ico" rel="icon" sizes="any"/>
-<link href="favicon-32.png" rel="icon" type="image/png" sizes="32x32"/>
-<link href="favicon-16.png" rel="icon" type="image/png" sizes="16x16"/>
-<link href="apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180"/>
+<link href="icons/icon-192.png" rel="icon"/>
 <title>Day Manager</title>
 <link href="style.css" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js"></script>
@@ -26,8 +23,6 @@
 <div class="topbar__status">
 <span class="topbar__pill" id="topbarDateMount">--</span>
 <span class="topbar__pill" id="topbarClockMount">--:--</span>
-<span class="topbar__pill topbar__pill--version">Version <strong id="appVersionMount">--</strong></span>
-<span class="topbar__release-note" id="appReleaseNoteText">最新更新: 初回ガイドの整理とスマホカレンダー表示を調整</span>
 </div>
 <button class="primary topbar__add" data-open-quick-add="true" type="button">＋追加</button>
 </header>
@@ -119,12 +114,13 @@
 <button aria-pressed="false" class="ghost" data-editor-target="event" type="button">単発予定</button>
 <button aria-pressed="false" class="ghost" data-editor-target="task" type="button">タスク</button>
 </div>
-<div class="planner-editor-shell__body" id="plannerEditorBody"><section class="card inner-card planner-editor-card" data-editor-card="fixed">
-<div class="card-header compact">
+<div class="planner-editor-shell__body" data-active-editor="fixed" id="plannerEditorBody"><section class="card inner-card planner-editor-card" data-editor-card="fixed">
+<div class="card-header compact list-header-actions">
 <div>
 <h2>固定予定</h2>
 <p>毎週くり返す授業・通学・食事など</p>
 </div>
+<button class="ghost compact-add-btn" data-open-editor-target="fixed" type="button">+ 追加</button>
 </div>
 <details class="subsection-fold" id="fixedFormPanel">
 <summary class="subsection-summary">固定予定を追加 / 編集</summary>
@@ -167,11 +163,12 @@
 </div>
 </details>
 </section><section class="card inner-card planner-editor-card" data-editor-card="event">
-<div class="card-header compact">
+<div class="card-header compact list-header-actions">
 <div>
 <h2>単発予定</h2>
 <p>その日だけの予定・締切・外出など</p>
 </div>
+<button class="ghost compact-add-btn" data-open-editor-target="event" type="button">+ 追加</button>
 </div>
 <details class="subsection-fold" id="eventFormPanel">
 <summary class="subsection-summary">単発予定を追加 / 編集</summary>
@@ -220,11 +217,12 @@
 </div>
 </details>
 </section><section class="card inner-card planner-editor-card" data-editor-card="task">
-<div class="card-header compact">
+<div class="card-header compact list-header-actions">
 <div>
 <h2>タスク</h2>
 <p>課題・復習・生活タスクなど。締切と見積時間を持たせます。</p>
 </div>
+<button class="ghost compact-add-btn" data-open-editor-target="task" type="button">+ 追加</button>
 </div>
 <details class="subsection-fold" id="taskFormPanel">
 <summary class="subsection-summary">タスクを追加 / 編集</summary>
@@ -381,30 +379,6 @@
 </label>
 </div>
 <p class="status-note" id="stateNote">人間は状態変化を報告し、アプリは現在地点を整理してAIに渡します。</p>
-<section class="quickstart-guide" id="quickstartGuide">
-<div class="quickstart-guide__header">
-<div>
-<h3>最初にやること</h3>
-<p>友人に触ってもらう段階では、全部を埋める必要はありません。まず 3 つだけ入れれば十分です。</p>
-</div>
-<div class="quickstart-guide__header-actions">
-<span class="mode-chip">初回ガイド</span>
-<button class="ghost quickstart-guide__dismiss" id="dismissQuickstartGuideBtn" type="button">閉じる</button>
-</div>
-</div>
-<ol class="quickstart-guide__steps">
-<li><strong>固定予定かタスクを 1 件追加</strong><span>今日の判断が空にならないように、授業・課題・生活タスクのどれかを先に 1 件入れます。</span></li>
-<li><strong>自習場所を登録</strong><span>大学図書館や県立図書館を入れると、今日使える場所を AI にも渡せます。</span></li>
-<li><strong>必要なら Google 連携</strong><span>予定を読みたいときだけ接続します。ローカル運用だけでも使えます。</span></li>
-</ol>
-<div class="quickstart-guide__actions">
-<button class="ghost" data-open-editor-target="fixed" type="button">固定予定を開く</button>
-<button class="ghost" data-open-editor-target="task" type="button">タスクを開く</button>
-<a class="ghost quickstart-guide__link" href="#appSettingsPanel">自習場所へ</a>
-<a class="ghost quickstart-guide__link" href="#assistToolsPanel">AI・連携へ</a>
-</div>
-<p class="micro-note quickstart-guide__note">Google ログインで警告が出る場合は、対象アカウントが test user に追加されているか確認してください。</p>
-</section>
 <div class="judgement-stack">
 <div class="judgement-grid judgement-grid-top">
 <article class="summary-box">
@@ -998,13 +972,6 @@
 <button class="ghost" id="openCampusPortalLinkBtn" type="button">大学ポータルを開く</button>
 </div>
 <p class="micro-note">URLを登録すると、別タブで即確認できます。科目ごとの manaba URL は科目フォーム側に登録します。</p>
-<section class="assist-manual-links" aria-label="マニュアル">
-  <a class="ghost assist-manual-links__item" href="./manual-simple.html" target="_blank" rel="noreferrer">簡易マニュアル</a>
-  <a class="ghost assist-manual-links__item" href="./manual-detailed.html" target="_blank" rel="noreferrer">詳細マニュアル</a>
-</section>
-<div class="settings-actions-row assist-manual-links__secondary">
-  <button class="ghost" id="showQuickstartGuideBtn" type="button">初回ガイドを再表示</button>
-</div>
 </section>
 <section class="card inner-card" id="promptAssistSection">
 <div class="card-header compact">
@@ -1022,31 +989,6 @@
                 <textarea id="promptOutput" placeholder="ここに生成されます" rows="18"></textarea>
 </label>
 </section>
-<section class="card inner-card" id="sharingGuideSection">
-<div class="card-header compact">
-<div>
-<h2>共有とログイン案内</h2>
-<p>友人に試してもらうときに必要な URL と、最初に伝えるべきことだけをまとめます。</p>
-</div>
-<span class="mode-chip">友人向け</span>
-</div>
-<div class="share-guide-box">
-<div class="share-guide-box__row">
-<span class="share-guide-box__label">共有URL</span>
-<code class="share-guide-box__url" id="appShareUrlText">--</code>
-</div>
-<div class="share-guide-box__actions">
-<button class="ghost" id="copyAppShareUrlBtn" type="button">URL をコピー</button>
-<button class="ghost" id="openAppShareUrlBtn" type="button">別タブで開く</button>
-</div>
-<ol class="share-guide-box__steps">
-<li>Google 連携を使う場合は、使ってもらう Gmail を <strong>test users</strong> に追加する</li>
-<li>相手には <strong>同じ Google アカウントでログインする</strong> よう伝える</li>
-<li>未確認アプリ警告が出る場合は、開発中アプリとして進めるケースがあることを事前に伝える</li>
-</ol>
-<p class="micro-note share-guide-box__note">Google 連携を使わず、ローカルの予定とタスクだけでも利用できます。まずは固定予定・タスク・自習場所の3つだけ入れれば十分です。</p>
-</div>
-</section>
 <section class="card inner-card" id="googleSettingsPanel">
 <div class="card-header compact settings-inline-header">
 <div>
@@ -1063,16 +1005,6 @@
 </div>
 <div class="calendar-status" id="googleStatusBox">Cloudflare Worker 側の secret が入っていれば、Googleで接続するだけで使えます。</div>
 <p class="calendar-note">資格情報の入力欄は出しません。接続に必要な値は <code>Cloudflare Worker secrets</code> と <code>cloudflare-worker/wrangler.toml</code> に設定します。</p>
-<p class="calendar-note">OAuth 同意画面用の公開ページ: <a class="subtle-link" href="./privacy.html" target="_blank" rel="noreferrer">プライバシーポリシー</a> / <a class="subtle-link" href="./terms.html" target="_blank" rel="noreferrer">利用規約</a></p>
-<div class="oauth-guidance-box">
-<strong>Google OAuth 公開前チェック</strong>
-<ul>
-<li>Google Cloud Console の OAuth 同意画面に、上の 2 ページの URL を登録する</li>
-<li>承認済みドメインと redirect URI を Cloudflare Worker の URL に合わせる</li>
-<li>公開前は test users に自分の Google アカウントを追加する</li>
-</ul>
-<p class="micro-note oauth-guidance-box__note">友人に試してもらう段階では、一般公開よりも test users 追加のほうが安全です。Calendar 権限は予定の読込・追加・更新のためだけに使います。</p>
-</div>
 <details class="subsection-fold" id="googleEventListPanel">
 <summary class="subsection-summary">対象日の Google 予定</summary>
 <div class="subsection-body">
@@ -1097,21 +1029,6 @@
 <div class="list-actions"></div>
 </article>
 </template>
-<footer class="app-footer-links">
-  <div class="app-footer-links__row">
-    <span class="app-footer-links__version">Version <strong id="appVersionText">--</strong></span>
-    <span class="app-footer-links__release" id="appReleaseNoteMount">最新更新: 初回ガイドの整理とスマホカレンダー表示を調整</span>
-  </div>
-  <div class="app-footer-links__row">
-    <a class="subtle-link" href="./manual-simple.html" target="_blank" rel="noreferrer">簡易マニュアル</a>
-    <span>・</span>
-    <a class="subtle-link" href="./manual-detailed.html" target="_blank" rel="noreferrer">詳細マニュアル</a>
-    <span>・</span>
-    <a class="subtle-link" href="./privacy.html" target="_blank" rel="noreferrer">プライバシーポリシー</a>
-    <span>・</span>
-    <a class="subtle-link" href="./terms.html" target="_blank" rel="noreferrer">利用規約</a>
-  </div>
-</footer>
 <script src="app.js"></script>
 <script src="./js/date-nav-ui.js" type="module"></script>
 </body>
