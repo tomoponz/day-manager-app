@@ -122,6 +122,7 @@ export function closeEditorDrawer() {
   if (shell) {
     shell.classList.remove('is-open');
     shell.setAttribute('aria-hidden', 'true');
+    delete shell.dataset.activeEditor;
   }
   document.body.classList.remove('editor-drawer-open');
   Object.values(EDITOR_DRAWER_CONFIG).forEach(({ panelId }) => setPanelOpen(panelId, false));
@@ -152,6 +153,7 @@ export function openEditorDrawer(editorKey, options = {}) {
   if (shell) {
     shell.classList.add('is-open');
     shell.setAttribute('aria-hidden', 'false');
+    shell.dataset.activeEditor = editorKey;
     document.body.classList.add('editor-drawer-open');
   }
 
