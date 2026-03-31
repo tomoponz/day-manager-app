@@ -52,7 +52,7 @@ export function openOnboarding(step = 1) {
   ensureShell();
   currentStep = clampStep(step);
   state.uiState.onboardingStep = currentStep;
-  saveState();
+  saveState({ markUpdated: false });
   syncControlsFromState();
   refreshGoogleStatus();
   renderStep();
@@ -65,7 +65,7 @@ function closeOnboarding({ complete = false } = {}) {
     state.uiState.onboardingCompleted = true;
   }
   state.uiState.onboardingStep = currentStep;
-  saveState();
+  saveState({ markUpdated: false });
   updateOnboardingStatusText();
   document.body.classList.remove("onboarding-open");
   document.getElementById("onboardingOverlay")?.classList.remove("is-open");

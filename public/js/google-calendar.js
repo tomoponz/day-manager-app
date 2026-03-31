@@ -1,5 +1,5 @@
 import { state, saveState, normalizeOneOffEvent, serializePersistableState, getLocalStateUpdatedAt, setLocalStateUpdatedAt } from "./state.js";
-import { normalizePersistedState, applyPersistedState } from "./recovery.js";
+import { normalizePersistedState, applyPersistedState, captureRecoverySnapshot } from "./recovery.js";
 import { $ } from "./utils.js";
 import { formatDateInput, formatTimeOnly } from "./time.js";
 import { confirmDialog, showToast } from "./ui-feedback.js";
@@ -58,37 +58,37 @@ function updateAppStateSyncButtons() {
   });
 }
 
-function hasMeaningfulAppStateData(snapshot) {
+function hasMeaningfulItems(value) {
+  return Array.isArray(value) && value.length > 0;
+}
+
+function hasMeaningfulObjectEntries(value) {
+  return value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0;
+}
+
+function hasMeaningfulAppStateSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== "object") return false;
+  return [
+    hasMeaningfulItems(snapshot.fixedSchedules),
+    hasMeaningfulItems(snapshot.oneOffEvents),
+    hasMeaningfulItems(snapshot.tasks),
+    hasMeaningfulItems(snapshot.studyLocations),
+    hasMeaningfulItems(snapshot.courses),
+    hasMeaningfulItems(snapshot.materials),
+    hasMeaningfulItems(snapshot.assessments),
+    hasMeaningfulItems(snapshot.milestones),
+    hasMeaningfulItems(snapshot.planningDrafts),
+    hasMeaningfulObjectEntries(snapshot.dayConditions),
+    hasMeaningfulObjectEntries(snapshot.weeklyPlans)
+  ].some(Boolean);
+}
 
-  const nonEmptyArrayKeys = [
-    "fixedSchedules",
-    "oneOffEvents",
-    "tasks",
-    "studyLocations",
-    "courses",
-    "materials",
-    "assessments",
-    "milestones",
-    "planningDrafts"
-  ];
-
-  if (nonEmptyArrayKeys.some((key) => Array.isArray(snapshot[key]) && snapshot[key].length > 0)) {
-    return true;
+function getLocalAppStateSnapshot() {
+  try {
+    return serializePersistableState();
+  } catch {
+    return null;
   }
-
-  if (snapshot.dayConditions && typeof snapshot.dayConditions === "object" && Object.keys(snapshot.dayConditions).length > 0) {
-    return true;
-  }
-
-  if (snapshot.weeklyPlans && typeof snapshot.weeklyPlans === "object") {
-    for (const value of Object.values(snapshot.weeklyPlans)) {
-      if (Array.isArray(value) && value.length > 0) return true;
-      if (value && typeof value === "object" && Object.keys(value).length > 0) return true;
-    }
-  }
-
-  return false;
 }
 
 function getSyncStatusTail() {
@@ -157,6 +157,9 @@ async function applyRemoteAppState(remote, { silent = false } = {}) {
   suppressAutoAppStatePush = true;
   try {
     const normalized = normalizePersistedState(remote.state);
+    if (hasMeaningfulAppStateSnapshot(getLocalAppStateSnapshot())) {
+      captureRecoverySnapshot("cloud-pull");
+    }
     applyPersistedState(normalized);
     setLocalStateUpdatedAt(remote.updatedAt || new Date().toISOString());
     googleState.appStateSync.remoteUpdatedAt = remote.updatedAt || "";
@@ -215,24 +218,34 @@ export async function syncAppStateWithCloud({ silent = false, forcePull = false,
     const remote = await getRemoteAppState();
     const remoteUpdatedAt = remote?.updatedAt || "";
     const localUpdatedAt = getLocalStateUpdatedAt();
-    const localSnapshot = serializePersistableState();
-    const localHasMeaningfulData = hasMeaningfulAppStateData(localSnapshot);
-    const remoteHasMeaningfulData = hasMeaningfulAppStateData(remote?.state);
     googleState.appStateSync.remoteUpdatedAt = remoteUpdatedAt;
 
     if (forcePull) {
       return await applyRemoteAppState(remote, { silent });
     }
 
-    if (!remote?.state || !remoteHasMeaningfulData) {
-      if (localHasMeaningfulData) {
+    const localSnapshot = getLocalAppStateSnapshot();
+    const remoteSnapshot = remote?.state || null;
+    const localHasMeaningfulData = hasMeaningfulAppStateSnapshot(localSnapshot);
+    const remoteHasMeaningfulData = hasMeaningfulAppStateSnapshot(remoteSnapshot);
+
+    if (!remote?.state) {
+      if (localHasMeaningfulData && localUpdatedAt) {
         return await pushLocalAppState({ silent: true });
       }
       setAppStateSyncStatus("クラウド側に同期済みデータはまだありません。", "");
       return remote;
     }
 
-    if (!localUpdatedAt || !localHasMeaningfulData) {
+    if (remoteHasMeaningfulData && !localHasMeaningfulData) {
+      return await applyRemoteAppState(remote, { silent: true });
+    }
+
+    if (localHasMeaningfulData && !remoteHasMeaningfulData) {
+      return await pushLocalAppState({ silent: true });
+    }
+
+    if (!localUpdatedAt) {
       return await applyRemoteAppState(remote, { silent: true });
     }
 
