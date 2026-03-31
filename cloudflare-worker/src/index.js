@@ -28,6 +28,12 @@ export default {
     if (url.pathname === "/api/google/status") {
       return handleGoogleStatus(request, env);
     }
+    if (url.pathname === "/api/app-state" && request.method === "GET") {
+      return handleGetAppState(request, env);
+    }
+    if (url.pathname === "/api/app-state" && request.method === "PUT") {
+      return handlePutAppState(request, env);
+    }
     if (url.pathname === "/api/google/disconnect" && request.method === "POST") {
       return handleGoogleDisconnect(request, env);
     }
@@ -69,7 +75,9 @@ async function handleGoogleStart(request, env) {
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("scope", GOOGLE_SCOPES.join(" "));
   authUrl.searchParams.set("access_type", "offline");
-  authUrl.searchParams.set("prompt", "consent");
+  if (url.searchParams.get("forceConsent") === "1") {
+    authUrl.searchParams.set("prompt", "consent");
+  }
   authUrl.searchParams.set("include_granted_scopes", "true");
   authUrl.searchParams.set("state", state);
 
@@ -165,6 +173,43 @@ async function handleGoogleStatus(request, env) {
     }
     throw error;
   }
+}
+
+async function handleGetAppState(request, env) {
+  const session = await requireSessionUser(request, env);
+  if (session.error) return session.error;
+
+  const data = await readAppState(env, session.userKey);
+  return json({
+    state: data?.state || null,
+    updatedAt: data?.updatedAt || ""
+  });
+}
+
+async function handlePutAppState(request, env) {
+  const session = await requireSessionUser(request, env);
+  if (session.error) return session.error;
+
+  const body = await request.json().catch(() => ({}));
+  const nextState = body?.state;
+  const updatedAt = String(body?.updatedAt || new Date().toISOString());
+
+  if (!nextState || typeof nextState !== "object" || Array.isArray(nextState)) {
+    return json({ error: "state が必要です。" }, 400);
+  }
+
+  const payload = {
+    updatedAt,
+    state: nextState
+  };
+
+  const serialized = JSON.stringify(payload);
+  if (serialized.length > 750_000) {
+    return json({ error: "同期データが大きすぎます。" }, 413);
+  }
+
+  await writeAppState(env, session.userKey, payload);
+  return json({ ok: true, updatedAt });
 }
 
 async function handleGoogleDisconnect(request, env) {
@@ -311,7 +356,8 @@ async function handleLocalEventUpsert(request, env) {
 
     if (!response.ok) {
       const err = await response.text();
-      return json({ error: `Google同期に失敗しました: ${err}` }, 500);
+      const status = response.status >= 400 && response.status < 500 ? response.status : 500;
+      return json({ error: `Google同期に失敗しました: ${err}` }, status);
     }
 
     const event = await response.json();
@@ -348,7 +394,8 @@ async function handleDeleteEvent(request, env) {
 
     if (!response.ok && response.status !== 404) {
       const err = await response.text();
-      return json({ error: `Google予定の削除に失敗しました: ${err}` }, 500);
+      const status = response.status >= 400 && response.status < 500 ? response.status : 500;
+      return json({ error: `Google予定の削除に失敗しました: ${err}` }, status);
     }
 
     user = await syncOneUser(env, session.userKey, user);
@@ -564,6 +611,15 @@ async function fetchGoogleUserInfo(accessToken) {
     throw new Error(`userinfo 取得失敗: ${err}`);
   }
   return response.json();
+}
+
+async function readAppState(env, userKey) {
+  const raw = await env.DM_STORE.get(`appstate:${userKey}`);
+  return raw ? JSON.parse(raw) : null;
+}
+
+async function writeAppState(env, userKey, payload) {
+  await env.DM_STORE.put(`appstate:${userKey}`, JSON.stringify(payload));
 }
 
 async function readUser(env, userKey) {
