@@ -58,6 +58,39 @@ function updateAppStateSyncButtons() {
   });
 }
 
+function hasMeaningfulAppStateData(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") return false;
+
+  const nonEmptyArrayKeys = [
+    "fixedSchedules",
+    "oneOffEvents",
+    "tasks",
+    "studyLocations",
+    "courses",
+    "materials",
+    "assessments",
+    "milestones",
+    "planningDrafts"
+  ];
+
+  if (nonEmptyArrayKeys.some((key) => Array.isArray(snapshot[key]) && snapshot[key].length > 0)) {
+    return true;
+  }
+
+  if (snapshot.dayConditions && typeof snapshot.dayConditions === "object" && Object.keys(snapshot.dayConditions).length > 0) {
+    return true;
+  }
+
+  if (snapshot.weeklyPlans && typeof snapshot.weeklyPlans === "object") {
+    for (const value of Object.values(snapshot.weeklyPlans)) {
+      if (Array.isArray(value) && value.length > 0) return true;
+      if (value && typeof value === "object" && Object.keys(value).length > 0) return true;
+    }
+  }
+
+  return false;
+}
+
 function getSyncStatusTail() {
   return googleState.appStateSync.lastSyncedAt
     ? ` / 最終同期: ${new Date(googleState.appStateSync.lastSyncedAt).toLocaleString("ja-JP")}`
@@ -182,21 +215,24 @@ export async function syncAppStateWithCloud({ silent = false, forcePull = false,
     const remote = await getRemoteAppState();
     const remoteUpdatedAt = remote?.updatedAt || "";
     const localUpdatedAt = getLocalStateUpdatedAt();
+    const localSnapshot = serializePersistableState();
+    const localHasMeaningfulData = hasMeaningfulAppStateData(localSnapshot);
+    const remoteHasMeaningfulData = hasMeaningfulAppStateData(remote?.state);
     googleState.appStateSync.remoteUpdatedAt = remoteUpdatedAt;
 
     if (forcePull) {
       return await applyRemoteAppState(remote, { silent });
     }
 
-    if (!remote?.state) {
-      if (localUpdatedAt) {
+    if (!remote?.state || !remoteHasMeaningfulData) {
+      if (localHasMeaningfulData) {
         return await pushLocalAppState({ silent: true });
       }
       setAppStateSyncStatus("クラウド側に同期済みデータはまだありません。", "");
       return remote;
     }
 
-    if (!localUpdatedAt) {
+    if (!localUpdatedAt || !localHasMeaningfulData) {
       return await applyRemoteAppState(remote, { silent: true });
     }
 
