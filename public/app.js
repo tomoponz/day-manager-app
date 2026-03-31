@@ -2,10 +2,18 @@
   const APP_VERSION = "v0.7.6";
   const APP_RELEASE_NOTE = "最新更新: 起動エラー対策としてモジュール読込を安定化";
   const MODULE_VERSION = APP_VERSION;
+  const FORCE_REFRESH_FLAG = "day-manager-force-refresh-once";
 
-  bootstrap().catch((error) => {
+  bootstrap().then(() => {
+    try {
+      sessionStorage.removeItem(FORCE_REFRESH_FLAG);
+    } catch {}
+  }).catch(async (error) => {
     console.error("Day Manager bootstrap failed:", error);
-    showBootstrapError(error);
+    const recovered = await tryRecoverFromStaleAssets(error);
+    if (!recovered) {
+      showBootstrapError(error);
+    }
   });
 
   async function importModule(path, label) {
@@ -117,6 +125,39 @@
     });
   }
 
+  async function tryRecoverFromStaleAssets(error) {
+    const message = formatBootstrapError(error);
+    const looksLikeStaleAssetIssue = /missing \) after argument list|Unexpected token|Unexpected identifier|読み込みに失敗/i.test(message);
+    if (!looksLikeStaleAssetIssue) return false;
+
+    try {
+      if (sessionStorage.getItem(FORCE_REFRESH_FLAG) === "1") {
+        return false;
+      }
+      sessionStorage.setItem(FORCE_REFRESH_FLAG, "1");
+    } catch {
+      return false;
+    }
+
+    await clearClientCaches();
+    const url = new URL(window.location.href);
+    url.searchParams.set("hard_reload", String(Date.now()));
+    window.location.replace(url.toString());
+    return true;
+  }
+
+  async function clearClientCaches() {
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister().catch(() => false)));
+    }
+
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key).catch(() => false)));
+    }
+  }
+
   function registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
 
@@ -191,9 +232,18 @@
     banner.innerHTML = `
       <strong>起動エラー</strong>
       <p class="bootstrap-error-banner__message">${escapeHtml(formatBootstrapError(error))}</p>
-      <button type="button" class="primary">再読み込み</button>
+      <div class="bootstrap-error-banner__actions">
+        <button type="button" class="primary" data-action="reload">再読み込み</button>
+        <button type="button" class="ghost" data-action="force-refresh">強制更新</button>
+      </div>
     `;
-    banner.querySelector("button")?.addEventListener("click", () => window.location.reload());
+    banner.querySelector('[data-action="reload"]')?.addEventListener("click", () => window.location.reload());
+    banner.querySelector('[data-action="force-refresh"]')?.addEventListener("click", async () => {
+      await clearClientCaches();
+      const url = new URL(window.location.href);
+      url.searchParams.set("hard_reload", String(Date.now()));
+      window.location.replace(url.toString());
+    });
     document.body.prepend(banner);
   }
 

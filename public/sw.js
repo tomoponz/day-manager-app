@@ -1,37 +1,13 @@
-const CACHE_NAME = "day-manager-cache-v28";
+const CACHE_NAME = "day-manager-cache-v29";
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./privacy.html",
   "./terms.html",
   "./style.css",
-  "./app.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
-  "./icons/icon-512.png",
-  "./js/actions.js",
-  "./js/ai-drafts.js",
-  "./js/ai-gemini-assist.js",
-  "./js/calendar-ui.js",
-  "./js/date-nav-ui.js",
-  "./js/google-calendar.js",
-  "./js/main-screen-layout.js",
-  "./js/onboarding.js",
-  "./js/planner.js",
-  "./js/prompt.js",
-  "./js/quick-add.js",
-  "./js/recovery.js",
-  "./js/render.js",
-  "./js/scheduling-rules.js",
-  "./js/state.js",
-  "./js/study-manager.js",
-  "./js/study-manager-shared.js",
-  "./js/study-manager-summary.js",
-  "./js/study-manager-editor.js",
-  "./js/time.js",
-  "./js/ui-feedback.js",
-  "./js/utils.js",
-  "./js/workspace-nav.js"
+  "./icons/icon-512.png"
 ];
 
 const STATIC_ASSET_PATTERN = /\.(?:css|js|mjs|png|svg|jpg|jpeg|webp|gif|ico|woff2?|ttf|otf|json|webmanifest)$/i;
