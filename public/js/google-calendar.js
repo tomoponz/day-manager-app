@@ -303,7 +303,8 @@ export async function initializeGoogleBackgroundSync() {
     } catch {}
   });
 
-  window.addEventListener("day-manager:state-saved", () => {
+  window.addEventListener("day-manager:state-saved", (event) => {
+    if (event?.detail?.syncCloud === false) return;
     scheduleAppStatePush();
   });
 
@@ -441,13 +442,6 @@ function enumerateDateKeys(startDate, endDate) {
   return values;
 }
 
-export async function onSaveGoogleConfig() {
-  notifyStatus("Cloudflare Workers 版ではブラウザ入力を使いません。Worker secrets を設定してください。", "warn");
-}
-
-export function onClearGoogleConfig() {
-  notifyStatus("Cloudflare Workers 版ではブラウザ入力を使いません。Worker secrets を設定してください。", "warn");
-}
 
 export function onConnectGoogle() {
   const returnTo = encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
@@ -685,6 +679,12 @@ export async function syncUpdatedLocalEventToGoogle(localEventId) {
 
 export function cacheGoogleEvent(event, dateStr) {
   const targetDate = dateStr || event.start?.date || event.start?.dateTime?.slice(0, 10);
+  if (!targetDate) return;
+
+  Object.keys(googleState.eventsByDate).forEach((dateKey) => {
+    googleState.eventsByDate[dateKey] = (googleState.eventsByDate[dateKey] || []).filter((item) => item.id !== event.id);
+  });
+
   const list = getCachedGoogleEvents(targetDate).filter((item) => item.id !== event.id);
   list.push(event);
   list.sort((a, b) => formatGoogleEventTime(a).localeCompare(formatGoogleEventTime(b)));

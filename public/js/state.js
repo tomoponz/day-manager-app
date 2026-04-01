@@ -1,5 +1,4 @@
 export const STORAGE_KEY = "day-manager-v1";
-export const GOOGLE_CONFIG_KEY = "day-manager-google-config-v1";
 export const APP_STATE_UPDATED_AT_KEY = "day-manager-app-state-updated-at-v1";
 export const STATE_SCHEMA_VERSION = 6;
 
@@ -100,9 +99,6 @@ export function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return structuredClone(INITIAL_STATE);
-    if (!getLocalStateUpdatedAt()) {
-      setLocalStateUpdatedAt(new Date().toISOString());
-    }
     const parsed = migrateParsedState(JSON.parse(raw));
     return {
       schemaVersion: STATE_SCHEMA_VERSION,
@@ -126,7 +122,7 @@ export function loadState() {
 }
 
 export function saveState(options = {}) {
-  const { markUpdated = true, dispatch = true } = options;
+  const { markUpdated = true, dispatch = true, syncCloud = true } = options;
   state.schemaVersion = STATE_SCHEMA_VERSION;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   if (markUpdated) {
@@ -134,7 +130,11 @@ export function saveState(options = {}) {
   }
   if (dispatch && typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("day-manager:state-saved", {
-      detail: { updatedAt: getLocalStateUpdatedAt() }
+      detail: {
+        updatedAt: getLocalStateUpdatedAt(),
+        markUpdated,
+        syncCloud
+      }
     }));
   }
 }
@@ -161,23 +161,6 @@ export function setLocalStateUpdatedAt(value = "") {
   } catch {}
 }
 
-export function loadGoogleConfig() {
-  try {
-    const raw = localStorage.getItem(GOOGLE_CONFIG_KEY);
-    if (!raw) return { clientId: "", apiKey: "" };
-    const parsed = JSON.parse(raw);
-    return {
-      clientId: parsed.clientId || "",
-      apiKey: parsed.apiKey || ""
-    };
-  } catch {
-    return { clientId: "", apiKey: "" };
-  }
-}
-
-export function saveGoogleConfig(config) {
-  localStorage.setItem(GOOGLE_CONFIG_KEY, JSON.stringify(config));
-}
 
 export function normalizeFixedSchedule(item) {
   return {

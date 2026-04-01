@@ -52,7 +52,7 @@ export function openOnboarding(step = 1) {
   ensureShell();
   currentStep = clampStep(step);
   state.uiState.onboardingStep = currentStep;
-  saveState({ markUpdated: false });
+  saveState({ markUpdated: false, dispatch: false, syncCloud: false });
   syncControlsFromState();
   refreshGoogleStatus();
   renderStep();
@@ -65,7 +65,7 @@ function closeOnboarding({ complete = false } = {}) {
     state.uiState.onboardingCompleted = true;
   }
   state.uiState.onboardingStep = currentStep;
-  saveState({ markUpdated: false });
+  saveState({ markUpdated: false, dispatch: false, syncCloud: false });
   updateOnboardingStatusText();
   document.body.classList.remove("onboarding-open");
   document.getElementById("onboardingOverlay")?.classList.remove("is-open");
@@ -142,7 +142,7 @@ function handleClick(event) {
   if (target.dataset.onboardingAction === "back") {
     currentStep = clampStep(currentStep - 1);
     state.uiState.onboardingStep = currentStep;
-    saveState();
+    saveState({ markUpdated: false, dispatch: false, syncCloud: false });
     renderStep();
     return;
   }
@@ -150,7 +150,7 @@ function handleClick(event) {
   if (target.dataset.onboardingAction === "next") {
     currentStep = clampStep(currentStep + 1);
     state.uiState.onboardingStep = currentStep;
-    saveState();
+    saveState({ markUpdated: false, dispatch: false, syncCloud: false });
     renderStep();
     return;
   }
