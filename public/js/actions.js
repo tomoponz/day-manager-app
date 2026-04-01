@@ -86,6 +86,19 @@ function updateEditorDrawerHeader(editorKey) {
   });
 }
 
+function updateEditorDrawerCards(editorKey = '') {
+  const body = $('plannerEditorBody');
+  if (body) {
+    if (editorKey) body.setAttribute('data-active-editor', editorKey);
+    else body.removeAttribute('data-active-editor');
+  }
+  document.querySelectorAll('[data-editor-card]').forEach((card) => {
+    const active = !!editorKey && card.getAttribute('data-editor-card') === editorKey;
+    card.classList.toggle('is-active', active);
+    card.setAttribute('aria-hidden', String(!active));
+  });
+}
+
 function bindEditorDrawerUi() {
   if (editorDrawerBound) return;
   editorDrawerBound = true;
@@ -141,6 +154,7 @@ export function closeEditorDrawer() {
   }
   document.body.classList.remove('editor-drawer-open');
   Object.values(EDITOR_DRAWER_CONFIG).forEach(({ panelId }) => setPanelOpen(panelId, false));
+  updateEditorDrawerCards('');
   if (lastEditorTrigger instanceof HTMLElement) {
     window.setTimeout(() => lastEditorTrigger?.focus?.(), 0);
   }
@@ -163,6 +177,7 @@ export function openEditorDrawer(editorKey, options = {}) {
   }
 
   updateEditorDrawerHeader(editorKey);
+  updateEditorDrawerCards(editorKey);
   Object.entries(EDITOR_DRAWER_CONFIG).forEach(([key, { panelId }]) => setPanelOpen(panelId, key === editorKey));
 
   if (shell) {
