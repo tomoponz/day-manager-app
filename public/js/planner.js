@@ -8,6 +8,16 @@ function currentContext(dateStr = $("selectedDate")?.value || formatDateInput(ne
   return getNowContext(dateStr, state.uiState?.plannerMode || "auto");
 }
 
+function isTaskCompletedOnDate(task, dateStr) {
+  return Boolean(task.repeatDaily && Array.isArray(task.completedDates) && task.completedDates.includes(dateStr));
+}
+
+function getEffectiveTaskStatus(task, dateStr) {
+  if (isTaskCompletedOnDate(task, dateStr)) return "完了";
+  if (task.repeatDaily && task.status === "完了") return "未着手";
+  return task.status || "未着手";
+}
+
 export function getSchedulesForDate(dateStr) {
   if (!dateStr) return [];
   const dateObj = new Date(`${dateStr}T00:00:00`);
@@ -66,7 +76,7 @@ export function getUpcomingTasks(dateStr, hours = 48, ctx = currentContext(dateS
   const end = new Date(start.getTime() + hours * 60 * 60 * 1000);
 
   return state.tasks
-    .filter((task) => task.status !== "完了" && task.deadlineDate)
+    .filter((task) => getEffectiveTaskStatus(task, dateStr) !== "完了" && task.deadlineDate)
     .filter((task) => !task.deferUntilDate || task.deferUntilDate <= dateStr)
     .filter((task) => {
       const taskDate = new Date(`${task.deadlineDate}T${task.deadlineTime || "23:59"}:00`);
@@ -77,7 +87,7 @@ export function getUpcomingTasks(dateStr, hours = 48, ctx = currentContext(dateS
 
 export function getPendingTasks(dateStr = $("selectedDate")?.value || formatDateInput(new Date()), ctx = currentContext(dateStr)) {
   return state.tasks.filter((task) => {
-    if (task.status === "完了") return false;
+    if (getEffectiveTaskStatus(task, dateStr) === "完了") return false;
     if (task.deferUntilDate && task.deferUntilDate > dateStr && ctx.effectiveMode !== "night") return false;
     return true;
   });
@@ -257,7 +267,7 @@ function computeRecoveryBreakBlocks(dateStr, schedules, ctx, rules, protectedBlo
 
 function computeFocusProtectionBlock(dateStr, schedules, ctx, rules, protectedBlocks) {
   if (!rules.protectFocusBlock) return null;
-  const pendingTasks = getPendingTasks(dateStr, ctx).filter((task) => task.status !== "完了");
+  const pendingTasks = getPendingTasks(dateStr, ctx).filter((task) => getEffectiveTaskStatus(task, dateStr) !== "完了");
   if (!pendingTasks.length) return null;
 
   const freeSlots = computeFreeSlots(schedules, ctx, { additionalBlocks: protectedBlocks });
@@ -440,7 +450,9 @@ export function scoreTask(task, referenceDate, slotMinutes, fatigue, ctx, dateSt
   let score = 0;
   score += ({ 必須: 60, できれば: 25, 後回し: -12 })[task.importance] ?? 0;
   score += ({ 高: 30, 中: 12, 低: 0 })[task.priority] ?? 0;
-  score += ({ 未着手: 8, 進行中: 16, 完了: -999 })[task.status] ?? 0;
+  const effectiveStatus = getEffectiveTaskStatus(task, dateStr);
+  score += ({ 未着手: 8, 進行中: 16, 完了: -999 })[effectiveStatus] ?? 0;
+  if (task.repeatDaily) score += 16;
   if (task.protectTimeBlock) score += 22;
 
   const estimate = Number(task.estimate) || 60;
@@ -465,7 +477,7 @@ export function scoreTask(task, referenceDate, slotMinutes, fatigue, ctx, dateSt
   if (ctx.effectiveMode === "morning" && estimate >= 60) score += 10;
   if (ctx.effectiveMode === "night" && estimate >= 90) score -= 18;
   if (ctx.effectiveMode === "night" && task.importance === "必須" && estimate <= 45) score += 10;
-  if (ctx.effectiveMode === "replan" && task.status === "進行中") score += 10;
+  if (ctx.effectiveMode === "replan" && effectiveStatus === "進行中") score += 10;
 
   return score;
 }

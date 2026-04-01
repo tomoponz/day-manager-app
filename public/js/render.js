@@ -59,14 +59,30 @@ export function configureRenderHandlers(nextHandlers = {}) {
 
 
 
-function sortTasksForDisplay(items = []) {
+function getTaskSelectedDate() {
+  return $("selectedDate")?.value || formatDateInput(new Date());
+}
+
+function isTaskCompletedOnDate(task, dateStr = getTaskSelectedDate()) {
+  return Boolean(task.repeatDaily && Array.isArray(task.completedDates) && task.completedDates.includes(dateStr));
+}
+
+function getTaskEffectiveStatus(task, dateStr = getTaskSelectedDate()) {
+  if (isTaskCompletedOnDate(task, dateStr)) return "完了";
+  if (task.repeatDaily && task.status === "完了") return "未着手";
+  return task.status || "未着手";
+}
+
+function sortTasksForDisplay(items = [], dateStr = getTaskSelectedDate()) {
   const priorityOrder = { 高: 0, 中: 1, 低: 2 };
   const statusRank = { 未着手: 0, 進行中: 1, 完了: 2 };
   const importanceRank = { 必須: 0, できれば: 1, 後回し: 2 };
 
   return [...items].sort((a, b) => {
-    if (statusRank[a.status] !== statusRank[b.status]) {
-      return statusRank[a.status] - statusRank[b.status];
+    const statusA = getTaskEffectiveStatus(a, dateStr);
+    const statusB = getTaskEffectiveStatus(b, dateStr);
+    if (statusRank[statusA] !== statusRank[statusB]) {
+      return statusRank[statusA] - statusRank[statusB];
     }
     if (importanceRank[a.importance] !== importanceRank[b.importance]) {
       return importanceRank[a.importance] - importanceRank[b.importance];
@@ -280,7 +296,8 @@ export function renderTasks() {
   const wrap = $("taskList");
   wrap.innerHTML = "";
 
-  const items = sortTasksForDisplay(state.tasks);
+  const selectedDate = getTaskSelectedDate();
+  const items = sortTasksForDisplay(state.tasks, selectedDate);
 
   if (!items.length) {
     renderEmptyState(wrap, {
@@ -305,18 +322,20 @@ export function renderTasks() {
       const option = document.createElement("option");
       option.value = status;
       option.textContent = status;
-      if (status === item.status) option.selected = true;
+      if (status === getTaskEffectiveStatus(item, selectedDate)) option.selected = true;
       statusSelect.appendChild(option);
     });
 
     statusSelect.addEventListener("change", () => handlers.onQuickSetTaskStatus?.(item.id, statusSelect.value));
     actions.push(statusSelect);
 
-    if (item.status !== "進行中") {
+    const effectiveStatus = getTaskEffectiveStatus(item, selectedDate);
+
+    if (effectiveStatus !== "進行中") {
       actions.push(makeActionButton("着手", () => handlers.onQuickSetTaskStatus?.(item.id, "進行中")));
     }
-    if (item.status !== "完了") {
-      actions.push(makeActionButton("完了", () => handlers.onQuickSetTaskStatus?.(item.id, "完了")));
+    if (effectiveStatus !== "完了") {
+      actions.push(makeActionButton(item.repeatDaily ? "今日完了" : "完了", () => handlers.onQuickSetTaskStatus?.(item.id, "完了")));
     }
 
     actions.push(makeActionButton("明日", () => handlers.onDeferTaskToTomorrow?.(item.id)));
@@ -325,7 +344,9 @@ export function renderTasks() {
 
     const deadlineText = item.deadlineDate
       ? `${item.deadlineDate}${item.deadlineTime ? ` ${item.deadlineTime}` : ""}`
-      : "締切未設定";
+      : item.repeatDaily
+        ? "毎日継続"
+        : "締切未設定";
 
     const itemClasses = ["task-item"];
     let deadlineVariant = "";
@@ -334,12 +355,12 @@ export function renderTasks() {
     else if (item.priority === "中") itemClasses.push("priority-medium");
     else itemClasses.push("priority-low");
 
-    if (item.status === "完了") itemClasses.push("is-completed");
+    if (effectiveStatus === "完了") itemClasses.push("is-completed");
 
     if (item.deadlineDate) {
       const overdue =
         item.deadlineDate < today ||
-        (item.deadlineDate === today && item.deadlineTime && item.deadlineTime < currentTime && item.status !== "完了");
+        (item.deadlineDate === today && item.deadlineTime && item.deadlineTime < currentTime && effectiveStatus !== "完了");
       const dueSoon = item.deadlineDate === today || item.deadlineDate < today;
 
       if (overdue) {
@@ -353,6 +374,7 @@ export function renderTasks() {
 
     const detailParts = [];
     if (item.category) detailParts.push(`分類: ${item.category}`);
+    if (item.repeatDaily) detailParts.push('毎日継続');
     if (item.deferUntilDate) detailParts.push(`保留: ${item.deferUntilDate}`);
     if (item.note) detailParts.push(item.note);
 
@@ -366,11 +388,12 @@ export function renderTasks() {
             item.priority === "高" ? "danger" : item.priority === "中" ? "warn" : "blue"
           ),
           makeBadge(
-            `状態:${item.status}`,
-            item.status === "完了" ? "ok" : item.status === "進行中" ? "warn" : ""
+            `状態:${effectiveStatus}`,
+            effectiveStatus === "完了" ? "ok" : effectiveStatus === "進行中" ? "warn" : ""
           ),
           makeBadge(`締切:${deadlineText}`, deadlineVariant),
           makeBadge(`見積:${item.estimate || "?"}分`),
+          ...(item.repeatDaily ? [makeBadge("毎日", "blue")] : []),
           ...(item.protectTimeBlock ? [makeBadge("保護", "ok")] : [])
         ],
         detail: detailParts.join(" / "),
@@ -681,6 +704,7 @@ function renderEmptyState(
 
 function createTodayActionCard(task, score, slotMinutes, selectedDate) {
   const card = document.createElement("article");
+  const effectiveStatus = getTaskEffectiveStatus(task, selectedDate);
   card.className = "today-action-card";
 
   const head = document.createElement("div");
@@ -703,10 +727,11 @@ function createTodayActionCard(task, score, slotMinutes, selectedDate) {
   const meta = document.createElement("div");
   meta.className = "today-action-card__meta";
   [
-    createActionMetaBadge(`状態:${task.status}`, task.status === "完了" ? "ok" : task.status === "進行中" ? "warn" : ""),
+    createActionMetaBadge(`状態:${effectiveStatus}`, effectiveStatus === "完了" ? "ok" : effectiveStatus === "進行中" ? "warn" : ""),
     createActionMetaBadge(`重要度:${task.importance}`, task.importance === "必須" ? "warn" : ""),
     createActionMetaBadge(`優先度:${task.priority}`, task.priority === "高" ? "danger" : task.priority === "中" ? "warn" : "blue"),
     createActionMetaBadge(`見積:${task.estimate || "?"}分`, "blue"),
+    task.repeatDaily ? createActionMetaBadge("毎日", "blue") : null,
     task.deadlineDate ? createActionMetaBadge(`締切:${formatTaskDeadline(task)}`, getDeadlineVariant(task, selectedDate)) : null,
     task.protectTimeBlock ? createActionMetaBadge("保護", "ok") : null
   ].filter(Boolean).forEach((badge) => meta.appendChild(badge));
@@ -717,8 +742,8 @@ function createTodayActionCard(task, score, slotMinutes, selectedDate) {
 
   const actions = document.createElement("div");
   actions.className = "today-action-card__actions";
-  if (task.status !== "進行中") actions.appendChild(makeActionButton("着手", () => handlers.onQuickSetTaskStatus?.(task.id, "進行中")));
-  if (task.status !== "完了") actions.appendChild(makeActionButton("完了", () => handlers.onQuickSetTaskStatus?.(task.id, "完了")));
+  if (effectiveStatus !== "進行中") actions.appendChild(makeActionButton("着手", () => handlers.onQuickSetTaskStatus?.(task.id, "進行中")));
+  if (effectiveStatus !== "完了") actions.appendChild(makeActionButton(task.repeatDaily ? "今日完了" : "完了", () => handlers.onQuickSetTaskStatus?.(task.id, "完了")));
   actions.appendChild(makeActionButton("明日", () => handlers.onDeferTaskToTomorrow?.(task.id)));
   actions.appendChild(makeActionButton("編集", () => handlers.onEditTask?.(task.id)));
 
@@ -741,7 +766,7 @@ function formatTaskDeadline(task) {
 }
 
 function getDeadlineVariant(task, selectedDate) {
-  if (!task.deadlineDate || task.status === "完了") return "";
+  if (!task.deadlineDate || getTaskEffectiveStatus(task, selectedDate) === "完了") return "";
   if (task.deadlineDate < selectedDate) return "danger";
   if (task.deadlineDate === selectedDate) return "warn";
   return "";
@@ -754,7 +779,8 @@ function buildActionReason(task, slotMinutes, selectedDate) {
     else if (task.deadlineDate === selectedDate) reasons.push("今日が締切です");
     else reasons.push(`直近の締切は ${formatTaskDeadline(task)} です`);
   }
-  if (task.status === "進行中") reasons.push("すでに進行中なので、そのまま終わらせる候補です");
+  if (task.repeatDaily) reasons.push(`毎日継続したいタスクです${task.estimate ? `（目安 ${task.estimate}分）` : ""}`);
+  if (getTaskEffectiveStatus(task, selectedDate) === "進行中") reasons.push("すでに進行中なので、そのまま終わらせる候補です");
   if (task.protectTimeBlock) reasons.push("守るべき時間ブロックとして扱っています");
   if ((Number(task.estimate) || 60) <= slotMinutes) reasons.push(`いま見えている空き時間 ${slotMinutes}分 に収まりやすい見積です`);
   if (!reasons.length) reasons.push("重要度・優先度・空き時間のバランスから上位に来ています");

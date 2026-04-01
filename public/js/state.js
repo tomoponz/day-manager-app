@@ -93,6 +93,11 @@ function normalizeOnboardingStep(value) {
   return Math.min(3, Math.max(1, number));
 }
 
+function normalizeDateStringArray(values) {
+  if (!Array.isArray(values)) return [];
+  return [...new Set(values.filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim())).map((value) => String(value).trim()))];
+}
+
 export const state = loadState();
 
 export function loadState() {
@@ -200,7 +205,9 @@ export function normalizeTask(item) {
     note: item.note || "",
     status: item.status || "未着手",
     deferUntilDate: item.deferUntilDate || "",
-    protectTimeBlock: Boolean(item.protectTimeBlock)
+    protectTimeBlock: Boolean(item.protectTimeBlock),
+    repeatDaily: Boolean(item.repeatDaily),
+    completedDates: normalizeDateStringArray(item.completedDates)
   };
 }
 

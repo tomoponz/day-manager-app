@@ -31,6 +31,21 @@ function on(id, event, handler) {
   $(id)?.addEventListener(event, handler);
 }
 
+function getSelectedTaskDate() {
+  return $('selectedDate')?.value || formatDateInput(new Date());
+}
+
+function hasTaskCompletedOnDate(task, dateStr = getSelectedTaskDate()) {
+  return Boolean(task.repeatDaily && Array.isArray(task.completedDates) && task.completedDates.includes(dateStr));
+}
+
+function setTaskCompletionForDate(task, dateStr, completed) {
+  const dates = Array.isArray(task.completedDates) ? task.completedDates.filter(Boolean) : [];
+  const next = dates.filter((value) => value !== dateStr);
+  if (completed) next.push(dateStr);
+  task.completedDates = [...new Set(next)].sort();
+}
+
 export function setToday() {
   const today = formatDateInput(new Date());
   if ($('selectedDate')) $('selectedDate').value = today;
@@ -509,7 +524,8 @@ export function onSubmitTask(e) {
     note: String(fd.get('note')).trim(),
     status: String(fd.get('status') || '未着手'),
     deferUntilDate: String(fd.get('deferUntilDate') || ''),
-    protectTimeBlock: Boolean(fd.get('protectTimeBlock'))
+    protectTimeBlock: Boolean(fd.get('protectTimeBlock')),
+    repeatDaily: Boolean(fd.get('repeatDaily'))
   });
   if (!payload.title) {
     showToast('タスク名を入力してください。', { variant: 'warn' });
@@ -656,6 +672,7 @@ export function resetTaskForm() {
   form.elements.status.value = '未着手';
   form.elements.deferUntilDate.value = '';
   form.elements.protectTimeBlock.checked = false;
+  if (form.elements.repeatDaily) form.elements.repeatDaily.checked = false;
   if ($('taskSubmitBtn')) $('taskSubmitBtn').textContent = 'タスクを追加';
   if ($('taskCancelBtn')) $('taskCancelBtn').hidden = true;
   closeEditorDrawer();
@@ -778,6 +795,24 @@ export async function syncUpdatedEvent(id) { await syncUpdatedLocalEventToGoogle
 export function quickSetTaskStatus(id, status) {
   const item = state.tasks.find((entry) => entry.id === id);
   if (!item) return;
+  if (item.repeatDaily) {
+    const selectedDate = getSelectedTaskDate();
+    if (status === '完了') {
+      setTaskCompletionForDate(item, selectedDate, true);
+      item.status = '未着手';
+      item.deferUntilDate = '';
+      saveState();
+      renderAll();
+      showToast('今日の継続タスクを完了にしました。', { variant: 'ok', duration: 1800 });
+      return;
+    }
+    setTaskCompletionForDate(item, selectedDate, false);
+    item.status = status === '進行中' ? '進行中' : '未着手';
+    saveState();
+    renderAll();
+    showToast(`継続タスク状態を「${status}」に変更しました。`, { variant: 'ok', duration: 1800 });
+    return;
+  }
   item.status = status;
   if (status === '完了') item.deferUntilDate = '';
   saveState();
@@ -813,6 +848,7 @@ export function populateTaskForm(id) {
   form.elements.deferUntilDate.value = item.deferUntilDate;
   form.elements.note.value = item.note;
   form.elements.protectTimeBlock.checked = Boolean(item.protectTimeBlock);
+  if (form.elements.repeatDaily) form.elements.repeatDaily.checked = Boolean(item.repeatDaily);
   if ($('taskSubmitBtn')) $('taskSubmitBtn').textContent = 'タスクを更新';
   if ($('taskCancelBtn')) $('taskCancelBtn').hidden = false;
   focusFormPanel('taskFormPanel', form, "input[name='title']");
