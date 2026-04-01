@@ -192,14 +192,14 @@ async function handlePutAppState(request, env) {
 
   const body = await request.json().catch(() => ({}));
   const nextState = body?.state;
-  const updatedAt = String(body?.updatedAt || new Date().toISOString());
+  const serverUpdatedAt = new Date().toISOString();
 
   if (!nextState || typeof nextState !== "object" || Array.isArray(nextState)) {
     return json({ error: "state が必要です。" }, 400);
   }
 
   const payload = {
-    updatedAt,
+    updatedAt: serverUpdatedAt,
     state: nextState
   };
 
@@ -209,7 +209,7 @@ async function handlePutAppState(request, env) {
   }
 
   await writeAppState(env, session.userKey, payload);
-  return json({ ok: true, updatedAt });
+  return json({ ok: true, updatedAt: serverUpdatedAt });
 }
 
 async function handleGoogleDisconnect(request, env) {
@@ -438,8 +438,9 @@ async function syncOneUser(env, userKey, user) {
   user = await ensureFreshAccessToken(env, userKey, user);
 
   const today = getTodayDateInAppTimeZone();
+  const lookaheadDays = Math.max(0, Number(env.SYNC_LOOKAHEAD_DAYS || 30));
   const { timeMin } = buildDateRangeForGoogleApi(today);
-  const max = new Date(Date.now() + Number(env.SYNC_LOOKAHEAD_DAYS || 30) * 24 * 60 * 60 * 1000);
+  const max = new Date(Date.now() + lookaheadDays * 24 * 60 * 60 * 1000);
 
   const items = await fetchEventsList(user, {
     timeMin,
@@ -447,6 +448,10 @@ async function syncOneUser(env, userKey, user) {
   });
 
   const cacheByDate = {};
+  for (let offset = 0; offset <= lookaheadDays; offset += 1) {
+    cacheByDate[shiftDateString(today, offset)] = [];
+  }
+
   for (const event of items) {
     const dateKey = event.start?.date || event.start?.dateTime?.slice(0, 10);
     if (!dateKey) continue;
@@ -458,10 +463,14 @@ async function syncOneUser(env, userKey, user) {
     cacheByDate[dateKey].sort((a, b) => eventSortKey(a).localeCompare(eventSortKey(b)));
   }
 
+  const preservedPastCache = Object.fromEntries(
+    Object.entries(user.cacheByDate || {}).filter(([dateKey]) => /^\d{4}-\d{2}-\d{2}$/.test(dateKey) && dateKey < today)
+  );
+
   const nextUser = {
     ...user,
     cacheByDate: {
-      ...(user.cacheByDate || {}),
+      ...preservedPastCache,
       ...cacheByDate
     },
     lastBackgroundSyncAt: new Date().toISOString()
