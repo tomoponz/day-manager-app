@@ -98,8 +98,8 @@ export function initializeCalendarUi() {
     },
     select(info) {
       setSelectedDateFromCalendar(info.startStr.slice(0, 10));
-      seedEventFormFromSelection(info);
       calendarHandlers.openEventFormForCreate?.();
+      seedEventFormFromSelection(info);
       showToast("単発予定フォームに時間帯を入れました。", { variant: "ok", duration: 1800 });
       calendar.unselect();
     },

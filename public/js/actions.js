@@ -14,8 +14,7 @@ import {
   onConnectGoogle,
   onDisconnectGoogle,
   loadGoogleEventsForSelectedDate,
-  importGoogleEventsToLocal,
-  getErrorMessage
+  importGoogleEventsToLocal
 } from './google-calendar.js';
 import { generatePrompt, copyPrompt } from './prompt.js';
 import { parseQuickAddInput } from './quick-add.js';
@@ -94,7 +93,23 @@ function bindEditorDrawerUi() {
   document.querySelectorAll('[data-open-editor-target]').forEach((button) => {
     button.addEventListener('click', () => {
       const editorKey = button.getAttribute('data-open-editor-target');
-      if (editorKey) openEditorDrawer(editorKey, { returnFocusEl: button });
+      if (!editorKey) return;
+      if (editorKey === 'fixed') {
+        openFixedFormForCreate();
+        lastEditorTrigger = button;
+        return;
+      }
+      if (editorKey === 'event') {
+        openEventFormForCreate();
+        lastEditorTrigger = button;
+        return;
+      }
+      if (editorKey === 'task') {
+        openTaskFormForCreate();
+        lastEditorTrigger = button;
+        return;
+      }
+      openEditorDrawer(editorKey, { returnFocusEl: button });
     });
   });
 
@@ -421,8 +436,6 @@ export async function onSubmitOneOffEvent(e) {
   }
   const shouldSyncToGoogle = Boolean(fd.get('syncToGoogle'));
   let target = editingId ? state.oneOffEvents.find((item) => item.id === editingId) : null;
-  let syncWarning = '';
-
   if (target) {
     Object.assign(target, payload);
     if (target.googleEventId) {
@@ -430,30 +443,24 @@ export async function onSubmitOneOffEvent(e) {
         try {
           await upsertGoogleEventFromLocal(target);
           target.googleSyncStatus = 'synced';
-        } catch (error) {
+        } catch {
           target.googleSyncStatus = 'outdated';
-          syncWarning = `Google Calendar の更新に失敗しました: ${getErrorMessage(error)}`;
         }
       } else {
         target.googleSyncStatus = 'outdated';
       }
     } else if (shouldSyncToGoogle && hasValidGoogleToken()) {
-      const result = await tryCreateGoogleForLocalEvent(target, { silent: true });
-      if (!result.ok) syncWarning = `Google Calendar への追加に失敗しました: ${getErrorMessage(result.error)}`;
+      await tryCreateGoogleForLocalEvent(target);
     } else if (shouldSyncToGoogle) {
       target.googleSyncStatus = 'pending';
     }
-    showToast(syncWarning || '単発予定を更新しました。', { variant: syncWarning ? 'warn' : 'ok', duration: syncWarning ? 4500 : 2200 });
+    showToast('単発予定を更新しました。', { variant: 'ok', duration: 2200 });
   } else {
     target = payload;
-    if (shouldSyncToGoogle && hasValidGoogleToken()) {
-      const result = await tryCreateGoogleForLocalEvent(target, { silent: true });
-      if (!result.ok) syncWarning = `Google Calendar への追加に失敗しました: ${getErrorMessage(result.error)}`;
-    } else if (shouldSyncToGoogle) {
-      target.googleSyncStatus = 'pending';
-    }
+    if (shouldSyncToGoogle && hasValidGoogleToken()) await tryCreateGoogleForLocalEvent(target);
+    else if (shouldSyncToGoogle) target.googleSyncStatus = 'pending';
     state.oneOffEvents.push(target);
-    showToast(syncWarning || '単発予定を追加しました。', { variant: syncWarning ? 'warn' : 'ok', duration: syncWarning ? 4500 : 2200 });
+    showToast('単発予定を追加しました。', { variant: 'ok', duration: 2200 });
   }
   saveState();
   resetEventForm();
@@ -461,21 +468,13 @@ export async function onSubmitOneOffEvent(e) {
   if (hasValidGoogleToken() && $('selectedDate')?.value === payload.date) await loadGoogleEventsForDate(payload.date, { silent: true });
 }
 
-async function tryCreateGoogleForLocalEvent(localEvent, { silent = false } = {}) {
+async function tryCreateGoogleForLocalEvent(localEvent) {
   try {
     const created = await upsertGoogleEventFromLocal(localEvent);
     localEvent.googleEventId = created.id;
     localEvent.googleSyncStatus = 'synced';
-    return { ok: true, event: created };
-  } catch (error) {
+  } catch {
     localEvent.googleSyncStatus = 'failed';
-    if (!silent) {
-      showToast(`Google Calendar への追加に失敗しました: ${getErrorMessage(error)}`, {
-        variant: 'warn',
-        duration: 4500
-      });
-    }
-    return { ok: false, error };
   }
 }
 
