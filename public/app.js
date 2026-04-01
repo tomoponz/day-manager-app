@@ -108,6 +108,7 @@
 
   function mountAppVersion() {
     document.documentElement.dataset.appVersion = APP_VERSION;
+    ensureAppVersionMounts();
     const versionTargets = [
       document.getElementById("appVersionMount"),
       document.getElementById("appVersionText")
@@ -123,6 +124,30 @@
     releaseTargets.forEach((node) => {
       if (node) node.textContent = APP_RELEASE_NOTE;
     });
+  }
+
+
+  function ensureAppVersionMounts() {
+    if (document.getElementById("appVersionMount") || document.getElementById("appVersionText")) return;
+    const topbarStatus = document.querySelector(".topbar__status");
+    if (!topbarStatus) return;
+
+    const versionPill = document.createElement("span");
+    versionPill.id = "appVersionMount";
+    versionPill.className = "topbar__pill topbar__pill--version";
+    versionPill.textContent = APP_VERSION;
+    topbarStatus.appendChild(versionPill);
+
+    if (document.getElementById("appReleaseNoteMount") || document.getElementById("appReleaseNoteText")) return;
+
+    const subline = document.querySelector(".topbar__brand .topbar__subline");
+    if (!subline) return;
+
+    const releaseNote = document.createElement("p");
+    releaseNote.id = "appReleaseNoteMount";
+    releaseNote.className = "topbar__subline topbar__subline--release";
+    releaseNote.textContent = APP_RELEASE_NOTE;
+    subline.insertAdjacentElement("afterend", releaseNote);
   }
 
   async function tryRecoverFromStaleAssets(error) {
