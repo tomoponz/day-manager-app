@@ -449,38 +449,46 @@
 <p class="calendar-note" id="autoPlanNote">空き時間とタスクから自動候補を生成します。体力が低い日は重いタスクの優先度を少し下げます。</p>
 </section>
 <section class="card workspace-section" data-workspace-section="primary" id="todayListSection">
-<div class="card-header">
+<div class="card-header execution-section-header">
 <div>
 <h2>実行</h2>
 <p>今日の一覧を見て、必要なものだけ触ります。</p>
 </div>
+<div class="execution-launch-row" role="toolbar" aria-label="追加入口">
+<button class="ghost execution-launch-btn" data-open-editor-target="fixed" type="button">＋固定予定</button>
+<button class="ghost execution-launch-btn" data-open-editor-target="event" type="button">＋単発予定</button>
+<button class="ghost execution-launch-btn" data-open-editor-target="task" type="button">＋タスク</button>
+</div>
 </div>
 <div class="grid two-col">
 <section class="card inner-card">
-<div class="card-header compact">
+<div class="card-header compact list-header-actions">
 <div>
 <h2>固定予定</h2>
 <p>毎週くり返す授業・通学・食事など</p>
 </div>
+<button class="ghost compact-add-btn compact-add-btn--prominent" data-open-editor-target="fixed" type="button">＋追加</button>
 </div>
 <div class="list-wrap empty" id="fixedList">まだありません</div>
 </section>
 <section class="card inner-card">
-<div class="card-header compact">
+<div class="card-header compact list-header-actions">
 <div>
 <h2>単発予定</h2>
 <p>その日だけの予定・締切・外出など</p>
 </div>
+<button class="ghost compact-add-btn compact-add-btn--prominent" data-open-editor-target="event" type="button">＋追加</button>
 </div>
 <div class="list-wrap empty" id="eventList">まだありません</div>
 </section>
 </div>
 <section class="card inner-card">
-<div class="card-header compact">
+<div class="card-header compact list-header-actions">
 <div>
 <h2>タスク</h2>
 <p>課題・復習・生活タスクなど。締切と見積時間を持たせます。</p>
 </div>
+<button class="ghost compact-add-btn compact-add-btn--prominent" data-open-editor-target="task" type="button">＋追加</button>
 </div>
 <div class="list-wrap empty" id="taskList">まだありません</div>
 </section>

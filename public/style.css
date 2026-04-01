@@ -1882,6 +1882,30 @@ body.editor-drawer-open {
   white-space: nowrap;
   box-shadow: none;
 }
+.execution-section-header {
+  align-items: flex-start;
+}
+
+.execution-launch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.execution-launch-btn {
+  white-space: nowrap;
+  box-shadow: none;
+  border-color: var(--line-strong);
+  background: var(--bg-2);
+}
+
+.compact-add-btn--prominent {
+  font-weight: 700;
+  border-color: var(--line-strong);
+  background: var(--bg-2);
+}
+
 
 .planner-editor-card .card-header {
   margin-bottom: 0.55rem;
@@ -1914,6 +1938,15 @@ body.editor-drawer-open {
 }
 
 @media (max-width: 1200px) {
+  .execution-section-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .execution-launch-row {
+    justify-content: flex-start;
+  }
+
   .list-header-actions {
     flex-direction: column;
     align-items: stretch;
