@@ -1903,6 +1903,33 @@ body.editor-drawer-open {
   background: var(--bg-2);
 }
 
+.execution-search-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: end;
+  margin: 0.85rem 0 1rem;
+}
+
+.execution-search-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.execution-search-field input {
+  width: 100%;
+}
+
+.execution-search-clear {
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+.execution-search-meta {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 .compact-add-btn--prominent {
   font-weight: 700;
   border-color: var(--line-strong);
@@ -1948,6 +1975,14 @@ body.editor-drawer-open {
 
   .execution-launch-row {
     justify-content: flex-start;
+  }
+
+  .execution-search-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .execution-search-clear {
+    justify-self: flex-start;
   }
 
   .list-header-actions {

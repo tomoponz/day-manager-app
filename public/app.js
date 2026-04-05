@@ -1,6 +1,6 @@
 (() => {
-  const APP_VERSION = "v0.8.2";
-  const APP_RELEASE_NOTE = "最新更新: actions/render 分割とワークスペース表示を追加";
+  const APP_VERSION = "v0.8.3";
+  const APP_RELEASE_NOTE = "最新更新: 実行一覧の検索・自動退避・同期ガードを追加";
   const MODULE_VERSION = APP_VERSION;
   const FORCE_REFRESH_FLAG = "day-manager-force-refresh-once";
 
@@ -38,6 +38,7 @@
       calendarModule,
       studyModule,
       onboardingModule,
+      recoveryModule,
       _layoutModule
     ] = await Promise.all([
       importModule("./js/utils.js", "utils.js"),
@@ -48,6 +49,7 @@
       importModule("./js/calendar-ui.js", "calendar-ui.js"),
       importModule("./js/study-manager.js", "study-manager.js"),
       importModule("./js/onboarding.js", "onboarding.js"),
+      importModule("./js/recovery.js", "recovery.js"),
       importModule("./js/main-screen-layout.js", "main-screen-layout.js")
     ]);
 
@@ -104,6 +106,7 @@
     calendarModule.initializeCalendarUi();
     studyModule.initializeStudyManager();
     renderModule.renderAll();
+    recoveryModule.initializeAutoRecovery?.();
     onboardingModule.initializeOnboarding({
       getGoogleConnected: () => Boolean(googleModule.googleState?.connected),
       onConnectGoogle: googleModule.onConnectGoogle,
