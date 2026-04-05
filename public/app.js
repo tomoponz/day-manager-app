@@ -1,6 +1,6 @@
 (() => {
-  const APP_VERSION = "v0.8.0";
-  const APP_RELEASE_NOTE = "最新更新: AI設定統合・計画日数可変・単発予定片付け・移動ルート管理を追加";
+  const APP_VERSION = "v0.8.1";
+  const APP_RELEASE_NOTE = "最新更新: Place参照・予定ライフサイクル・今日ハブ・AI命名整理を追加";
   const MODULE_VERSION = APP_VERSION;
   const FORCE_REFRESH_FLAG = "day-manager-force-refresh-once";
 

@@ -1991,3 +1991,11 @@ body.editor-drawer-open {
 .settings-actions-row {
   flex-wrap: wrap;
 }
+
+.today-hub-surface {
+  margin-bottom: 18px;
+}
+
+.today-hub-surface .summary-list {
+  min-height: 56px;
+}
