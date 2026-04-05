@@ -19,6 +19,9 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
+    const originError = validateMutationOrigin(request, env, url);
+    if (originError) return originError;
+
     if (url.pathname.startsWith("/auth/google/start")) {
       return handleGoogleStart(request, env);
     }
@@ -182,7 +185,8 @@ async function handleGetAppState(request, env) {
   const data = await readAppState(env, session.userKey);
   return json({
     state: data?.state || null,
-    updatedAt: data?.updatedAt || ""
+    updatedAt: data?.updatedAt || "",
+    revision: Number(data?.revision || 0)
   });
 }
 
@@ -192,14 +196,27 @@ async function handlePutAppState(request, env) {
 
   const body = await request.json().catch(() => ({}));
   const nextState = body?.state;
+  const current = await readAppState(env, session.userKey);
+  const currentRevision = Number(current?.revision || 0);
+  const requestedRevision = parseRequestedRevision(request, body, currentRevision);
   const serverUpdatedAt = new Date().toISOString();
 
   if (!nextState || typeof nextState !== "object" || Array.isArray(nextState)) {
     return json({ error: "state が必要です。" }, 400);
   }
 
+  if (requestedRevision !== currentRevision) {
+    return json({
+      error: "他の端末の更新が先に保存されました。最新状態を取得してから再試行してください。",
+      code: "APP_STATE_REVISION_CONFLICT",
+      updatedAt: current?.updatedAt || "",
+      revision: currentRevision
+    }, 409);
+  }
+
   const payload = {
     updatedAt: serverUpdatedAt,
+    revision: currentRevision + 1,
     state: nextState
   };
 
@@ -209,7 +226,33 @@ async function handlePutAppState(request, env) {
   }
 
   await writeAppState(env, session.userKey, payload);
-  return json({ ok: true, updatedAt: serverUpdatedAt });
+  return json({ ok: true, updatedAt: serverUpdatedAt, revision: payload.revision });
+}
+
+function validateMutationOrigin(request, env, url) {
+  if (!["PUT", "POST", "PATCH", "DELETE"].includes(request.method)) return null;
+  if (!url.pathname.startsWith("/api/")) return null;
+
+  const configured = String(env.ALLOWED_ORIGINS || "").split(",").map((value) => value.trim()).filter(Boolean);
+  if (!configured.length) return null;
+
+  const origin = request.headers.get("Origin") || "";
+  if (!origin) {
+    return json({ error: "Origin ヘッダーが必要です。", code: "ORIGIN_REQUIRED" }, 400);
+  }
+  if (!configured.includes(origin)) {
+    return json({ error: "許可されていない Origin です。", code: "ORIGIN_NOT_ALLOWED" }, 403);
+  }
+  return null;
+}
+
+function parseRequestedRevision(request, body, fallback = 0) {
+  const headerValue = request.headers.get("If-Match") || "";
+  const headerMatch = headerValue.match(/^(?:W\/)?"?(\d+)"?$/);
+  if (headerMatch) return Number(headerMatch[1] || fallback);
+  const bodyRevision = Number(body?.baseRevision);
+  if (Number.isFinite(bodyRevision) && bodyRevision >= 0) return bodyRevision;
+  return fallback;
 }
 
 async function handleGoogleDisconnect(request, env) {
