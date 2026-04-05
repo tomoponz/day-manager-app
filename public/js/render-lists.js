@@ -548,6 +548,38 @@ export function renderGoogleEventList() {
   });
 }
 
+export function buildStudyLocationSummaryLines(selectedDate, ctx = getNowContext(selectedDate, state.uiState?.plannerMode || "auto")) {
+  const items = sortStudyLocationsForDisplay(state.studyLocations || []);
+  if (!items.length) {
+    return ["自習場所がまだありません。大学図書館や県立図書館などを追加すると、候補を比較しやすくなります。"];
+  }
+
+  const statuses = items.map((item) => ({ item, status: getStudyLocationStatus(item, selectedDate, ctx) }));
+  const availableStatuses = new Set(["営業中", "利用可", "開館前"]);
+  const available = statuses.filter(({ status }) => availableStatuses.has(status.statusLabel));
+  const checkedCount = statuses.filter(({ status }) => status.isChecked).length;
+  const preferredCount = statuses.filter(({ item }) => Boolean(item.isPreferred)).length;
+
+  const lines = [];
+  lines.push(`候補 ${items.length}件 / 利用候補 ${available.length}件 / 確認済み ${checkedCount}件${preferredCount ? ` / 優先候補 ${preferredCount}件` : ""}`);
+
+  const topItems = (available.length ? available : statuses).slice(0, 5);
+  topItems.forEach(({ item, status }) => {
+    const parts = [item.name, status.statusLabel];
+    if (status.hoursLabel) parts.push(`開館 ${status.hoursLabel}`);
+    if (status.remainingLabel) parts.push(status.remainingLabel);
+    if (item.travelMinutes !== "" && Number.isFinite(Number(item.travelMinutes))) parts.push(`移動 ${item.travelMinutes}分`);
+    if (status.sourceLabel) parts.push(status.sourceLabel);
+    lines.push(parts.join(" / "));
+  });
+
+  if (!available.length) {
+    lines.push("使えそうな場所が見つからない場合は、営業時間・例外日・確認状態を見直してください。")
+  }
+
+  return lines;
+}
+
 function getLocalEventSyncLabel(item) {
   if (item.googleEventId && item.googleSyncStatus === "outdated") return "Google要更新";
   if (item.googleEventId) return "Google同期済";
