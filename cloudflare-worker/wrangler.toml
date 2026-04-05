@@ -15,6 +15,7 @@ preview_id = "b29b9d3ea44d45bfb22e188417897e86"
 [vars]
 SYNC_INTERVAL_MINUTES = "15"
 SYNC_LOOKAHEAD_DAYS = "30"
+ALLOWED_ORIGINS = ""
 
 [triggers]
 crons = ["*/15 * * * *"]
