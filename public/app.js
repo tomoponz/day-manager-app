@@ -1,6 +1,6 @@
 (() => {
-  const APP_VERSION = "v0.8.1";
-  const APP_RELEASE_NOTE = "最新更新: 計画粒度設定・起動高速化・タスク状態判定の共通化を追加";
+  const APP_VERSION = "v0.8.2";
+  const APP_RELEASE_NOTE = "最新更新: actions/render 分割とワークスペース表示を追加";
   const MODULE_VERSION = APP_VERSION;
   const FORCE_REFRESH_FLAG = "day-manager-force-refresh-once";
 
