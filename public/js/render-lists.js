@@ -14,8 +14,7 @@ import {
   resolvePlaceName,
   sortTravelRoutesForDisplay,
   getTravelMethodLabel,
-  parseTimetableEntries,
-  describeTimetableMode
+  getRouteTimetableSummary
 } from "./travel.js";
 
 const handlers = {
@@ -477,18 +476,25 @@ export function renderTravelRoutes() {
 
   wrap.className = "list-wrap";
   items.forEach((item) => {
-    const departures = parseTimetableEntries(item.timetableText);
-    const timetableLabel = departures.length ? `${describeTimetableMode(item)} / ${departures.length}本` : "時刻表なし";
+    const timetableSummary = getRouteTimetableSummary(item);
+    const noteParts = [];
+    if (item.note) noteParts.push(item.note);
+    if (timetableSummary.departures.length) {
+      noteParts.push(`発: ${timetableSummary.departures.slice(0, 6).join(" / ")}${timetableSummary.departures.length > 6 ? " / ..." : ""}`);
+    }
+    if (timetableSummary.arrivals.length) {
+      noteParts.push(`着: ${timetableSummary.arrivals.slice(0, 6).join(" / ")}${timetableSummary.arrivals.length > 6 ? " / ..." : ""}`);
+    }
     wrap.appendChild(
       createListItem({
         title: `${resolvePlaceName(item.fromPlaceId, item.fromPlace)} → ${resolvePlaceName(item.toPlaceId, item.toPlace)}`,
         badges: [
           makeBadge(getTravelMethodLabel(item.method), "blue"),
           item.durationMinutes !== "" ? makeBadge(`${item.durationMinutes}分`, "ok") : null,
-          makeBadge(timetableLabel)
+          makeBadge(timetableSummary.label)
         ],
         detail: item.note || "",
-        note: departures.length ? `時刻表: ${departures.slice(0, 6).join(" / ")}${departures.length > 6 ? " / ..." : ""}` : "",
+        note: noteParts.join(" / "),
         actions: [
           makeActionButton("編集", () => handlers.onEditTravelRoute?.(item.id)),
           makeDeleteButton(() => handlers.onDeleteTravelRoute?.(item.id))

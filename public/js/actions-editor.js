@@ -185,7 +185,7 @@ export function openTravelRouteFormForCreate() {
   const formPanel = $('travelRouteFormPanel');
   if (appSettingsPanel) appSettingsPanel.open = true;
   if (formPanel) formPanel.open = true;
-  window.workspaceNavApi?.openUtilityPanel?.('appSettingsPanel');
+  window.workspaceNavApi?.openUtilityPanel?.('appSettingsPanel', { scrollTargetId: 'travelRouteFormPanel' });
   requestAnimationFrame(() => form?.querySelector("input[name='fromPlace']")?.focus());
 }
 

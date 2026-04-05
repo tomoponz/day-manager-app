@@ -266,6 +266,8 @@ export function normalizeStudyLocation(item) {
 }
 
 export function normalizeTravelRoute(item) {
+  const departureTimetableText = item.departureTimetableText || item.timetableText || "";
+  const arrivalTimetableText = item.arrivalTimetableText || "";
   return {
     id: item.id || crypto.randomUUID(),
     fromPlaceId: item.fromPlaceId || "",
@@ -275,7 +277,9 @@ export function normalizeTravelRoute(item) {
     method: normalizeTravelRouteMethod(item.method),
     durationMinutes: normalizeOptionalNumber(item.durationMinutes),
     timetableMode: normalizeTravelRouteMode(item.timetableMode),
-    timetableText: item.timetableText || "",
+    departureTimetableText,
+    arrivalTimetableText,
+    timetableText: departureTimetableText,
     note: item.note || ""
   };
 }

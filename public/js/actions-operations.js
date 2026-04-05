@@ -207,6 +207,8 @@ export function onSubmitTravelRoute(e) {
   e.preventDefault();
   const fd = new FormData(e.currentTarget);
   const editingId = String(fd.get('editId') || '');
+  const departureTimetableText = String(fd.get('departureTimetableText') || '').trim();
+  const arrivalTimetableText = String(fd.get('arrivalTimetableText') || '').trim();
   const payload = normalizeTravelRoute({
     id: editingId || crypto.randomUUID(),
     fromPlace: String(fd.get('fromPlace') || '').trim(),
@@ -216,7 +218,9 @@ export function onSubmitTravelRoute(e) {
     method: String(fd.get('method') || 'walk').trim(),
     durationMinutes: String(fd.get('durationMinutes') || '').trim(),
     timetableMode: String(fd.get('timetableMode') || 'daily').trim(),
-    timetableText: String(fd.get('timetableText') || '').trim(),
+    departureTimetableText,
+    arrivalTimetableText,
+    timetableText: departureTimetableText,
     note: String(fd.get('note') || '').trim()
   });
 
@@ -255,11 +259,12 @@ export function populateTravelRouteForm(id) {
   form.elements.method.value = item.method || 'walk';
   form.elements.durationMinutes.value = item.durationMinutes ?? '';
   form.elements.timetableMode.value = item.timetableMode || 'daily';
-  form.elements.timetableText.value = item.timetableText || '';
+  if (form.elements.departureTimetableText) form.elements.departureTimetableText.value = item.departureTimetableText || item.timetableText || '';
+  if (form.elements.arrivalTimetableText) form.elements.arrivalTimetableText.value = item.arrivalTimetableText || '';
   form.elements.note.value = item.note || '';
   if ($('travelRouteSubmitBtn')) $('travelRouteSubmitBtn').textContent = '移動ルートを更新';
   if ($('travelRouteCancelBtn')) $('travelRouteCancelBtn').hidden = false;
-  window.workspaceNavApi?.openUtilityPanel?.('appSettingsPanel');
+  window.workspaceNavApi?.openUtilityPanel?.('appSettingsPanel', { scrollTargetId: 'travelRouteFormPanel' });
   requestAnimationFrame(() => form.querySelector("input[name='fromPlace']")?.focus());
 }
 

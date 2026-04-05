@@ -94,9 +94,11 @@ function init() {
     document.body.classList.remove('editor-drawer-open');
   };
 
-  const openUtilityPanel = (panelId) => {
+  const openUtilityPanel = (panelId, options = {}) => {
     const panel = document.getElementById(panelId);
     if (!panel) return;
+
+    const { skipScroll = false, scrollTargetId = '' } = options;
 
     closeQuickAddDrawer({ restoreFocus: false });
     closePlannerEditorDrawer();
@@ -116,7 +118,9 @@ function init() {
 
     setActiveUtilityButton(panelId);
     pulseUtilityPanel(panel);
-    scrollToNode(panel);
+
+    const scrollTarget = document.getElementById(scrollTargetId) || panel;
+    if (!skipScroll) scrollToNode(scrollTarget);
   };
 
   window.workspaceNavApi = { activateSection, openUtilityPanel, openQuickAddDrawer };

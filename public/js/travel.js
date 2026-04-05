@@ -91,6 +91,27 @@ export function parseTimetableEntries(text) {
   return [...new Set(matches.map((value) => normalizeClock(value)).filter(Boolean))].sort();
 }
 
+export function getDepartureTimetableEntries(route) {
+  return parseTimetableEntries(route?.departureTimetableText || route?.timetableText || '');
+}
+
+export function getArrivalTimetableEntries(route) {
+  return parseTimetableEntries(route?.arrivalTimetableText || '');
+}
+
+export function getRouteTimetableSummary(route) {
+  const departures = getDepartureTimetableEntries(route);
+  const arrivals = getArrivalTimetableEntries(route);
+  return {
+    departures,
+    arrivals,
+    hasAny: departures.length > 0 || arrivals.length > 0,
+    label: departures.length || arrivals.length
+      ? `${describeTimetableMode(route)} / 発${departures.length}本${arrivals.length ? ` / 着${arrivals.length}本` : ''}`
+      : '時刻表なし'
+  };
+}
+
 export function normalizeClock(value) {
   const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return '';
@@ -114,10 +135,30 @@ export function describeTimetableMode(route) {
 }
 
 export function getNextDeparture(route, referenceTime, dateStr) {
-  const entries = parseTimetableEntries(route?.timetableText);
+  const entries = getDepartureTimetableEntries(route);
   if (!entries.length || !isTimetableActiveForDate(route, dateStr)) return null;
   const referenceMinutes = Number.isFinite(toMinutes(referenceTime)) ? toMinutes(referenceTime) : 0;
   return entries.find((value) => toMinutes(value) >= referenceMinutes) || null;
+}
+
+export function getNextTripInfo(route, referenceTime, dateStr) {
+  const departures = getDepartureTimetableEntries(route);
+  if (!departures.length || !isTimetableActiveForDate(route, dateStr)) {
+    return { departure: null, arrival: null };
+  }
+
+  const referenceMinutes = Number.isFinite(toMinutes(referenceTime)) ? toMinutes(referenceTime) : 0;
+  const departureIndex = departures.findIndex((value) => toMinutes(value) >= referenceMinutes);
+  if (departureIndex < 0) {
+    return { departure: null, arrival: null };
+  }
+
+  const arrivals = getArrivalTimetableEntries(route);
+  const arrival = arrivals.length === departures.length ? arrivals[departureIndex] || null : null;
+  return {
+    departure: departures[departureIndex] || null,
+    arrival
+  };
 }
 
 function toPlaceRef(input, fallbackId = '', fallbackName = '', sourceState = state) {
@@ -198,7 +239,7 @@ export function buildMovementPlanLines(dateStr, schedules = [], sourceState = st
     }
 
     const travelMinutes = Number(route.durationMinutes || 0);
-    const nextDeparture = getNextDeparture(route, current.endForMove, dateStr);
+    const nextTrip = getNextTripInfo(route, current.endForMove, dateStr);
     const gapMinutes = Number.isFinite(toMinutes(next.start)) && Number.isFinite(toMinutes(current.endForMove))
       ? toMinutes(next.start) - toMinutes(current.endForMove)
       : NaN;
@@ -209,7 +250,8 @@ export function buildMovementPlanLines(dateStr, schedules = [], sourceState = st
       `${getTravelMethodLabel(route.method)} ${travelMinutes || '?'}分`
     ];
 
-    if (nextDeparture) parts.push(`次発 ${nextDeparture}`);
+    if (nextTrip.departure) parts.push(`次発 ${nextTrip.departure}`);
+    if (nextTrip.arrival) parts.push(`着 ${nextTrip.arrival}`);
     if (route.reverseFallback) parts.push('逆方向流用');
 
     if (Number.isFinite(gapMinutes) && travelMinutes > 0) {
