@@ -18,6 +18,7 @@ import { buildMovementPlanLines } from "./travel.js";
 export function generatePrompt() {
   const selectedDate = $("selectedDate").value;
   const planningDays = Math.min(14, Math.max(1, Number(state.settings?.aiPlanningDays || 1) || 1));
+  const planningGranularityMinutes = Number(state.settings?.planningGranularityMinutes || 10) || 10;
   const study = buildStudyPromptSection();
   const sections = [];
 
@@ -75,6 +76,7 @@ export function generatePrompt() {
     `${state.settings?.aiServiceName || "AI"} に貼る計画依頼です。`,
     `対象開始日：${selectedDate}`,
     `対象日数：${planningDays}日`,
+    `計画粒度：${planningGranularityMinutes}分単位`,
     `タイムゾーン：${getNowContext(selectedDate, state.uiState?.plannerMode || "auto").timeZone}`,
     "科目の状況：",
     study.courseLines.join("\n"),
@@ -91,7 +93,7 @@ export function generatePrompt() {
     "",
     "出力形式：",
     "1. まず対象日数全体の優先順位",
-    "2. 各日の時間ブロック化した計画",
+    `2. 各日の時間ブロック化した計画（${planningGranularityMinutes}分単位で切る）`,
     "3. 締切・教材・移動の注意点",
     "4. 今やらないこと",
     "5. 詰まった時の代替案",

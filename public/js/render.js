@@ -7,6 +7,7 @@ import {
 } from "./google-calendar.js";
 import { $ } from "./utils.js";
 import { WEEKDAY_NAMES, getNowContext, formatDateInput } from "./time.js";
+import { getTaskEffectiveStatus } from "./task-utils.js";
 import {
   getSchedulesForDate,
   getUpcomingTasks,
@@ -33,8 +34,7 @@ import {
   sortTravelRoutesForDisplay,
   getTravelMethodLabel,
   parseTimetableEntries,
-  describeTimetableMode,
-  resolvePlaceName
+  describeTimetableMode
 } from "./travel.js";
 
 const handlers = {
@@ -80,16 +80,6 @@ function getTaskSelectedDate() {
   return $("selectedDate")?.value || formatDateInput(new Date());
 }
 
-function isTaskCompletedOnDate(task, dateStr = getTaskSelectedDate()) {
-  return Boolean(task.repeatDaily && Array.isArray(task.completedDates) && task.completedDates.includes(dateStr));
-}
-
-function getTaskEffectiveStatus(task, dateStr = getTaskSelectedDate()) {
-  if (isTaskCompletedOnDate(task, dateStr)) return "完了";
-  if (task.repeatDaily && task.status === "完了") return "未着手";
-  return task.status || "未着手";
-}
-
 function sortTasksForDisplay(items = [], dateStr = getTaskSelectedDate()) {
   const priorityOrder = { 高: 0, 中: 1, 低: 2 };
   const statusRank = { 未着手: 0, 進行中: 1, 完了: 2 };
@@ -132,6 +122,9 @@ export function hydrateSettingsInputs() {
   }
   if ($("aiPlanningDays")) {
     $("aiPlanningDays").value = String(state.settings?.aiPlanningDays || 1);
+  }
+  if ($("planningGranularityMinutes")) {
+    $("planningGranularityMinutes").value = String(state.settings?.planningGranularityMinutes || 10);
   }
   if ($("chatgptUrl")) {
     $("chatgptUrl").value = state.settings?.chatgptUrl || "";
@@ -203,7 +196,6 @@ export function renderAll() {
   renderCurrentState();
   renderSummaries();
   renderAutoPlan();
-  renderTodayHub();
   renderTodayActionDeck();
   updateGoogleConnectionBadge();
   renderCalendarConnectionMeta();
@@ -236,7 +228,7 @@ export function renderFixedSchedules() {
           makeBadge("毎週固定", "ok"),
           makeBadge(`${WEEKDAY_NAMES[item.weekday]}曜日`),
           makeBadge(`${item.start} - ${item.end}`, "blue"),
-          resolvePlaceName(item.placeId, item.placeName) ? makeBadge(`場所:${resolvePlaceName(item.placeId, item.placeName)}`) : null
+          item.placeName ? makeBadge(`場所:${item.placeName}`) : null
         ],
         detail: item.note ? `補足: ${item.note}` : "",
         note: item.note,
@@ -306,7 +298,7 @@ export function renderOneOffEvents() {
         badges: [
           makeBadge(item.date),
           makeBadge(timeLabel, item.allDay ? "ok" : "blue"),
-          resolvePlaceName(item.placeId, item.placeName) ? makeBadge(`場所:${resolvePlaceName(item.placeId, item.placeName)}`) : null,
+          item.placeName ? makeBadge(`場所:${item.placeName}`) : null,
           makeBadge(
             syncLabel,
             syncLabel.includes("失敗")
@@ -514,7 +506,7 @@ export function renderTravelRoutes() {
     const timetableLabel = departures.length ? `${describeTimetableMode(item)} / ${departures.length}本` : "時刻表なし";
     wrap.appendChild(
       createListItem({
-        title: `${resolvePlaceName(item.fromPlaceId, item.fromPlace)} → ${resolvePlaceName(item.toPlaceId, item.toPlace)}`,
+        title: `${item.fromPlace} → ${item.toPlace}`,
         badges: [
           makeBadge(getTravelMethodLabel(item.method), "blue"),
           item.durationMinutes !== "" ? makeBadge(`${item.durationMinutes}分`, "ok") : null,
@@ -684,39 +676,6 @@ export function renderTodayActionDeck() {
 
   wrap.className = "today-action-list";
   ranked.forEach(({ task, score }) => wrap.appendChild(createTodayActionCard(task, score, slotMinutes, selectedDate)));
-}
-
-function getLifecycleLabel(status) {
-  return ({ active: "表示中", completed: "完了", hidden: "非表示", archived: "アーカイブ" })[status] || status || "表示中";
-}
-
-export function renderTodayHub() {
-  const wrap = $("todayHubSummary");
-  if (!wrap) return;
-
-  const selectedDate = $("selectedDate")?.value;
-  if (!selectedDate) {
-    fillSummary(wrap, []);
-    return;
-  }
-
-  const ctx = getNowContext(selectedDate, state.uiState?.plannerMode || "auto");
-  const schedules = getSchedulesForDate(selectedDate);
-  const split = splitSchedulesByNow(schedules, ctx);
-  const nextSchedule = split.current[0] || split.upcoming[0] || null;
-  const pending = sortTasksForDisplay(getPendingTasks(selectedDate, ctx), selectedDate).slice(0, 2);
-  const movementLines = buildMovementPlanLines(selectedDate, schedules).slice(0, 2);
-  const cleanupCount = getVisibleOneOffEvents(state.oneOffEvents).filter((item) => isCleanupCandidateEvent(item)).length;
-  const draftCount = (state.planningDrafts || []).filter((item) => item.status === "draft" || item.status === "failed").length;
-
-  const lines = [];
-  if (nextSchedule) lines.push(`次: ${formatScheduleLine(nextSchedule)}`);
-  pending.forEach((task, index) => lines.push(`優先${index + 1}: ${task.title}${task.deadlineDate ? ` / 締切:${task.deadlineDate}${task.deadlineTime ? ` ${task.deadlineTime}` : ''}` : ''}`));
-  movementLines.forEach((line) => lines.push(`移動: ${line}`));
-  if (cleanupCount) lines.push(`片付け候補: ${cleanupCount}件`);
-  if (draftCount) lines.push(`AI提案: ${draftCount}件`);
-
-  fillSummary(wrap, lines.slice(0, 6));
 }
 
 export function updateGoogleStatus(message, variant = "") {

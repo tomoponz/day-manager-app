@@ -6,9 +6,10 @@ import { hasValidGoogleToken, upsertGoogleEventFromLocal, cacheGoogleEvent, getE
 import { captureRecoverySnapshot } from './recovery.js';
 import { confirmDialog } from './ui-feedback.js';
 
-export function buildPlanningPrompt(selectedDate = formatDateInput(new Date())) {
+export function buildPlanningDraftPrompt(selectedDate = formatDateInput(new Date())) {
   const safeDate = selectedDate || formatDateInput(new Date());
   const planningDays = Math.min(14, Math.max(1, Number(state.settings?.aiPlanningDays || 1) || 1));
+  const planningGranularityMinutes = Number(state.settings?.planningGranularityMinutes || 10) || 10;
   const pendingTasks = getPendingTasks(safeDate);
   const upcomingDeadlines = getUpcomingTasks(safeDate, Math.max(48, planningDays * 24));
   const aiName = state.settings?.aiServiceName || 'AI';
@@ -36,6 +37,7 @@ export function buildPlanningPrompt(selectedDate = formatDateInput(new Date())) 
     '- 既存予定と重複させない',
     '- allDay が false のときは start と end を必ず入れる',
     '- 1件あたり20分以上にする',
+    `- start と end は ${planningGranularityMinutes}分単位でそろえる`,
     '- 課題の締切が近いものを優先する',
     '- 現実的な長さで配置する',
     `- date は開始日から ${planningDays}日以内に収める`,
@@ -43,6 +45,7 @@ export function buildPlanningPrompt(selectedDate = formatDateInput(new Date())) 
     `対象AI: ${aiName}`,
     `対象基準日: ${safeDate}`,
     `対象日数: ${planningDays}日`,
+    `計画粒度: ${planningGranularityMinutes}分単位`,
     '',
     '未完了タスク:',
     pendingTasks.length
@@ -291,8 +294,7 @@ function toLocalEventFromDraft(draft) {
     end: draft.allDay ? '' : draft.end,
     note: buildDraftNote(draft),
     allDay: Boolean(draft.allDay),
-    googleSyncStatus: 'local',
-    lifecycleStatus: 'active'
+    googleSyncStatus: 'local'
   });
 }
 
@@ -368,4 +370,5 @@ function isDateString(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim());
 }
 
-export const buildGeminiPlanningPrompt = buildPlanningPrompt;
+
+export const buildGeminiPlanningPrompt = buildPlanningDraftPrompt;

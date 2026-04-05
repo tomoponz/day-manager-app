@@ -13,8 +13,7 @@ import {
   normalizeAssessment,
   normalizeWeeklyPlans,
   normalizeMilestone,
-  normalizePlanningDraft,
-  hydrateStateReferences
+  normalizePlanningDraft
 } from "./state.js";
 import { $ } from "./utils.js";
 
@@ -49,7 +48,7 @@ export function normalizePersistedState(parsed) {
     throw new Error(`このデータは新しい形式 (v${schemaVersion}) です。現在のアプリでは読み込めません。`);
   }
 
-  return hydrateStateReferences({
+  return {
     schemaVersion: STATE_SCHEMA_VERSION,
     fixedSchedules: (parsed.fixedSchedules || []).map(normalizeFixedSchedule),
     oneOffEvents: (parsed.oneOffEvents || []).map(normalizeOneOffEvent),
@@ -68,7 +67,7 @@ export function normalizePersistedState(parsed) {
     planningDrafts: (parsed.planningDrafts || []).map(normalizePlanningDraft),
     settings: normalizeSettings(parsed.settings),
     uiState: normalizeUiState(parsed.uiState)
-  });
+  };
 }
 
 export function applyPersistedState(normalized) {
@@ -87,7 +86,6 @@ export function applyPersistedState(normalized) {
   state.planningDrafts = normalized.planningDrafts;
   state.settings = normalized.settings;
   state.uiState = normalized.uiState;
-  hydrateStateReferences(state);
   saveState();
   return state;
 }
@@ -179,6 +177,7 @@ function normalizeSettings(settings) {
     aiServiceName: normalizeTextWithFallback(settings?.aiServiceName, INITIAL_STATE.settings.aiServiceName),
     aiServiceUrl: normalizeUrlWithFallback(settings?.aiServiceUrl, settings?.chatgptUrl || settings?.geminiUrl || INITIAL_STATE.settings.aiServiceUrl),
     aiPlanningDays: normalizePlanningDays(settings?.aiPlanningDays, INITIAL_STATE.settings.aiPlanningDays),
+    planningGranularityMinutes: normalizePlanningGranularity(settings?.planningGranularityMinutes, INITIAL_STATE.settings.planningGranularityMinutes),
     chatgptUrl: normalizeUrlWithFallback(settings?.chatgptUrl, INITIAL_STATE.settings.chatgptUrl),
     geminiUrl: normalizeUrlWithFallback(settings?.geminiUrl, INITIAL_STATE.settings.geminiUrl),
     campusPortalUrl: normalizeUrlWithFallback(settings?.campusPortalUrl, INITIAL_STATE.settings.campusPortalUrl)
@@ -216,6 +215,13 @@ function normalizePlanningDays(value, fallback = 1) {
   const number = Number(value);
   if (!Number.isInteger(number)) return fallback;
   return Math.min(14, Math.max(1, number));
+}
+
+function normalizePlanningGranularity(value, fallback = 10) {
+  const allowed = [5, 10, 15, 20, 30, 60];
+  const number = Number(value);
+  if (!Number.isInteger(number)) return fallback;
+  return allowed.includes(number) ? number : fallback;
 }
 
 function normalizeUrlWithFallback(value, fallback = "") {

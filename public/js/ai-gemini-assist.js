@@ -1,4 +1,4 @@
-import { buildPlanningPrompt, parsePlanningDraftsResponse, replacePlanningDrafts, clearPlanningDrafts, deletePlanningDraft, applyPlanningDraft, applyAllPlanningDrafts } from './ai-drafts.js';
+import { buildPlanningDraftPrompt, parsePlanningDraftsResponse, replacePlanningDrafts, clearPlanningDrafts, deletePlanningDraft, applyPlanningDraft, applyAllPlanningDrafts } from './ai-drafts.js';
 import { state } from './state.js';
 import { formatDateInput } from './time.js';
 import { renderAll } from './render.js';
@@ -38,8 +38,8 @@ function init() {
 }
 
 function bindEvents() {
-  document.getElementById('generatePlanningPromptBtn')?.addEventListener('click', handleGeneratePrompt);
-  document.getElementById('copyPlanningPromptBtn')?.addEventListener('click', handleCopyPrompt);
+  document.getElementById('generateGeminiPromptBtn')?.addEventListener('click', handleGeneratePrompt);
+  document.getElementById('copyGeminiPromptBtn')?.addEventListener('click', handleCopyPrompt);
   document.getElementById('importAiDraftBtn')?.addEventListener('click', handleImportDrafts);
   document.getElementById('clearAiDraftInputBtn')?.addEventListener('click', handleClearInput);
   document.getElementById('applyAllDraftsLocalBtn')?.addEventListener('click', () => handleApplyAll(false));
@@ -49,14 +49,14 @@ function bindEvents() {
 
 function handleGeneratePrompt() {
   const selectedDate = document.getElementById('selectedDate')?.value || formatDateInput(new Date());
-  const textarea = document.getElementById('planningPromptOutput');
+  const textarea = document.getElementById('geminiPromptOutput');
   if (!textarea) return;
-  textarea.value = buildPlanningPrompt(selectedDate);
+  textarea.value = buildPlanningDraftPrompt(selectedDate);
   setStatus('AI向けのJSON指示を生成しました。', 'ok');
 }
 
 async function handleCopyPrompt() {
-  const textarea = document.getElementById('planningPromptOutput');
+  const textarea = document.getElementById('geminiPromptOutput');
   if (!textarea) return;
   if (!textarea.value.trim()) handleGeneratePrompt();
 
@@ -236,13 +236,13 @@ function buildSectionHtml() {
       </div>
 
       <div class="prompt-actions">
-        <button id="generatePlanningPromptBtn" class="primary" type="button">AI向けJSON指示を生成</button>
-        <button id="copyPlanningPromptBtn" type="button">コピー</button>
+        <button id="generateGeminiPromptBtn" class="primary" type="button">AI向けJSON指示を生成</button>
+        <button id="copyGeminiPromptBtn" type="button">コピー</button>
       </div>
 
       <label class="prompt-label">
         AIに貼る指示
-        <textarea id="planningPromptOutput" rows="16" placeholder="ここにAI向け指示が生成されます"></textarea>
+        <textarea id="geminiPromptOutput" rows="16" placeholder="ここにAI向け指示が生成されます"></textarea>
       </label>
 
       <details class="subsection-fold" id="aiDraftImportPanel" open>

@@ -1,22 +1,29 @@
 import { state } from "./state.js";
+import { getTaskEffectiveStatus } from "./task-utils.js";
 import { getCachedGoogleEvents } from "./google-calendar.js";
 import { getNowContext, toMinutes, fromMinutes, formatDateInput, formatTimeOnly } from "./time.js";
 import { $ } from "./utils.js";
-import { getVisibleOneOffEvents, resolvePlaceName } from "./travel.js";
+import { getVisibleOneOffEvents } from "./travel.js";
 import { getSchedulingRules, isWeekdayDate, makeProtectedBlock, describeProtectedBlock, summarizeProtectedBlocks, buildRuleModeLabel, intersectMinuteRange, clampBlockWithinSlot, minutesToTimeText } from "./scheduling-rules.js";
 
 function currentContext(dateStr = $("selectedDate")?.value || formatDateInput(new Date())) {
   return getNowContext(dateStr, state.uiState?.plannerMode || "auto");
 }
 
-function isTaskCompletedOnDate(task, dateStr) {
-  return Boolean(task.repeatDaily && Array.isArray(task.completedDates) && task.completedDates.includes(dateStr));
+function getPlanningGranularityMinutes() {
+  const allowed = [5, 10, 15, 20, 30, 60];
+  const value = Number(state.settings?.planningGranularityMinutes || 10);
+  return allowed.includes(value) ? value : 10;
 }
 
-function getEffectiveTaskStatus(task, dateStr) {
-  if (isTaskCompletedOnDate(task, dateStr)) return "完了";
-  if (task.repeatDaily && task.status === "完了") return "未着手";
-  return task.status || "未着手";
+function roundDownToGranularity(totalMinutes, granularity = getPlanningGranularityMinutes()) {
+  if (!Number.isFinite(totalMinutes)) return totalMinutes;
+  return Math.floor(totalMinutes / granularity) * granularity;
+}
+
+function roundUpToGranularity(totalMinutes, granularity = getPlanningGranularityMinutes()) {
+  if (!Number.isFinite(totalMinutes)) return totalMinutes;
+  return Math.ceil(totalMinutes / granularity) * granularity;
 }
 
 export function getSchedulesForDate(dateStr) {
@@ -77,7 +84,7 @@ export function getUpcomingTasks(dateStr, hours = 48, ctx = currentContext(dateS
   const end = new Date(start.getTime() + hours * 60 * 60 * 1000);
 
   return state.tasks
-    .filter((task) => getEffectiveTaskStatus(task, dateStr) !== "完了" && task.deadlineDate)
+    .filter((task) => getTaskEffectiveStatus(task, dateStr) !== "完了" && task.deadlineDate)
     .filter((task) => !task.deferUntilDate || task.deferUntilDate <= dateStr)
     .filter((task) => {
       const taskDate = new Date(`${task.deadlineDate}T${task.deadlineTime || "23:59"}:00`);
@@ -88,7 +95,7 @@ export function getUpcomingTasks(dateStr, hours = 48, ctx = currentContext(dateS
 
 export function getPendingTasks(dateStr = $("selectedDate")?.value || formatDateInput(new Date()), ctx = currentContext(dateStr)) {
   return state.tasks.filter((task) => {
-    if (getEffectiveTaskStatus(task, dateStr) === "完了") return false;
+    if (getTaskEffectiveStatus(task, dateStr) === "完了") return false;
     if (task.deferUntilDate && task.deferUntilDate > dateStr && ctx.effectiveMode !== "night") return false;
     return true;
   });
@@ -104,8 +111,7 @@ export function compareSchedule(a, b) {
 }
 
 export function formatScheduleLine(item) {
-  const resolvedPlaceName = resolvePlaceName(item?.placeId, item?.placeName);
-  const place = resolvedPlaceName ? ` / 場所:${resolvedPlaceName}` : "";
+  const place = item.placeName ? ` / 場所:${item.placeName}` : "";
   if (item.allDay) return `終日 / ${item.title}${place}${item.note ? ` / ${item.note}` : ""}`;
   const time = item.start ? `${item.start}${item.end ? ` - ${item.end}` : ""}` : "時刻未設定";
   const note = item.note ? ` / ${item.note}` : "";
@@ -270,7 +276,7 @@ function computeRecoveryBreakBlocks(dateStr, schedules, ctx, rules, protectedBlo
 
 function computeFocusProtectionBlock(dateStr, schedules, ctx, rules, protectedBlocks) {
   if (!rules.protectFocusBlock) return null;
-  const pendingTasks = getPendingTasks(dateStr, ctx).filter((task) => getEffectiveTaskStatus(task, dateStr) !== "完了");
+  const pendingTasks = getPendingTasks(dateStr, ctx).filter((task) => getTaskEffectiveStatus(task, dateStr) !== "完了");
   if (!pendingTasks.length) return null;
 
   const freeSlots = computeFreeSlots(schedules, ctx, { additionalBlocks: protectedBlocks });
@@ -371,11 +377,18 @@ export function buildAutoPlan(dateStr, providedCtx = null, includeCutCandidates 
   const scheduledTaskIds = new Set();
   let plannedFocusMinutes = 0;
 
+  const granularity = getPlanningGranularityMinutes();
+  const minimumBlockMinutes = Math.max(20, granularity);
+
   for (const slot of freeSlots) {
-    let cursor = toMinutes(slot.start);
-    let remainingSlot = slot.minutes;
+    const slotStart = roundUpToGranularity(toMinutes(slot.start), granularity);
+    const slotEnd = roundDownToGranularity(toMinutes(slot.end), granularity);
+    if (!Number.isFinite(slotStart) || !Number.isFinite(slotEnd) || slotEnd - slotStart < minimumBlockMinutes) continue;
+
+    let cursor = slotStart;
+    let remainingSlot = slotEnd - slotStart;
     let safety = 0;
-    while (remainingSlot >= 20 && safety < 20) {
+    while (remainingSlot >= minimumBlockMinutes && safety < 20) {
       safety += 1;
       const candidates = tasks
         .filter((task) => task.remaining > 0)
@@ -384,8 +397,9 @@ export function buildAutoPlan(dateStr, providedCtx = null, includeCutCandidates 
         .sort((a, b) => b.score - a.score);
       const chosen = candidates[0]?.task;
       if (!chosen) break;
-      const allocation = Math.min(chosen.remaining, remainingSlot, suggestChunkMinutes(chosen, remainingSlot, ctx));
-      if (allocation < 20) break;
+      const rawAllocation = Math.min(chosen.remaining, remainingSlot, suggestChunkMinutes(chosen, remainingSlot, ctx));
+      const allocation = roundDownToGranularity(rawAllocation, granularity);
+      if (allocation < minimumBlockMinutes) break;
       const start = fromMinutes(cursor);
       const end = fromMinutes(cursor + allocation);
       const partial = allocation < chosen.remaining;
@@ -398,7 +412,7 @@ export function buildAutoPlan(dateStr, providedCtx = null, includeCutCandidates 
       scheduledTaskIds.add(chosen.id);
       chosen.remaining -= allocation;
       cursor += allocation;
-      remainingSlot -= allocation;
+      remainingSlot = slotEnd - cursor;
     }
   }
 
@@ -421,7 +435,7 @@ export function buildAutoPlan(dateStr, providedCtx = null, includeCutCandidates 
     topThree,
     timeline: placements.map((item) => item.label),
     cutCandidates: includeCutCandidates ? cutCandidates : [],
-    note,
+    note: `${note} 計画粒度:${granularity}分単位。`,
     focusSummary: `${plannedFocusMinutes} / ${focusTarget}分`,
     protectedSummary: summarizeProtectedBlocks(protectedBlocks),
     protectedBlocks
@@ -453,7 +467,7 @@ export function scoreTask(task, referenceDate, slotMinutes, fatigue, ctx, dateSt
   let score = 0;
   score += ({ 必須: 60, できれば: 25, 後回し: -12 })[task.importance] ?? 0;
   score += ({ 高: 30, 中: 12, 低: 0 })[task.priority] ?? 0;
-  const effectiveStatus = getEffectiveTaskStatus(task, dateStr);
+  const effectiveStatus = getTaskEffectiveStatus(task, dateStr);
   score += ({ 未着手: 8, 進行中: 16, 完了: -999 })[effectiveStatus] ?? 0;
   if (task.repeatDaily) score += 16;
   if (task.protectTimeBlock) score += 22;
