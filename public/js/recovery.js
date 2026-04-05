@@ -18,8 +18,14 @@ import {
 import { $ } from "./utils.js";
 
 const RECOVERY_SNAPSHOT_KEY = "day-manager-last-snapshot-v1";
+const AUTO_BACKUP_META_KEY = "day-manager-auto-backup-meta-v1";
+const AUTO_BACKUP_COOLDOWN_MS = 5 * 60 * 1000;
+const AUTO_BACKUP_HISTORY_LIMIT = 12;
+let autoBackupTimer = null;
 
 const REASON_LABELS = {
+  startup: "起動時自動退避",
+  autosave: "自動退避",
   "import-backup": "バックアップ読込前",
   "delete-fixed": "固定予定削除前",
   "delete-event": "単発予定削除前",
@@ -35,7 +41,8 @@ const REASON_LABELS = {
   "apply-planning-draft-local": "AI提案反映前",
   "apply-planning-draft-google": "AI提案をGoogle反映する前",
   "apply-planning-drafts-local": "AI提案一括反映前",
-  "apply-planning-drafts-google": "AI提案をGoogleへ一括反映する前"
+  "apply-planning-drafts-google": "AI提案をGoogleへ一括反映する前",
+  "cloud-pull": "クラウド同期前"
 };
 
 export function normalizePersistedState(parsed) {
@@ -90,15 +97,59 @@ export function applyPersistedState(normalized) {
   return state;
 }
 
+function buildSnapshotPayload(reason = "manual") {
+  return {
+    version: 1,
+    capturedAt: new Date().toISOString(),
+    reason,
+    schemaVersion: STATE_SCHEMA_VERSION,
+    state: JSON.parse(JSON.stringify({ ...state, schemaVersion: STATE_SCHEMA_VERSION }))
+  };
+}
+
+function isMeaningfulSnapshot(snapshotState) {
+  if (!snapshotState || typeof snapshotState !== "object") return false;
+  const arrays = [
+    snapshotState.fixedSchedules,
+    snapshotState.oneOffEvents,
+    snapshotState.tasks,
+    snapshotState.studyLocations,
+    snapshotState.travelRoutes,
+    snapshotState.courses,
+    snapshotState.materials,
+    snapshotState.assessments,
+    snapshotState.milestones,
+    snapshotState.planningDrafts
+  ];
+  if (arrays.some((value) => Array.isArray(value) && value.length > 0)) return true;
+  if (snapshotState.dayConditions && Object.keys(snapshotState.dayConditions).length) return true;
+  if (snapshotState.weeklyPlans && Object.keys(snapshotState.weeklyPlans).length) return true;
+  return false;
+}
+
+function readAutoBackupMeta() {
+  try {
+    const raw = localStorage.getItem(AUTO_BACKUP_META_KEY);
+    if (!raw) return { lastCapturedAt: "", history: [] };
+    const parsed = JSON.parse(raw);
+    return {
+      lastCapturedAt: String(parsed?.lastCapturedAt || ""),
+      history: Array.isArray(parsed?.history) ? parsed.history : []
+    };
+  } catch {
+    return { lastCapturedAt: "", history: [] };
+  }
+}
+
+function writeAutoBackupMeta(meta) {
+  try {
+    localStorage.setItem(AUTO_BACKUP_META_KEY, JSON.stringify(meta));
+  } catch {}
+}
+
 export function captureRecoverySnapshot(reason = "manual") {
   try {
-    const payload = {
-      version: 1,
-      capturedAt: new Date().toISOString(),
-      reason,
-      schemaVersion: STATE_SCHEMA_VERSION,
-      state: JSON.parse(JSON.stringify({ ...state, schemaVersion: STATE_SCHEMA_VERSION }))
-    };
+    const payload = buildSnapshotPayload(reason);
     localStorage.setItem(RECOVERY_SNAPSHOT_KEY, JSON.stringify(payload));
     refreshRecoveryUi();
     return payload;
@@ -106,6 +157,53 @@ export function captureRecoverySnapshot(reason = "manual") {
     console.warn("Failed to capture recovery snapshot", error);
     return null;
   }
+}
+
+export function captureAutoRecoverySnapshot(reason = "autosave", { force = false } = {}) {
+  try {
+    const payload = buildSnapshotPayload(reason);
+    if (!isMeaningfulSnapshot(payload.state)) return null;
+
+    const meta = readAutoBackupMeta();
+    const lastCapturedAt = meta.lastCapturedAt ? new Date(meta.lastCapturedAt).getTime() : 0;
+    const nextCapturedAt = new Date(payload.capturedAt).getTime();
+    if (!force && lastCapturedAt && Number.isFinite(lastCapturedAt) && nextCapturedAt - lastCapturedAt < AUTO_BACKUP_COOLDOWN_MS) {
+      return null;
+    }
+
+    localStorage.setItem(RECOVERY_SNAPSHOT_KEY, JSON.stringify(payload));
+    const historyEntry = {
+      capturedAt: payload.capturedAt,
+      reason: payload.reason,
+      schemaVersion: payload.schemaVersion
+    };
+    const nextHistory = [historyEntry, ...(meta.history || [])]
+      .filter((entry, index, array) => array.findIndex((candidate) => candidate?.capturedAt === entry?.capturedAt) === index)
+      .slice(0, AUTO_BACKUP_HISTORY_LIMIT);
+    writeAutoBackupMeta({
+      lastCapturedAt: payload.capturedAt,
+      history: nextHistory
+    });
+    refreshRecoveryUi();
+    return payload;
+  } catch (error) {
+    console.warn("Failed to capture auto recovery snapshot", error);
+    return null;
+  }
+}
+
+export function initializeAutoRecovery() {
+  captureAutoRecoverySnapshot("startup", { force: false });
+  refreshRecoveryUi();
+
+  if (typeof window === "undefined") return;
+  window.addEventListener("day-manager:state-saved", (event) => {
+    if (event?.detail?.markUpdated === false) return;
+    clearTimeout(autoBackupTimer);
+    autoBackupTimer = setTimeout(() => {
+      captureAutoRecoverySnapshot("autosave", { force: false });
+    }, 900);
+  });
 }
 
 export function getRecoverySnapshotMeta() {
@@ -142,6 +240,7 @@ export function refreshRecoveryUi() {
   const button = $("restoreBackupBtn");
   const note = $("recoveryStatusNote") || $("recoveryStatusText");
   const meta = getRecoverySnapshotMeta();
+  const autoMeta = readAutoBackupMeta();
 
   if (button) {
     button.disabled = !meta;
@@ -157,7 +256,8 @@ export function refreshRecoveryUi() {
   const time = meta.capturedAt
     ? new Date(meta.capturedAt).toLocaleString("ja-JP")
     : "時刻不明";
-  note.textContent = `${label} / ${time}`;
+  const count = Array.isArray(autoMeta.history) ? autoMeta.history.length : 0;
+  note.textContent = `${label} / ${time}${count ? ` / 自動退避履歴 ${count}件` : ""}`;
 }
 
 function normalizeSettings(settings) {
@@ -188,7 +288,8 @@ function normalizeUiState(uiState) {
   return {
     plannerMode: uiState?.plannerMode || INITIAL_STATE.uiState.plannerMode,
     onboardingCompleted: normalizeBooleanWithFallback(uiState?.onboardingCompleted, INITIAL_STATE.uiState.onboardingCompleted),
-    onboardingStep: normalizeOnboardingStep(uiState?.onboardingStep)
+    onboardingStep: normalizeOnboardingStep(uiState?.onboardingStep),
+    listSearchQuery: normalizeTextWithFallback(uiState?.listSearchQuery, INITIAL_STATE.uiState.listSearchQuery)
   };
 }
 

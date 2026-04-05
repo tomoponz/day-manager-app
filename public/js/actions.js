@@ -4,7 +4,7 @@ import { onConnectGoogle, onDisconnectGoogle, loadGoogleEventsForSelectedDate, i
 import { refreshRecoveryUi } from './recovery.js';
 import { state } from './state.js';
 import { bindEditorDrawerUi, setToday, closeEditorDrawer, openEditorDrawer, toggleEventTimeInputs, openTravelRouteFormForCreate, resetFixedForm, resetEventForm, resetTaskForm, resetStudyLocationForm, resetTravelRouteForm } from './actions-editor.js';
-import { saveSettingsInputs, onDateChanged, saveCurrentConditionInputs, adjustFatigue, addUnexpectedThirtyMinutes, setPlannerMode, onPlannerModeChanged, closeStateUpdateMenu, openConfiguredExternalLink } from './actions-settings.js';
+import { saveSettingsInputs, onDateChanged, saveCurrentConditionInputs, adjustFatigue, addUnexpectedThirtyMinutes, setPlannerMode, onPlannerModeChanged, closeStateUpdateMenu, openConfiguredExternalLink, setExecutionSearchQuery, clearExecutionSearchQuery } from './actions-settings.js';
 import { onSubmitFixedSchedule, onSubmitOneOffEvent, onSubmitTask, onSubmitStudyLocation, onSubmitTravelRoute, cleanupPastOneOffEvents, restoreDismissedOneOffEvents, handleQuickAdd, exportData, importData, restoreLastSnapshot } from './actions-operations.js';
 
 export * from './actions-editor.js';
@@ -56,6 +56,9 @@ export function bindEvents() {
 
   on('generateBtn', 'click', generatePrompt);
   on('copyBtn', 'click', copyPrompt);
+
+  on('executionSearchInput', 'input', (event) => setExecutionSearchQuery(event?.target?.value || ''));
+  on('clearExecutionSearchBtn', 'click', () => clearExecutionSearchQuery());
 
   on('quickAddBtn', 'click', handleQuickAdd);
   $('quickAddInput')?.addEventListener('keydown', (e) => {

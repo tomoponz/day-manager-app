@@ -15,6 +15,7 @@ export const googleState = {
   },
   appStateSync: {
     remoteUpdatedAt: "",
+    remoteRevision: 0,
     lastSyncedAt: "",
     mode: "",
     connectedAccount: ""
@@ -163,6 +164,7 @@ async function applyRemoteAppState(remote, { silent = false } = {}) {
     applyPersistedState(normalized);
     setLocalStateUpdatedAt(remote.updatedAt || new Date().toISOString());
     googleState.appStateSync.remoteUpdatedAt = remote.updatedAt || "";
+    googleState.appStateSync.remoteRevision = Number(remote.revision || 0);
     googleState.appStateSync.lastSyncedAt = new Date().toISOString();
     googleState.appStateSync.mode = "pull";
     try {
@@ -189,12 +191,23 @@ async function pushLocalAppState({ silent = false } = {}) {
   const updatedAt = getLocalStateUpdatedAt() || new Date().toISOString();
   const payload = {
     updatedAt,
+    baseRevision: Number(googleState.appStateSync.remoteRevision || 0),
     state: serializePersistableState()
   };
 
-  const result = await putRemoteAppState(payload);
+  let result;
+  try {
+    result = await putRemoteAppState(payload);
+  } catch (error) {
+    if (error?.status === 409) {
+      setAppStateSyncStatus("他の端末の更新が先に保存されました。いったんクラウドの状態を確認してから再同期してください。", "warn");
+      notifyStatus("別端末の更新が先に保存されたため、この端末のクラウド保存を止めました。", "warn");
+    }
+    throw error;
+  }
   const syncedAt = result?.updatedAt || updatedAt;
   googleState.appStateSync.remoteUpdatedAt = syncedAt;
+  googleState.appStateSync.remoteRevision = Number(result?.revision || googleState.appStateSync.remoteRevision || 0);
   googleState.appStateSync.lastSyncedAt = new Date().toISOString();
   googleState.appStateSync.mode = "push";
   setLocalStateUpdatedAt(syncedAt);
@@ -219,6 +232,7 @@ export async function syncAppStateWithCloud({ silent = false, forcePull = false,
     const remoteUpdatedAt = remote?.updatedAt || "";
     const localUpdatedAt = getLocalStateUpdatedAt();
     googleState.appStateSync.remoteUpdatedAt = remoteUpdatedAt;
+    googleState.appStateSync.remoteRevision = Number(remote?.revision || 0);
 
     if (forcePull) {
       return await applyRemoteAppState(remote, { silent });
@@ -355,6 +369,7 @@ export async function refreshGoogleStatus({ silent = false } = {}) {
         );
       } else {
         clearGoogleCache();
+        googleState.appStateSync.remoteRevision = 0;
         updateAppStateSyncButtons();
         setAppStateSyncStatus("Googleで接続すると、同じアカウントでタスク・予定・学習データも同期できます。", "");
         notifyStatus("Googleで接続すると、この Worker が Google Calendar と同期します。");
@@ -452,6 +467,7 @@ export async function onDisconnectGoogle() {
   try {
     await api("/api/google/disconnect", { method: "POST", body: "{}" });
     googleState.connected = false;
+    googleState.appStateSync.remoteRevision = 0;
     clearGoogleCache();
     updateAppStateSyncButtons();
     setAppStateSyncStatus("接続解除中です。この端末のローカルデータは残ります。", "");

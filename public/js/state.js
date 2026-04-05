@@ -40,7 +40,8 @@ export const INITIAL_STATE = {
   uiState: {
     plannerMode: "auto",
     onboardingCompleted: false,
-    onboardingStep: 1
+    onboardingStep: 1,
+    listSearchQuery: ""
   }
 };
 
@@ -72,7 +73,8 @@ function normalizeUiState(uiState) {
   return {
     plannerMode: uiState?.plannerMode || INITIAL_STATE.uiState.plannerMode,
     onboardingCompleted: normalizeBooleanWithFallback(uiState?.onboardingCompleted, INITIAL_STATE.uiState.onboardingCompleted),
-    onboardingStep: normalizeOnboardingStep(uiState?.onboardingStep)
+    onboardingStep: normalizeOnboardingStep(uiState?.onboardingStep),
+    listSearchQuery: normalizeTextWithFallback(uiState?.listSearchQuery, INITIAL_STATE.uiState.listSearchQuery)
   };
 }
 

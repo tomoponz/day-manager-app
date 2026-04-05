@@ -1,7 +1,7 @@
 import { state, saveState, normalizeOneOffEvent, normalizePlanningGranularity } from './state.js';
 import { $ } from './utils.js';
 import { formatDateInput, formatTimeOnly, isSelectedDateToday, roundToFiveMinutes } from './time.js';
-import { renderAll, renderCurrentClock, renderCurrentState, renderAutoPlan, renderSummaries, renderTodayActionDeck, updateStateNote, loadConditionInputsForDate } from './render.js';
+import { renderAll, renderCurrentClock, renderCurrentState, renderAutoPlan, renderSummaries, renderTodayActionDeck, updateStateNote, loadConditionInputsForDate, renderFixedSchedules, renderOneOffEvents, renderTasks, renderExecutionSearchMeta, hydrateExecutionSearchUi } from './render.js';
 import { loadGoogleEventsForDate, hasValidGoogleToken } from './google-calendar.js';
 import { showToast } from './ui-feedback.js';
 
@@ -32,6 +32,20 @@ export function saveSettingsInputs() {
   refreshPlannerOutputs();
 }
 
+
+export function setExecutionSearchQuery(value = "") {
+  state.uiState.listSearchQuery = String(value || "").trim();
+  saveState({ markUpdated: false, syncCloud: false });
+  hydrateExecutionSearchUi();
+  renderExecutionSearchMeta();
+  renderFixedSchedules();
+  renderOneOffEvents();
+  renderTasks();
+}
+
+export function clearExecutionSearchQuery() {
+  setExecutionSearchQuery("");
+}
 export function normalizeHttpUrl(value) {
   const text = String(value || '').trim();
   if (!text) return '';
