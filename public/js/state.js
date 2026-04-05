@@ -1,6 +1,6 @@
 export const STORAGE_KEY = "day-manager-v1";
 export const APP_STATE_UPDATED_AT_KEY = "day-manager-app-state-updated-at-v1";
-export const STATE_SCHEMA_VERSION = 7;
+export const STATE_SCHEMA_VERSION = 8;
 
 export const INITIAL_STATE = {
   schemaVersion: STATE_SCHEMA_VERSION,
@@ -123,7 +123,7 @@ export function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return structuredClone(INITIAL_STATE);
     const parsed = migrateParsedState(JSON.parse(raw));
-    return {
+    const next = {
       schemaVersion: STATE_SCHEMA_VERSION,
       fixedSchedules: (parsed.fixedSchedules || []).map(normalizeFixedSchedule),
       oneOffEvents: (parsed.oneOffEvents || []).map(normalizeOneOffEvent),
@@ -140,6 +140,7 @@ export function loadState() {
       settings: normalizeSettings(parsed.settings),
       uiState: normalizeUiState(parsed.uiState)
     };
+    return hydrateStateReferences(next);
   } catch {
     return structuredClone(INITIAL_STATE);
   }
@@ -148,6 +149,7 @@ export function loadState() {
 export function saveState(options = {}) {
   const { markUpdated = true, dispatch = true, syncCloud = true } = options;
   state.schemaVersion = STATE_SCHEMA_VERSION;
+  hydrateStateReferences(state);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   if (markUpdated) {
     setLocalStateUpdatedAt(new Date().toISOString());
@@ -164,6 +166,7 @@ export function saveState(options = {}) {
 }
 
 export function serializePersistableState() {
+  hydrateStateReferences(state);
   return JSON.parse(JSON.stringify({ ...state, schemaVersion: STATE_SCHEMA_VERSION }));
 }
 
@@ -185,7 +188,6 @@ export function setLocalStateUpdatedAt(value = "") {
   } catch {}
 }
 
-
 export function normalizeFixedSchedule(item) {
   return {
     id: item.id || crypto.randomUUID(),
@@ -193,12 +195,15 @@ export function normalizeFixedSchedule(item) {
     weekday: Number(item.weekday ?? 0),
     start: item.start || "",
     end: item.end || "",
+    placeId: item.placeId || "",
     placeName: item.placeName || "",
     note: item.note || ""
   };
 }
 
 export function normalizeOneOffEvent(item) {
+  const lifecycleStatus = normalizeEventLifecycleStatus(item?.lifecycleStatus, item);
+  const hiddenAt = item?.hiddenAt || (lifecycleStatus === "hidden" ? item?.dismissedAt || "" : "");
   return {
     id: item.id || crypto.randomUUID(),
     title: item.title || "",
@@ -206,11 +211,16 @@ export function normalizeOneOffEvent(item) {
     start: item.start || "",
     end: item.end || "",
     note: item.note || "",
+    placeId: item.placeId || "",
     placeName: item.placeName || "",
     allDay: Boolean(item.allDay),
     googleEventId: item.googleEventId || "",
     googleSyncStatus: item.googleSyncStatus || (item.googleEventId ? "synced" : "local"),
-    dismissedAt: item.dismissedAt || ""
+    dismissedAt: item.dismissedAt || hiddenAt || "",
+    lifecycleStatus,
+    completedAt: item.completedAt || "",
+    hiddenAt,
+    archivedAt: item.archivedAt || ""
   };
 }
 
@@ -251,7 +261,9 @@ export function normalizeStudyLocation(item) {
 export function normalizeTravelRoute(item) {
   return {
     id: item.id || crypto.randomUUID(),
+    fromPlaceId: item.fromPlaceId || "",
     fromPlace: item.fromPlace || "",
+    toPlaceId: item.toPlaceId || "",
     toPlace: item.toPlace || "",
     method: normalizeTravelRouteMethod(item.method),
     durationMinutes: normalizeOptionalNumber(item.durationMinutes),
@@ -259,6 +271,58 @@ export function normalizeTravelRoute(item) {
     timetableText: item.timetableText || "",
     note: item.note || ""
   };
+}
+
+export function hydrateStateReferences(targetState) {
+  if (!targetState || typeof targetState !== "object") return targetState;
+
+  const locations = Array.isArray(targetState.studyLocations) ? targetState.studyLocations : [];
+  const placeIdSet = new Set(locations.map((item) => String(item?.id || "")).filter(Boolean));
+  const placeNameMap = new Map();
+  locations.forEach((item) => {
+    const id = String(item?.id || "").trim();
+    const name = String(item?.name || "").trim();
+    if (id && name) placeNameMap.set(name, id);
+  });
+  const getIdByName = (name) => placeNameMap.get(String(name || "").trim()) || "";
+  const getNameById = (id) => locations.find((item) => item?.id === id)?.name || "";
+  const keepExistingId = (id) => (id && placeIdSet.has(id) ? id : "");
+
+  (targetState.fixedSchedules || []).forEach((item) => {
+    item.placeId = keepExistingId(item.placeId) || getIdByName(item.placeName);
+    if (!item.placeName && item.placeId) item.placeName = getNameById(item.placeId);
+  });
+
+  (targetState.oneOffEvents || []).forEach((item) => {
+    item.placeId = keepExistingId(item.placeId) || getIdByName(item.placeName);
+    if (!item.placeName && item.placeId) item.placeName = getNameById(item.placeId);
+    item.lifecycleStatus = normalizeEventLifecycleStatus(item.lifecycleStatus, item);
+    if (item.lifecycleStatus === "hidden") {
+      item.hiddenAt = item.hiddenAt || item.dismissedAt || "";
+      item.dismissedAt = item.dismissedAt || item.hiddenAt || "";
+    } else {
+      item.hiddenAt = "";
+      item.dismissedAt = "";
+    }
+  });
+
+  (targetState.travelRoutes || []).forEach((item) => {
+    item.fromPlaceId = keepExistingId(item.fromPlaceId) || getIdByName(item.fromPlace);
+    item.toPlaceId = keepExistingId(item.toPlaceId) || getIdByName(item.toPlace);
+    if (!item.fromPlace && item.fromPlaceId) item.fromPlace = getNameById(item.fromPlaceId);
+    if (!item.toPlace && item.toPlaceId) item.toPlace = getNameById(item.toPlaceId);
+  });
+
+  return targetState;
+}
+
+function normalizeEventLifecycleStatus(status, item = null) {
+  const raw = String(status || "").trim().toLowerCase();
+  if (["active", "completed", "hidden", "archived"].includes(raw)) return raw;
+  if (item?.archivedAt) return "archived";
+  if (item?.hiddenAt || item?.dismissedAt) return "hidden";
+  if (item?.completedAt) return "completed";
+  return "active";
 }
 
 function normalizeStudyLocationKind(kind) {
@@ -460,6 +524,8 @@ function migrateParsedState(parsed) {
     : [];
   next.studyLocations = Array.isArray(parsed.studyLocations) ? parsed.studyLocations : [];
   next.travelRoutes = Array.isArray(parsed.travelRoutes) ? parsed.travelRoutes : [];
+  next.fixedSchedules = Array.isArray(parsed.fixedSchedules) ? parsed.fixedSchedules : [];
+  next.oneOffEvents = Array.isArray(parsed.oneOffEvents) ? parsed.oneOffEvents : [];
   return next;
 }
 

@@ -6,7 +6,7 @@ import { hasValidGoogleToken, upsertGoogleEventFromLocal, cacheGoogleEvent, getE
 import { captureRecoverySnapshot } from './recovery.js';
 import { confirmDialog } from './ui-feedback.js';
 
-export function buildGeminiPlanningPrompt(selectedDate = formatDateInput(new Date())) {
+export function buildPlanningPrompt(selectedDate = formatDateInput(new Date())) {
   const safeDate = selectedDate || formatDateInput(new Date());
   const planningDays = Math.min(14, Math.max(1, Number(state.settings?.aiPlanningDays || 1) || 1));
   const pendingTasks = getPendingTasks(safeDate);
@@ -291,7 +291,8 @@ function toLocalEventFromDraft(draft) {
     end: draft.allDay ? '' : draft.end,
     note: buildDraftNote(draft),
     allDay: Boolean(draft.allDay),
-    googleSyncStatus: 'local'
+    googleSyncStatus: 'local',
+    lifecycleStatus: 'active'
   });
 }
 
@@ -366,3 +367,5 @@ function normalizeTimeText(value) {
 function isDateString(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim());
 }
+
+export const buildGeminiPlanningPrompt = buildPlanningPrompt;

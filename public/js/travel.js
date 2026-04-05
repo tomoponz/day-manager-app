@@ -18,12 +18,42 @@ export function getTravelMethodLabel(method) {
   return TRAVEL_METHOD_LABELS[trimText(method)] || '移動';
 }
 
+export function getPlaceNameById(placeId, sourceState = state) {
+  const id = trimText(placeId);
+  if (!id) return '';
+  return trimText((sourceState.studyLocations || []).find((item) => trimText(item?.id) === id)?.name);
+}
+
+export function resolvePlaceName(placeId, fallbackName = '', sourceState = state) {
+  return getPlaceNameById(placeId, sourceState) || trimText(fallbackName);
+}
+
+export function findStudyLocationIdByName(name, sourceState = state) {
+  const needle = trimText(name);
+  if (!needle) return '';
+  return trimText((sourceState.studyLocations || []).find((item) => trimText(item?.name) === needle)?.id);
+}
+
+function normalizeLifecycleStatus(item) {
+  const raw = trimText(item?.lifecycleStatus).toLowerCase();
+  if (['active', 'completed', 'hidden', 'archived'].includes(raw)) return raw;
+  if (trimText(item?.dismissedAt) || trimText(item?.hiddenAt)) return 'hidden';
+  if (trimText(item?.archivedAt)) return 'archived';
+  if (trimText(item?.completedAt)) return 'completed';
+  return 'active';
+}
+
+export function isVisibleOneOffEvent(item) {
+  const lifecycleStatus = normalizeLifecycleStatus(item);
+  return lifecycleStatus !== 'hidden' && lifecycleStatus !== 'archived' && !trimText(item?.dismissedAt);
+}
+
 export function getVisibleOneOffEvents(items = state.oneOffEvents || []) {
-  return (items || []).filter((item) => !trimText(item?.dismissedAt));
+  return (items || []).filter((item) => isVisibleOneOffEvent(item));
 }
 
 export function isCleanupCandidateEvent(item, referenceNow = new Date()) {
-  if (!item || trimText(item.dismissedAt) || !trimText(item.date)) return false;
+  if (!item || !isVisibleOneOffEvent(item) || !trimText(item.date)) return false;
   const today = formatDateInput(referenceNow);
   if (item.date < today) return true;
   if (item.date > today) return false;
@@ -46,11 +76,11 @@ export function collectKnownPlaceNames(sourceState = state) {
   };
 
   (sourceState.studyLocations || []).forEach((item) => push(item?.name));
-  (sourceState.fixedSchedules || []).forEach((item) => push(item?.placeName));
-  (sourceState.oneOffEvents || []).forEach((item) => push(item?.placeName));
+  (sourceState.fixedSchedules || []).forEach((item) => push(resolvePlaceName(item?.placeId, item?.placeName, sourceState)));
+  (sourceState.oneOffEvents || []).forEach((item) => push(resolvePlaceName(item?.placeId, item?.placeName, sourceState)));
   (sourceState.travelRoutes || []).forEach((item) => {
-    push(item?.fromPlace);
-    push(item?.toPlace);
+    push(resolvePlaceName(item?.fromPlaceId, item?.fromPlace, sourceState));
+    push(resolvePlaceName(item?.toPlaceId, item?.toPlace, sourceState));
   });
 
   return [...names].sort((a, b) => a.localeCompare(b, 'ja'));
@@ -90,15 +120,46 @@ export function getNextDeparture(route, referenceTime, dateStr) {
   return entries.find((value) => toMinutes(value) >= referenceMinutes) || null;
 }
 
-export function findBestTravelRoute(fromPlace, toPlace, sourceState = state) {
-  const from = trimText(fromPlace);
-  const to = trimText(toPlace);
-  if (!from || !to || from === to) return null;
+function toPlaceRef(input, fallbackId = '', fallbackName = '', sourceState = state) {
+  if (input && typeof input === 'object') {
+    return {
+      placeId: trimText(input.placeId || fallbackId),
+      name: resolvePlaceName(input.placeId || fallbackId, input.placeName || input.name || fallbackName, sourceState)
+    };
+  }
+  const name = trimText(input || fallbackName);
+  return {
+    placeId: trimText(fallbackId) || findStudyLocationIdByName(name, sourceState),
+    name
+  };
+}
 
-  const exact = (sourceState.travelRoutes || []).find((route) => trimText(route.fromPlace) === from && trimText(route.toPlace) === to);
+export function findBestTravelRoute(fromPlace, toPlace, sourceState = state) {
+  const from = toPlaceRef(fromPlace, '', '', sourceState);
+  const to = toPlaceRef(toPlace, '', '', sourceState);
+  if ((!from.placeId && !from.name) || (!to.placeId && !to.name)) return null;
+  if ((from.placeId && to.placeId && from.placeId === to.placeId) || (from.name && to.name && from.name === to.name)) return null;
+
+  const exact = (sourceState.travelRoutes || []).find((route) => {
+    const routeFromId = trimText(route.fromPlaceId);
+    const routeToId = trimText(route.toPlaceId);
+    const routeFromName = resolvePlaceName(routeFromId, route.fromPlace, sourceState);
+    const routeToName = resolvePlaceName(routeToId, route.toPlace, sourceState);
+    const idMatch = from.placeId && to.placeId && routeFromId === from.placeId && routeToId === to.placeId;
+    const nameMatch = from.name && to.name && routeFromName === from.name && routeToName === to.name;
+    return idMatch || nameMatch;
+  });
   if (exact) return { ...exact, reverseFallback: false };
 
-  const reverse = (sourceState.travelRoutes || []).find((route) => trimText(route.fromPlace) === to && trimText(route.toPlace) === from);
+  const reverse = (sourceState.travelRoutes || []).find((route) => {
+    const routeFromId = trimText(route.fromPlaceId);
+    const routeToId = trimText(route.toPlaceId);
+    const routeFromName = resolvePlaceName(routeFromId, route.fromPlace, sourceState);
+    const routeToName = resolvePlaceName(routeToId, route.toPlace, sourceState);
+    const idMatch = from.placeId && to.placeId && routeFromId === to.placeId && routeToId === from.placeId;
+    const nameMatch = from.name && to.name && routeFromName === to.name && routeToName === from.name;
+    return idMatch || nameMatch;
+  });
   if (reverse) return { ...reverse, reverseFallback: true };
 
   return null;
@@ -106,7 +167,11 @@ export function findBestTravelRoute(fromPlace, toPlace, sourceState = state) {
 
 export function buildMovementPlanLines(dateStr, schedules = [], sourceState = state) {
   const timed = (schedules || [])
-    .filter((item) => !item?.allDay && trimText(item?.start) && trimText(item?.placeName))
+    .map((item) => ({
+      ...item,
+      resolvedPlaceName: resolvePlaceName(item?.placeId, item?.placeName, sourceState)
+    }))
+    .filter((item) => !item?.allDay && trimText(item?.start) && trimText(item?.resolvedPlaceName))
     .map((item) => ({
       ...item,
       endForMove: normalizeClock(item.end) || normalizeClock(item.start)
@@ -120,11 +185,15 @@ export function buildMovementPlanLines(dateStr, schedules = [], sourceState = st
   for (let index = 0; index < timed.length - 1; index += 1) {
     const current = timed[index];
     const next = timed[index + 1];
-    if (!trimText(current.placeName) || !trimText(next.placeName) || trimText(current.placeName) === trimText(next.placeName)) continue;
+    if (!trimText(current.resolvedPlaceName) || !trimText(next.resolvedPlaceName) || trimText(current.resolvedPlaceName) === trimText(next.resolvedPlaceName)) continue;
 
-    const route = findBestTravelRoute(current.placeName, next.placeName, sourceState);
+    const route = findBestTravelRoute(
+      { placeId: current.placeId, placeName: current.resolvedPlaceName },
+      { placeId: next.placeId, placeName: next.resolvedPlaceName },
+      sourceState
+    );
     if (!route) {
-      lines.push(`${current.title} → ${next.title} / ${current.placeName} → ${next.placeName} / ルート未登録`);
+      lines.push(`${current.title} → ${next.title} / ${current.resolvedPlaceName} → ${next.resolvedPlaceName} / ルート未登録`);
       continue;
     }
 
@@ -136,7 +205,7 @@ export function buildMovementPlanLines(dateStr, schedules = [], sourceState = st
 
     const parts = [
       `${current.title} → ${next.title}`,
-      `${current.placeName} → ${next.placeName}`,
+      `${current.resolvedPlaceName} → ${next.resolvedPlaceName}`,
       `${getTravelMethodLabel(route.method)} ${travelMinutes || '?'}分`
     ];
 
@@ -155,10 +224,10 @@ export function buildMovementPlanLines(dateStr, schedules = [], sourceState = st
   return lines.slice(0, 8);
 }
 
-export function sortTravelRoutesForDisplay(routes = state.travelRoutes || []) {
+export function sortTravelRoutesForDisplay(routes = state.travelRoutes || [], sourceState = state) {
   return [...(routes || [])].sort((a, b) => {
-    const aKey = `${trimText(a.fromPlace)}${trimText(a.toPlace)}${trimText(a.method)}`;
-    const bKey = `${trimText(b.fromPlace)}${trimText(b.toPlace)}${trimText(b.method)}`;
+    const aKey = `${resolvePlaceName(a.fromPlaceId, a.fromPlace, sourceState)}${resolvePlaceName(a.toPlaceId, a.toPlace, sourceState)}${trimText(a.method)}`;
+    const bKey = `${resolvePlaceName(b.fromPlaceId, b.fromPlace, sourceState)}${resolvePlaceName(b.toPlaceId, b.toPlace, sourceState)}${trimText(b.method)}`;
     return aKey.localeCompare(bKey, 'ja');
   });
 }

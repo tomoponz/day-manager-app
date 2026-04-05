@@ -2,7 +2,7 @@ import { state } from "./state.js";
 import { getCachedGoogleEvents } from "./google-calendar.js";
 import { getNowContext, toMinutes, fromMinutes, formatDateInput, formatTimeOnly } from "./time.js";
 import { $ } from "./utils.js";
-import { getVisibleOneOffEvents } from "./travel.js";
+import { getVisibleOneOffEvents, resolvePlaceName } from "./travel.js";
 import { getSchedulingRules, isWeekdayDate, makeProtectedBlock, describeProtectedBlock, summarizeProtectedBlocks, buildRuleModeLabel, intersectMinuteRange, clampBlockWithinSlot, minutesToTimeText } from "./scheduling-rules.js";
 
 function currentContext(dateStr = $("selectedDate")?.value || formatDateInput(new Date())) {
@@ -104,7 +104,8 @@ export function compareSchedule(a, b) {
 }
 
 export function formatScheduleLine(item) {
-  const place = item.placeName ? ` / 場所:${item.placeName}` : "";
+  const resolvedPlaceName = resolvePlaceName(item?.placeId, item?.placeName);
+  const place = resolvedPlaceName ? ` / 場所:${resolvedPlaceName}` : "";
   if (item.allDay) return `終日 / ${item.title}${place}${item.note ? ` / ${item.note}` : ""}`;
   const time = item.start ? `${item.start}${item.end ? ` - ${item.end}` : ""}` : "時刻未設定";
   const note = item.note ? ` / ${item.note}` : "";

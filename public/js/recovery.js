@@ -13,7 +13,8 @@ import {
   normalizeAssessment,
   normalizeWeeklyPlans,
   normalizeMilestone,
-  normalizePlanningDraft
+  normalizePlanningDraft,
+  hydrateStateReferences
 } from "./state.js";
 import { $ } from "./utils.js";
 
@@ -48,7 +49,7 @@ export function normalizePersistedState(parsed) {
     throw new Error(`このデータは新しい形式 (v${schemaVersion}) です。現在のアプリでは読み込めません。`);
   }
 
-  return {
+  return hydrateStateReferences({
     schemaVersion: STATE_SCHEMA_VERSION,
     fixedSchedules: (parsed.fixedSchedules || []).map(normalizeFixedSchedule),
     oneOffEvents: (parsed.oneOffEvents || []).map(normalizeOneOffEvent),
@@ -67,7 +68,7 @@ export function normalizePersistedState(parsed) {
     planningDrafts: (parsed.planningDrafts || []).map(normalizePlanningDraft),
     settings: normalizeSettings(parsed.settings),
     uiState: normalizeUiState(parsed.uiState)
-  };
+  });
 }
 
 export function applyPersistedState(normalized) {
@@ -86,6 +87,7 @@ export function applyPersistedState(normalized) {
   state.planningDrafts = normalized.planningDrafts;
   state.settings = normalized.settings;
   state.uiState = normalized.uiState;
+  hydrateStateReferences(state);
   saveState();
   return state;
 }
