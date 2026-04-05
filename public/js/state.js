@@ -202,6 +202,7 @@ export function normalizeFixedSchedule(item) {
     weekday: Number(item.weekday ?? 0),
     start: item.start || "",
     end: item.end || "",
+    placeId: item.placeId || "",
     placeName: item.placeName || "",
     note: item.note || ""
   };
@@ -215,10 +216,15 @@ export function normalizeOneOffEvent(item) {
     start: item.start || "",
     end: item.end || "",
     note: item.note || "",
+    placeId: item.placeId || "",
     placeName: item.placeName || "",
     allDay: Boolean(item.allDay),
     googleEventId: item.googleEventId || "",
     googleSyncStatus: item.googleSyncStatus || (item.googleEventId ? "synced" : "local"),
+    lifecycleStatus: item.lifecycleStatus || "",
+    hiddenAt: item.hiddenAt || "",
+    archivedAt: item.archivedAt || "",
+    completedAt: item.completedAt || "",
     dismissedAt: item.dismissedAt || ""
   };
 }
@@ -260,7 +266,9 @@ export function normalizeStudyLocation(item) {
 export function normalizeTravelRoute(item) {
   return {
     id: item.id || crypto.randomUUID(),
+    fromPlaceId: item.fromPlaceId || "",
     fromPlace: item.fromPlace || "",
+    toPlaceId: item.toPlaceId || "",
     toPlace: item.toPlace || "",
     method: normalizeTravelRouteMethod(item.method),
     durationMinutes: normalizeOptionalNumber(item.durationMinutes),

@@ -30,6 +30,7 @@ import {
   getVisibleOneOffEvents,
   isCleanupCandidateEvent,
   collectKnownPlaceNames,
+  resolvePlaceName,
   buildMovementPlanLines,
   sortTravelRoutesForDisplay,
   getTravelMethodLabel,
@@ -228,7 +229,7 @@ export function renderFixedSchedules() {
           makeBadge("毎週固定", "ok"),
           makeBadge(`${WEEKDAY_NAMES[item.weekday]}曜日`),
           makeBadge(`${item.start} - ${item.end}`, "blue"),
-          item.placeName ? makeBadge(`場所:${item.placeName}`) : null
+          resolvePlaceName(item.placeId, item.placeName) ? makeBadge(`場所:${resolvePlaceName(item.placeId, item.placeName)}`) : null
         ],
         detail: item.note ? `補足: ${item.note}` : "",
         note: item.note,
@@ -298,7 +299,7 @@ export function renderOneOffEvents() {
         badges: [
           makeBadge(item.date),
           makeBadge(timeLabel, item.allDay ? "ok" : "blue"),
-          item.placeName ? makeBadge(`場所:${item.placeName}`) : null,
+          resolvePlaceName(item.placeId, item.placeName) ? makeBadge(`場所:${resolvePlaceName(item.placeId, item.placeName)}`) : null,
           makeBadge(
             syncLabel,
             syncLabel.includes("失敗")
@@ -506,7 +507,7 @@ export function renderTravelRoutes() {
     const timetableLabel = departures.length ? `${describeTimetableMode(item)} / ${departures.length}本` : "時刻表なし";
     wrap.appendChild(
       createListItem({
-        title: `${item.fromPlace} → ${item.toPlace}`,
+        title: `${resolvePlaceName(item.fromPlaceId, item.fromPlace)} → ${resolvePlaceName(item.toPlaceId, item.toPlace)}`,
         badges: [
           makeBadge(getTravelMethodLabel(item.method), "blue"),
           item.durationMinutes !== "" ? makeBadge(`${item.durationMinutes}分`, "ok") : null,

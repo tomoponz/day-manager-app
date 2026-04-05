@@ -7,7 +7,7 @@ import { loadGoogleEventsForDate, hasValidGoogleToken, upsertGoogleEventFromLoca
 import { parseQuickAddInput } from './quick-add.js';
 import { showToast, confirmDialog } from './ui-feedback.js';
 import { normalizePersistedState, applyPersistedState, captureRecoverySnapshot, restoreRecoverySnapshot, refreshRecoveryUi } from './recovery.js';
-import { getVisibleOneOffEvents, isCleanupCandidateEvent } from './travel.js';
+import { getVisibleOneOffEvents, isCleanupCandidateEvent, findStudyLocationIdByName, resolvePlaceName } from './travel.js';
 import { focusFormPanel, resetFixedForm, resetEventForm, resetTaskForm, resetStudyLocationForm, openTravelRouteFormForCreate, resetTravelRouteForm, openFixedFormForCreate, openEventFormForCreate, openTaskFormForCreate } from './actions-editor.js';
 
 function getSelectedTaskDate() {
@@ -35,6 +35,7 @@ export async function onSubmitFixedSchedule(e) {
     start: String(fd.get('start')),
     end: String(fd.get('end')),
     placeName: String(fd.get('placeName') || '').trim(),
+    placeId: findStudyLocationIdByName(String(fd.get('placeName') || '').trim()),
     note: String(fd.get('note')).trim()
   });
   if (!payload.title) {
@@ -73,6 +74,11 @@ export async function onSubmitOneOffEvent(e) {
     end: allDay ? '' : String(fd.get('end') || ''),
     note: String(fd.get('note')).trim(),
     placeName: String(fd.get('placeName') || '').trim(),
+    placeId: findStudyLocationIdByName(String(fd.get('placeName') || '').trim()),
+    lifecycleStatus: 'active',
+    hiddenAt: '',
+    archivedAt: '',
+    completedAt: '',
     allDay
   });
   if (!payload.title || !payload.date) {
@@ -87,6 +93,8 @@ export async function onSubmitOneOffEvent(e) {
   let target = editingId ? state.oneOffEvents.find((item) => item.id === editingId) : null;
   if (target) {
     Object.assign(target, payload);
+    target.lifecycleStatus = 'active';
+    target.hiddenAt = '';
     target.dismissedAt = '';
     if (target.googleEventId) {
       if (hasValidGoogleToken()) {
@@ -202,7 +210,9 @@ export function onSubmitTravelRoute(e) {
   const payload = normalizeTravelRoute({
     id: editingId || crypto.randomUUID(),
     fromPlace: String(fd.get('fromPlace') || '').trim(),
+    fromPlaceId: findStudyLocationIdByName(String(fd.get('fromPlace') || '').trim()),
     toPlace: String(fd.get('toPlace') || '').trim(),
+    toPlaceId: findStudyLocationIdByName(String(fd.get('toPlace') || '').trim()),
     method: String(fd.get('method') || 'walk').trim(),
     durationMinutes: String(fd.get('durationMinutes') || '').trim(),
     timetableMode: String(fd.get('timetableMode') || 'daily').trim(),
@@ -240,8 +250,8 @@ export function populateTravelRouteForm(id) {
   if (appSettingsPanel) appSettingsPanel.open = true;
   if (formPanel) formPanel.open = true;
   form.elements.editId.value = item.id;
-  form.elements.fromPlace.value = item.fromPlace;
-  form.elements.toPlace.value = item.toPlace;
+  form.elements.fromPlace.value = resolvePlaceName(item.fromPlaceId, item.fromPlace) || item.fromPlace;
+  form.elements.toPlace.value = resolvePlaceName(item.toPlaceId, item.toPlace) || item.toPlace;
   form.elements.method.value = item.method || 'walk';
   form.elements.durationMinutes.value = item.durationMinutes ?? '';
   form.elements.timetableMode.value = item.timetableMode || 'daily';
@@ -277,7 +287,11 @@ export async function deleteTravelRoute(id) {
 export function dismissOneOffEvent(id) {
   const item = state.oneOffEvents.find((entry) => entry.id === id);
   if (!item) return;
-  item.dismissedAt = new Date().toISOString();
+  captureRecoverySnapshot('dismiss-event');
+  const timestamp = new Date().toISOString();
+  item.lifecycleStatus = 'hidden';
+  item.hiddenAt = timestamp;
+  item.dismissedAt = timestamp;
   saveState();
   renderAll();
   showToast('単発予定を一覧から片付けました。Google側の予定は消していません。', {
@@ -285,6 +299,8 @@ export function dismissOneOffEvent(id) {
     duration: 5000,
     actionLabel: '元に戻す',
     onAction: () => {
+      item.lifecycleStatus = 'active';
+      item.hiddenAt = '';
       item.dismissedAt = '';
       saveState();
       renderAll();
@@ -302,6 +318,8 @@ export function cleanupPastOneOffEvents() {
   captureRecoverySnapshot('dismiss-past-events');
   const timestamp = new Date().toISOString();
   targets.forEach((item) => {
+    item.lifecycleStatus = 'hidden';
+    item.hiddenAt = timestamp;
     item.dismissedAt = timestamp;
   });
   saveState();
@@ -312,6 +330,8 @@ export function cleanupPastOneOffEvents() {
     actionLabel: '元に戻す',
     onAction: () => {
       targets.forEach((item) => {
+        item.lifecycleStatus = 'active';
+        item.hiddenAt = '';
         item.dismissedAt = '';
       });
       saveState();
@@ -328,6 +348,8 @@ export function restoreDismissedOneOffEvents() {
     return;
   }
   targets.forEach((item) => {
+    item.lifecycleStatus = 'active';
+    item.hiddenAt = '';
     item.dismissedAt = '';
   });
   saveState();
@@ -368,7 +390,7 @@ export function populateFixedForm(id) {
   form.elements.weekday.value = String(item.weekday);
   form.elements.start.value = item.start;
   form.elements.end.value = item.end;
-  if (form.elements.placeName) form.elements.placeName.value = item.placeName || '';
+  if (form.elements.placeName) form.elements.placeName.value = resolvePlaceName(item.placeId, item.placeName) || '';
   form.elements.note.value = item.note;
   if ($('fixedSubmitBtn')) $('fixedSubmitBtn').textContent = '固定予定を更新';
   if ($('fixedCancelBtn')) $('fixedCancelBtn').hidden = false;
@@ -416,7 +438,7 @@ export function populateEventForm(id) {
   form.elements.allDay.checked = Boolean(item.allDay);
   form.elements.start.value = item.start;
   form.elements.end.value = item.end;
-  if (form.elements.placeName) form.elements.placeName.value = item.placeName || '';
+  if (form.elements.placeName) form.elements.placeName.value = resolvePlaceName(item.placeId, item.placeName) || '';
   form.elements.note.value = item.note;
   if ($('syncEventToGoogle')) $('syncEventToGoogle').checked = item.googleSyncStatus !== 'local';
   toggleEventTimeInputs();
@@ -428,7 +450,7 @@ export function populateEventForm(id) {
 export function duplicateOneOffEvent(id) {
   const item = state.oneOffEvents.find((entry) => entry.id === id);
   if (!item) return;
-  state.oneOffEvents.push({ ...item, id: crypto.randomUUID(), title: `${item.title} (複製)`, googleEventId: '', googleSyncStatus: 'local', dismissedAt: '' });
+  state.oneOffEvents.push({ ...item, id: crypto.randomUUID(), title: `${item.title} (複製)`, googleEventId: '', googleSyncStatus: 'local', lifecycleStatus: 'active', hiddenAt: '', archivedAt: '', completedAt: '', dismissedAt: '' });
   saveState();
   renderAll();
   showToast('単発予定を複製しました。', { variant: 'ok', duration: 2200 });
