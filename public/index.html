@@ -980,9 +980,14 @@
               <input name="note" placeholder="例: 乗換1回 / 混む時間あり" type="text"/>
 </label>
 <label class="full-span">
-              時刻表メモ
-              <textarea name="timetableText" placeholder="例: 06:48 07:05 07:22 07:40
-1行でも複数行でも可。時刻だけ拾います。" rows="4"></textarea>
+              時刻表メモ（発）
+              <textarea name="departureTimetableText" placeholder="例: 06:48 07:05 07:22 07:40
+出発時刻を入れてください。旧データはここへ引き継がれます。" rows="3"></textarea>
+</label>
+<label class="full-span">
+              時刻表メモ（着）
+              <textarea name="arrivalTimetableText" placeholder="例: 07:02 07:19 07:36 07:54
+到着時刻を分けて入れると、発/着を区別して表示できます。" rows="3"></textarea>
 </label>
 <div class="form-actions full-span">
 <button class="primary" id="travelRouteSubmitBtn" type="submit">移動ルートを追加</button>
@@ -991,7 +996,7 @@
 </form>
 </div>
 </details>
-<p class="micro-note">JR・バスなどの時刻はメモ形式で構いません。対象日の予定同士の間に、次発・余裕時間の参考を出します。</p>
+<p class="micro-note">JR・バスなどの時刻はメモ形式で構いません。発と着を分けて入れると、対象日の予定同士の間に次発・到着・余裕時間の参考を出します。</p>
 <div class="list-wrap empty" id="travelRouteList">まだありません</div>
 </section>
 
