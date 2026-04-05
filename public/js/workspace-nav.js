@@ -1,6 +1,6 @@
 import { resizeCalendarUi, refreshCalendarUi } from './calendar-ui.js';
 
-const STORAGE_KEY = 'day-manager-workspace-nav-v4';
+const STORAGE_KEY = 'day-manager-workspace-nav-v5';
 const NORMAL_MODE = 'normal';
 const FOCUS_MODE = 'focus';
 const COMPACT_SCROLL_Y = 32;
@@ -219,7 +219,7 @@ function init() {
     document.body.classList.toggle('workspace-focus-mode', isFocus);
     modeToggle.classList.toggle('is-active', isFocus);
     modeToggle.setAttribute('aria-pressed', String(isFocus));
-    modeToggle.textContent = isFocus ? '通常表示' : '集中表示';
+    modeToggle.textContent = isFocus ? '一覧表示' : 'ワークスペース表示';
   }
 
   setActiveUtilityButton();
@@ -291,10 +291,10 @@ function loadPrefs(sections, tabs) {
     const activeSectionId = sections.some((section) => section.id === parsed.activeSectionId)
       ? parsed.activeSectionId
       : fallbackId;
-    const mode = parsed.mode === FOCUS_MODE ? FOCUS_MODE : NORMAL_MODE;
+    const mode = parsed.mode === NORMAL_MODE ? NORMAL_MODE : FOCUS_MODE;
     return { activeSectionId, mode };
   } catch {
-    return { activeSectionId: fallbackId, mode: NORMAL_MODE };
+    return { activeSectionId: fallbackId, mode: FOCUS_MODE };
   }
 }
 
