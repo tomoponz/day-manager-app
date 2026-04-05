@@ -398,15 +398,6 @@
 </label>
 </div>
 <p class="status-note" id="stateNote">人間は状態変化を報告し、アプリは現在地点を整理してAIに渡します。</p>
-<section class="card inner-card today-hub-surface">
-<div class="card-header compact">
-<div>
-<h2>今日ハブ</h2>
-<p>予定・締切・移動・片付け候補・AI提案を、まずここでひとまとめに見ます。</p>
-</div>
-</div>
-<div class="summary-list empty" id="todayHubSummary">まだありません</div>
-</section>
 <div class="judgement-stack">
 <div class="judgement-grid judgement-grid-top">
 <article class="summary-box">
@@ -843,6 +834,17 @@
               AIに渡す計画日数
               <input id="aiPlanningDays" max="14" min="1" placeholder="例: 3" step="1" type="number"/>
 </label>
+<label>
+              計画粒度(分)
+              <select id="planningGranularityMinutes">
+<option value="5">5分単位</option>
+<option value="10">10分単位</option>
+<option value="15">15分単位</option>
+<option value="20">20分単位</option>
+<option value="30">30分単位</option>
+<option value="60">60分単位</option>
+</select>
+</label>
 </div>
 <div class="helper-list">
 <div>朝モード: 重いタスクを先に取りにいきます。</div>
@@ -1083,7 +1085,7 @@
 <div class="card-header compact">
 <div>
 <h2>AI連携</h2>
-<p>選んだAIサービスに貼るための文章を生成します。計画日数の設定も反映します。</p>
+<p>選んだAIサービスに貼るための文章を生成します。計画日数と計画粒度の設定も反映します。</p>
 </div>
 </div>
 <div class="prompt-actions">

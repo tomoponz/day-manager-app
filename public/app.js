@@ -1,6 +1,6 @@
 (() => {
   const APP_VERSION = "v0.8.1";
-  const APP_RELEASE_NOTE = "最新更新: Place参照・予定ライフサイクル・今日ハブ・AI命名整理を追加";
+  const APP_RELEASE_NOTE = "最新更新: 計画粒度設定・起動高速化・タスク状態判定の共通化を追加";
   const MODULE_VERSION = APP_VERSION;
   const FORCE_REFRESH_FLAG = "day-manager-force-refresh-once";
 
@@ -29,15 +29,27 @@
   async function bootstrap() {
     mountAppVersion();
 
-    const utilsModule = await importModule("./js/utils.js", "utils.js");
-    const timeModule = await importModule("./js/time.js", "time.js");
-    const renderModule = await importModule("./js/render.js", "render.js");
-    const actionsModule = await importModule("./js/actions.js", "actions.js");
-    const googleModule = await importModule("./js/google-calendar.js", "google-calendar.js");
-    const calendarModule = await importModule("./js/calendar-ui.js", "calendar-ui.js");
-    const studyModule = await importModule("./js/study-manager.js", "study-manager.js");
-    const onboardingModule = await importModule("./js/onboarding.js", "onboarding.js");
-    await importModule("./js/main-screen-layout.js", "main-screen-layout.js");
+    const [
+      utilsModule,
+      timeModule,
+      renderModule,
+      actionsModule,
+      googleModule,
+      calendarModule,
+      studyModule,
+      onboardingModule,
+      _layoutModule
+    ] = await Promise.all([
+      importModule("./js/utils.js", "utils.js"),
+      importModule("./js/time.js", "time.js"),
+      importModule("./js/render.js", "render.js"),
+      importModule("./js/actions.js", "actions.js"),
+      importModule("./js/google-calendar.js", "google-calendar.js"),
+      importModule("./js/calendar-ui.js", "calendar-ui.js"),
+      importModule("./js/study-manager.js", "study-manager.js"),
+      importModule("./js/onboarding.js", "onboarding.js"),
+      importModule("./js/main-screen-layout.js", "main-screen-layout.js")
+    ]);
 
     googleModule.configureGoogleUi({
       renderAll: renderModule.renderAll,
@@ -99,8 +111,10 @@
     });
 
     registerServiceWorker();
-    await importModule("./js/ai-gemini-assist.js", "ai-gemini-assist.js");
-    await googleModule.initializeGoogleBackgroundSync();
+    await Promise.all([
+      importModule("./js/ai-gemini-assist.js", "ai-gemini-assist.js"),
+      googleModule.initializeGoogleBackgroundSync()
+    ]);
 
     timeModule.startClock(() => {
       renderModule.renderCurrentClock();
