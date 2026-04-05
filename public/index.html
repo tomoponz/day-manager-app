@@ -152,6 +152,10 @@
                     <input name="end" required="" type="time"/>
 </label>
 <label class="full-span">
+                    場所
+                    <input list="knownPlaceNames" name="placeName" placeholder="例: 工学部講義室 / 鹿児島中央駅" type="text"/>
+</label>
+<label class="full-span">
                     補足
                     <input name="note" placeholder="例: 移動込み / 教室情報" type="text"/>
 </label>
@@ -169,6 +173,10 @@
 <p>その日だけの予定・締切・外出など</p>
 </div>
 <button class="ghost compact-add-btn" data-open-editor-target="event" type="button">+ 追加</button>
+</div>
+<div class="settings-actions-row">
+<button class="ghost" id="cleanupOneOffEventsBtn" type="button">完了・過去予定を片付ける</button>
+<button class="ghost" id="restoreDismissedOneOffEventsBtn" type="button">片付けた予定を戻す</button>
 </div>
 <details class="subsection-fold" id="eventFormPanel">
 <summary class="subsection-summary">単発予定を追加 / 編集</summary>
@@ -197,6 +205,10 @@
 <label>
                     終了
                     <input name="end" type="time"/>
+</label>
+<label class="full-span">
+                    場所
+                    <input list="knownPlaceNames" name="placeName" placeholder="例: 図書館 / Zoom / 鹿児島中央駅" type="text"/>
 </label>
 <label class="full-span">
                     補足
@@ -421,6 +433,10 @@
 <article class="summary-box">
 <h3>対象日の自習場所候補</h3>
 <div class="summary-list empty" id="studyLocationSummary">まだありません</div>
+</article>
+<article class="summary-box">
+<h3>対象日の移動メモ</h3>
+<div class="summary-list empty" id="movementPlanSummary">まだありません</div>
 </article>
 </div>
 <div class="judgement-grid judgement-grid-bottom">
@@ -814,6 +830,10 @@
               バッファ(分)
               <input id="bufferMinutes" min="0" placeholder="例: 10" step="5" type="number"/>
 </label>
+<label>
+              AIに渡す計画日数
+              <input id="aiPlanningDays" max="14" min="1" placeholder="例: 3" step="1" type="number"/>
+</label>
 </div>
 <div class="helper-list">
 <div>朝モード: 重いタスクを先に取りにいきます。</div>
@@ -892,6 +912,69 @@
 <p class="micro-note">一覧の「公式」で公式サイトを開き、「確認済 / 休館 / 短縮」で対象日の確認結果を残せます。</p>
 <div class="list-wrap empty" id="studyLocationList">まだありません</div>
 </section>
+<section class="card inner-card" id="travelRouteManagementSection">
+<div class="card-header compact list-header-actions">
+<div>
+<h2>移動ルート・時刻表</h2>
+<p>場所どうしの所要時間、移動方法、JRなどの時刻表メモを登録します。対象日の移動メモにも反映されます。</p>
+</div>
+<button class="ghost compact-add-btn" id="openTravelRouteEditorBtn" type="button">+ 追加</button>
+</div>
+<details class="subsection-fold" id="travelRouteFormPanel">
+<summary class="subsection-summary">移動ルートを追加 / 編集</summary>
+<div class="subsection-body">
+<form class="form-grid" id="travelRouteForm">
+<input name="editId" type="hidden"/>
+<label>
+              出発地
+              <input list="knownPlaceNames" name="fromPlace" placeholder="例: 自宅 / 鹿児島中央駅" required="" type="text"/>
+</label>
+<label>
+              到着地
+              <input list="knownPlaceNames" name="toPlace" placeholder="例: 大学 / 中央図書館" required="" type="text"/>
+</label>
+<label>
+              移動方法
+              <select name="method">
+<option value="walk">徒歩</option>
+<option value="bicycle">自転車</option>
+<option value="jr">JR</option>
+<option value="bus">バス</option>
+<option value="car">車</option>
+<option value="other">その他</option>
+</select>
+</label>
+<label>
+              所要時間(分)
+              <input min="0" name="durationMinutes" placeholder="例: 25" step="1" type="number"/>
+</label>
+<label>
+              時刻表の適用日
+              <select name="timetableMode">
+<option value="daily">毎日</option>
+<option value="weekday">平日</option>
+<option value="weekend">土日祝メモ</option>
+</select>
+</label>
+<label class="full-span">
+              メモ
+              <input name="note" placeholder="例: 乗換1回 / 混む時間あり" type="text"/>
+</label>
+<label class="full-span">
+              時刻表メモ
+              <textarea name="timetableText" placeholder="例: 06:48 07:05 07:22 07:40
+1行でも複数行でも可。時刻だけ拾います。" rows="4"></textarea>
+</label>
+<div class="form-actions full-span">
+<button class="primary" id="travelRouteSubmitBtn" type="submit">移動ルートを追加</button>
+<button class="ghost" hidden="" id="travelRouteCancelBtn" type="button">編集を取り消す</button>
+</div>
+</form>
+</div>
+</details>
+<p class="micro-note">JR・バスなどの時刻はメモ形式で構いません。対象日の予定同士の間に、次発・余裕時間の参考を出します。</p>
+<div class="list-wrap empty" id="travelRouteList">まだありません</div>
+</section>
 
 <section class="card inner-card">
 <div class="card-header compact">
@@ -964,17 +1047,17 @@
 <div class="card-header compact">
 <div>
 <h2>クイックリンク</h2>
-<p>ChatGPT・Gemini・大学ポータルを、アプリからすぐ開けるようにします。</p>
+<p>使うAIの種類を固定せず、任意のAIサービスと大学ポータルをすぐ開けるようにします。</p>
 </div>
 </div>
 <div class="settings-grid link-settings-grid">
 <label>
-                ChatGPT URL
-                <input id="chatgptUrl" placeholder="https://chatgpt.com/" type="url"/>
+                AIサービス名
+                <input id="aiServiceName" placeholder="例: ChatGPT / Gemini / Claude" type="text"/>
 </label>
 <label>
-                Gemini URL
-                <input id="geminiUrl" placeholder="https://gemini.google.com/app" type="url"/>
+                AIサービスURL
+                <input id="aiServiceUrl" placeholder="https://..." type="url"/>
 </label>
 <label>
                 大学ポータル / manaba URL
@@ -982,25 +1065,24 @@
 </label>
 </div>
 <div class="settings-actions-row link-settings-actions">
-<button class="ghost" id="openChatgptLinkBtn" type="button">ChatGPT を開く</button>
-<button class="ghost" id="openGeminiLinkBtn" type="button">Gemini を開く</button>
+<button class="ghost" id="openAiServiceLinkBtn" type="button">AIを開く</button>
 <button class="ghost" id="openCampusPortalLinkBtn" type="button">大学ポータルを開く</button>
 </div>
-<p class="micro-note">URLを登録すると、別タブで即確認できます。科目ごとの manaba URL は科目フォーム側に登録します。</p>
+<p class="micro-note">URLを登録すると、別タブで即確認できます。旧ChatGPT/Gemini個別設定は互換のため内部に残しています。</p>
 </section>
 <section class="card inner-card" id="promptAssistSection">
 <div class="card-header compact">
 <div>
-<h2>AI連携（ChatGPT）</h2>
-<p>今日の情報をまとめて、ChatGPT に貼る文章を生成します。</p>
+<h2>AI連携</h2>
+<p>選んだAIサービスに貼るための文章を生成します。計画日数の設定も反映します。</p>
 </div>
 </div>
 <div class="prompt-actions">
-<button class="primary" id="generateBtn">今日を設計する文章を生成</button>
+<button class="primary" id="generateBtn">計画依頼文を生成</button>
 <button id="copyBtn">コピー</button>
 </div>
 <label class="prompt-label">
-                ChatGPTに貼る文章
+                AIに貼る文章
                 <textarea id="promptOutput" placeholder="ここに生成されます" rows="18"></textarea>
 </label>
 </section>
@@ -1039,6 +1121,7 @@
 </main>
 </div>
 </div>
+<datalist id="knownPlaceNames"></datalist>
 <template id="listItemTemplate">
 <article class="list-item">
 <div class="list-main">

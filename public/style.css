@@ -1981,3 +1981,13 @@ body.editor-drawer-open {
   color: var(--warn);
   border-color: rgba(180, 83, 9, 0.22);
 }
+
+
+#travelRouteManagementSection .list-wrap,
+#studyLocationManagementSection .list-wrap {
+  margin-top: 12px;
+}
+
+.settings-actions-row {
+  flex-wrap: wrap;
+}

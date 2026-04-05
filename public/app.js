@@ -1,6 +1,6 @@
 (() => {
-  const APP_VERSION = "v0.7.6";
-  const APP_RELEASE_NOTE = "最新更新: 起動エラー対策としてモジュール読込を安定化";
+  const APP_VERSION = "v0.8.0";
+  const APP_RELEASE_NOTE = "最新更新: AI設定統合・計画日数可変・単発予定片付け・移動ルート管理を追加";
   const MODULE_VERSION = APP_VERSION;
   const FORCE_REFRESH_FLAG = "day-manager-force-refresh-once";
 
@@ -62,6 +62,9 @@
       onSyncEvent: actionsModule.syncEvent,
       onSyncUpdatedEvent: actionsModule.syncUpdatedEvent,
       onDeleteEvent: actionsModule.deleteEvent,
+      onDismissEvent: actionsModule.dismissOneOffEvent,
+      onRestoreDismissedEvents: actionsModule.restoreDismissedOneOffEvents,
+      onCleanupPastEvents: actionsModule.cleanupPastOneOffEvents,
       onCreateEvent: actionsModule.openEventFormForCreate,
       onQuickSetTaskStatus: actionsModule.quickSetTaskStatus,
       onDeferTaskToTomorrow: actionsModule.deferTaskToTomorrow,
@@ -71,6 +74,9 @@
       onEditStudyLocation: actionsModule.populateStudyLocationForm,
       onDeleteStudyLocation: actionsModule.deleteStudyLocation,
       onCreateStudyLocation: actionsModule.openStudyLocationFormForCreate,
+      onEditTravelRoute: actionsModule.populateTravelRouteForm,
+      onDeleteTravelRoute: actionsModule.deleteTravelRoute,
+      onCreateTravelRoute: actionsModule.openTravelRouteFormForCreate,
       onOpenStudyLocationSourceUrl: actionsModule.openStudyLocationSourceUrl,
       onMarkStudyLocationCheckedOpen: actionsModule.markStudyLocationCheckedOpen,
       onMarkStudyLocationCheckedClosed: actionsModule.markStudyLocationCheckedClosed,
