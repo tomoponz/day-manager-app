@@ -881,6 +881,7 @@ body.workspace-chrome-compact .workspace-mode-toggle {
   flex-direction: column;
   gap: 0.65rem;
   z-index: 9999;
+  pointer-events: none;
 }
 
 .feedback-toast {
@@ -899,6 +900,7 @@ body.workspace-chrome-compact .workspace-mode-toggle {
   opacity: 0;
   transform: translateY(8px);
   transition: opacity var(--ease), transform var(--ease);
+  pointer-events: none;
 }
 
 .feedback-toast.is-visible {
@@ -927,6 +929,7 @@ body.workspace-chrome-compact .workspace-mode-toggle {
   box-shadow: none;
   padding: 0;
   min-width: auto;
+  pointer-events: auto;
 }
 
 .feedback-toast__action {
