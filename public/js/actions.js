@@ -1,4 +1,4 @@
-import { state, saveState, STATE_SCHEMA_VERSION, normalizeOneOffEvent, normalizeFixedSchedule, normalizeTask, normalizeStudyLocation, normalizeCourse, normalizeMaterial, normalizeAssessment, normalizeWeeklyPlans, normalizeMilestone, normalizePlanningDraft } from './state.js';
+import { state, saveState, STATE_SCHEMA_VERSION, normalizeOneOffEvent, normalizeFixedSchedule, normalizeTask, normalizeStudyLocation, normalizeTravelRoute, normalizeCourse, normalizeMaterial, normalizeAssessment, normalizeWeeklyPlans, normalizeMilestone, normalizePlanningDraft } from './state.js';
 import { $, debounce, getFormValue } from './utils.js';
 import { addDays, formatDateInput, formatTimeOnly, isSelectedDateToday, isValidTimeRange, roundToFiveMinutes } from './time.js';
 import { renderAll, renderCurrentClock, renderCurrentState, renderAutoPlan, renderSummaries, renderTodayActionDeck, updateStateNote, loadConditionInputsForDate, hydrateSettingsInputs } from './render.js';
@@ -26,6 +26,7 @@ import {
   restoreRecoverySnapshot,
   refreshRecoveryUi
 } from './recovery.js';
+import { getVisibleOneOffEvents, isCleanupCandidateEvent } from './travel.js';
 
 function on(id, event, handler) {
   $(id)?.addEventListener(event, handler);
@@ -244,11 +245,13 @@ export function bindEvents() {
   on('eventForm', 'submit', onSubmitOneOffEvent);
   on('taskForm', 'submit', onSubmitTask);
   on('studyLocationForm', 'submit', onSubmitStudyLocation);
+  on('travelRouteForm', 'submit', onSubmitTravelRoute);
 
   on('fixedCancelBtn', 'click', resetFixedForm);
   on('eventCancelBtn', 'click', resetEventForm);
   on('taskCancelBtn', 'click', resetTaskForm);
   on('studyLocationCancelBtn', 'click', resetStudyLocationForm);
+  on('travelRouteCancelBtn', 'click', resetTravelRouteForm);
 
   on('selectedDate', 'change', onDateChanged);
 
@@ -259,6 +262,9 @@ export function bindEvents() {
   on('plannerMode', 'change', onPlannerModeChanged);
   on('focusMinutesTarget', 'input', saveSettingsInputs);
   on('bufferMinutes', 'input', saveSettingsInputs);
+  on('aiServiceName', 'input', saveSettingsInputs);
+  on('aiServiceUrl', 'input', saveSettingsInputs);
+  on('aiPlanningDays', 'input', saveSettingsInputs);
   on('chatgptUrl', 'input', saveSettingsInputs);
   on('geminiUrl', 'input', saveSettingsInputs);
   on('campusPortalUrl', 'input', saveSettingsInputs);
@@ -304,9 +310,13 @@ export function bindEvents() {
     importGoogleEventsToLocal($('selectedDate')?.value || '');
   });
 
+  on('openAiServiceLinkBtn', 'click', () => openConfiguredExternalLink($('aiServiceUrl')?.value || state.settings?.aiServiceUrl || state.settings?.chatgptUrl, $('aiServiceName')?.value || state.settings?.aiServiceName || 'AI'));
   on('openChatgptLinkBtn', 'click', () => openConfiguredExternalLink($('chatgptUrl')?.value || state.settings?.chatgptUrl, 'ChatGPT'));
   on('openGeminiLinkBtn', 'click', () => openConfiguredExternalLink($('geminiUrl')?.value || state.settings?.geminiUrl, 'Gemini'));
   on('openCampusPortalLinkBtn', 'click', () => openConfiguredExternalLink($('campusPortalUrl')?.value || state.settings?.campusPortalUrl, '大学ポータル'));
+  on('cleanupOneOffEventsBtn', 'click', cleanupPastOneOffEvents);
+  on('restoreDismissedOneOffEventsBtn', 'click', restoreDismissedOneOffEvents);
+  on('openTravelRouteEditorBtn', 'click', openTravelRouteFormForCreate);
 
   on('eventAllDay', 'change', toggleEventTimeInputs);
 
@@ -317,7 +327,10 @@ export function bindEvents() {
 export function saveSettingsInputs() {
   state.settings.focusMinutesTarget = Math.max(0, Number($('focusMinutesTarget')?.value || 0));
   state.settings.bufferMinutes = Math.max(0, Number($('bufferMinutes')?.value || 0));
-  state.settings.chatgptUrl = normalizeHttpUrl($('chatgptUrl')?.value || state.settings?.chatgptUrl || '');
+  state.settings.aiServiceName = String($('aiServiceName')?.value || state.settings?.aiServiceName || 'AI').trim() || 'AI';
+  state.settings.aiServiceUrl = normalizeHttpUrl($('aiServiceUrl')?.value || state.settings?.aiServiceUrl || state.settings?.chatgptUrl || '');
+  state.settings.aiPlanningDays = Math.min(14, Math.max(1, Number($('aiPlanningDays')?.value || state.settings?.aiPlanningDays || 1) || 1));
+  state.settings.chatgptUrl = normalizeHttpUrl($('chatgptUrl')?.value || state.settings?.chatgptUrl || state.settings?.aiServiceUrl || '');
   state.settings.geminiUrl = normalizeHttpUrl($('geminiUrl')?.value || state.settings?.geminiUrl || '');
   state.settings.campusPortalUrl = normalizeHttpUrl($('campusPortalUrl')?.value || state.settings?.campusPortalUrl || '');
   saveState();
@@ -417,6 +430,7 @@ export async function onSubmitFixedSchedule(e) {
     weekday: Number(fd.get('weekday')),
     start: String(fd.get('start')),
     end: String(fd.get('end')),
+    placeName: String(fd.get('placeName') || '').trim(),
     note: String(fd.get('note')).trim()
   });
   if (!payload.title) {
@@ -454,6 +468,7 @@ export async function onSubmitOneOffEvent(e) {
     start: allDay ? '' : String(fd.get('start') || ''),
     end: allDay ? '' : String(fd.get('end') || ''),
     note: String(fd.get('note')).trim(),
+    placeName: String(fd.get('placeName') || '').trim(),
     allDay
   });
   if (!payload.title || !payload.date) {
@@ -468,6 +483,7 @@ export async function onSubmitOneOffEvent(e) {
   let target = editingId ? state.oneOffEvents.find((item) => item.id === editingId) : null;
   if (target) {
     Object.assign(target, payload);
+    target.dismissedAt = '';
     if (target.googleEventId) {
       if (hasValidGoogleToken()) {
         try {
@@ -583,6 +599,173 @@ export function onSubmitStudyLocation(e) {
   saveState();
   resetStudyLocationForm();
   renderAll();
+}
+
+
+export function openTravelRouteFormForCreate() {
+  resetTravelRouteForm({ keepPanelOpen: true });
+  const form = $('travelRouteForm');
+  const appSettingsPanel = $('appSettingsPanel');
+  const formPanel = $('travelRouteFormPanel');
+  if (appSettingsPanel) appSettingsPanel.open = true;
+  if (formPanel) formPanel.open = true;
+  window.workspaceNavApi?.openUtilityPanel?.('appSettingsPanel');
+  requestAnimationFrame(() => form?.querySelector("input[name='fromPlace']")?.focus());
+}
+
+export function resetTravelRouteForm(options = {}) {
+  const form = $('travelRouteForm');
+  if (!form) return;
+  form.reset();
+  form.elements.editId.value = '';
+  if (form.elements.method) form.elements.method.value = 'walk';
+  if (form.elements.timetableMode) form.elements.timetableMode.value = 'daily';
+  if ($('travelRouteSubmitBtn')) $('travelRouteSubmitBtn').textContent = '移動ルートを追加';
+  if ($('travelRouteCancelBtn')) $('travelRouteCancelBtn').hidden = true;
+  if (!options.keepPanelOpen) {
+    const formPanel = $('travelRouteFormPanel');
+    if (formPanel) formPanel.open = false;
+  }
+}
+
+export function onSubmitTravelRoute(e) {
+  e.preventDefault();
+  const fd = new FormData(e.currentTarget);
+  const editingId = String(fd.get('editId') || '');
+  const payload = normalizeTravelRoute({
+    id: editingId || crypto.randomUUID(),
+    fromPlace: String(fd.get('fromPlace') || '').trim(),
+    toPlace: String(fd.get('toPlace') || '').trim(),
+    method: String(fd.get('method') || 'walk').trim(),
+    durationMinutes: String(fd.get('durationMinutes') || '').trim(),
+    timetableMode: String(fd.get('timetableMode') || 'daily').trim(),
+    timetableText: String(fd.get('timetableText') || '').trim(),
+    note: String(fd.get('note') || '').trim()
+  });
+
+  if (!payload.fromPlace || !payload.toPlace) {
+    showToast('出発地と到着地を入力してください。', { variant: 'warn' });
+    return;
+  }
+
+  if (editingId) {
+    const target = state.travelRoutes.find((item) => item.id === editingId);
+    if (!target) return;
+    Object.assign(target, payload);
+    showToast('移動ルートを更新しました。', { variant: 'ok', duration: 2200 });
+  } else {
+    state.travelRoutes.push(payload);
+    showToast('移動ルートを追加しました。', { variant: 'ok', duration: 2200 });
+  }
+
+  saveState();
+  resetTravelRouteForm();
+  renderAll();
+}
+
+export function populateTravelRouteForm(id) {
+  const item = state.travelRoutes.find((entry) => entry.id === id);
+  if (!item) return;
+  const form = $('travelRouteForm');
+  const appSettingsPanel = $('appSettingsPanel');
+  const formPanel = $('travelRouteFormPanel');
+  if (!form) return;
+  if (appSettingsPanel) appSettingsPanel.open = true;
+  if (formPanel) formPanel.open = true;
+  form.elements.editId.value = item.id;
+  form.elements.fromPlace.value = item.fromPlace;
+  form.elements.toPlace.value = item.toPlace;
+  form.elements.method.value = item.method || 'walk';
+  form.elements.durationMinutes.value = item.durationMinutes ?? '';
+  form.elements.timetableMode.value = item.timetableMode || 'daily';
+  form.elements.timetableText.value = item.timetableText || '';
+  form.elements.note.value = item.note || '';
+  if ($('travelRouteSubmitBtn')) $('travelRouteSubmitBtn').textContent = '移動ルートを更新';
+  if ($('travelRouteCancelBtn')) $('travelRouteCancelBtn').hidden = false;
+  window.workspaceNavApi?.openUtilityPanel?.('appSettingsPanel');
+  requestAnimationFrame(() => form.querySelector("input[name='fromPlace']")?.focus());
+}
+
+export async function deleteTravelRoute(id) {
+  const item = state.travelRoutes.find((entry) => entry.id === id);
+  if (!item) return;
+  const index = state.travelRoutes.findIndex((entry) => entry.id === id);
+  captureRecoverySnapshot('delete-travel-route');
+  state.travelRoutes = state.travelRoutes.filter((entry) => entry.id !== id);
+  saveState();
+  renderAll();
+  showToast('移動ルートを削除しました。', {
+    variant: 'ok',
+    duration: 5000,
+    actionLabel: '元に戻す',
+    onAction: () => {
+      state.travelRoutes.splice(index, 0, item);
+      saveState();
+      renderAll();
+      showToast('移動ルートを元に戻しました。', { variant: 'ok', duration: 1800 });
+    }
+  });
+}
+
+export function dismissOneOffEvent(id) {
+  const item = state.oneOffEvents.find((entry) => entry.id === id);
+  if (!item) return;
+  item.dismissedAt = new Date().toISOString();
+  saveState();
+  renderAll();
+  showToast('単発予定を一覧から片付けました。Google側の予定は消していません。', {
+    variant: 'ok',
+    duration: 5000,
+    actionLabel: '元に戻す',
+    onAction: () => {
+      item.dismissedAt = '';
+      saveState();
+      renderAll();
+      showToast('単発予定を一覧に戻しました。', { variant: 'ok', duration: 1800 });
+    }
+  });
+}
+
+export function cleanupPastOneOffEvents() {
+  const targets = getVisibleOneOffEvents(state.oneOffEvents).filter((item) => isCleanupCandidateEvent(item));
+  if (!targets.length) {
+    showToast('片付ける候補の単発予定はありません。', { variant: 'warn' });
+    return;
+  }
+  captureRecoverySnapshot('dismiss-past-events');
+  const timestamp = new Date().toISOString();
+  targets.forEach((item) => {
+    item.dismissedAt = timestamp;
+  });
+  saveState();
+  renderAll();
+  showToast(`${targets.length}件の単発予定を一覧から片付けました。`, {
+    variant: 'ok',
+    duration: 5000,
+    actionLabel: '元に戻す',
+    onAction: () => {
+      targets.forEach((item) => {
+        item.dismissedAt = '';
+      });
+      saveState();
+      renderAll();
+      showToast('単発予定を一覧に戻しました。', { variant: 'ok', duration: 1800 });
+    }
+  });
+}
+
+export function restoreDismissedOneOffEvents() {
+  const targets = (state.oneOffEvents || []).filter((item) => String(item.dismissedAt || '').trim());
+  if (!targets.length) {
+    showToast('戻せる単発予定はありません。', { variant: 'warn' });
+    return;
+  }
+  targets.forEach((item) => {
+    item.dismissedAt = '';
+  });
+  saveState();
+  renderAll();
+  showToast(`${targets.length}件の単発予定を一覧に戻しました。`, { variant: 'ok', duration: 2200 });
 }
 
 export function handleQuickAdd() {
@@ -721,6 +904,7 @@ export function populateFixedForm(id) {
   form.elements.weekday.value = String(item.weekday);
   form.elements.start.value = item.start;
   form.elements.end.value = item.end;
+  if (form.elements.placeName) form.elements.placeName.value = item.placeName || '';
   form.elements.note.value = item.note;
   if ($('fixedSubmitBtn')) $('fixedSubmitBtn').textContent = '固定予定を更新';
   if ($('fixedCancelBtn')) $('fixedCancelBtn').hidden = false;
@@ -768,6 +952,7 @@ export function populateEventForm(id) {
   form.elements.allDay.checked = Boolean(item.allDay);
   form.elements.start.value = item.start;
   form.elements.end.value = item.end;
+  if (form.elements.placeName) form.elements.placeName.value = item.placeName || '';
   form.elements.note.value = item.note;
   if ($('syncEventToGoogle')) $('syncEventToGoogle').checked = item.googleSyncStatus !== 'local';
   toggleEventTimeInputs();
@@ -779,7 +964,7 @@ export function populateEventForm(id) {
 export function duplicateOneOffEvent(id) {
   const item = state.oneOffEvents.find((entry) => entry.id === id);
   if (!item) return;
-  state.oneOffEvents.push({ ...item, id: crypto.randomUUID(), title: `${item.title} (複製)`, googleEventId: '', googleSyncStatus: 'local' });
+  state.oneOffEvents.push({ ...item, id: crypto.randomUUID(), title: `${item.title} (複製)`, googleEventId: '', googleSyncStatus: 'local', dismissedAt: '' });
   saveState();
   renderAll();
   showToast('単発予定を複製しました。', { variant: 'ok', duration: 2200 });

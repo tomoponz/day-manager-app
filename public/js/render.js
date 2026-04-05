@@ -25,6 +25,16 @@ import {
 } from "./planner.js";
 import { refreshCalendarUi, renderCalendarConnectionMeta } from "./calendar-ui.js";
 import { describeProtectedBlock, buildRuleModeLabel } from "./scheduling-rules.js";
+import {
+  getVisibleOneOffEvents,
+  isCleanupCandidateEvent,
+  collectKnownPlaceNames,
+  buildMovementPlanLines,
+  sortTravelRoutesForDisplay,
+  getTravelMethodLabel,
+  parseTimetableEntries,
+  describeTimetableMode
+} from "./travel.js";
 
 const handlers = {
   onEditFixed: null,
@@ -36,6 +46,9 @@ const handlers = {
   onSyncEvent: null,
   onSyncUpdatedEvent: null,
   onDeleteEvent: null,
+  onDismissEvent: null,
+  onRestoreDismissedEvents: null,
+  onCleanupPastEvents: null,
   onCreateEvent: null,
   onQuickSetTaskStatus: null,
   onDeferTaskToTomorrow: null,
@@ -45,6 +58,9 @@ const handlers = {
   onEditStudyLocation: null,
   onDeleteStudyLocation: null,
   onCreateStudyLocation: null,
+  onEditTravelRoute: null,
+  onDeleteTravelRoute: null,
+  onCreateTravelRoute: null,
   onOpenStudyLocationSourceUrl: null,
   onMarkStudyLocationCheckedOpen: null,
   onMarkStudyLocationCheckedClosed: null,
@@ -107,6 +123,15 @@ export function hydrateSettingsInputs() {
   if ($("bufferMinutes")) {
     $("bufferMinutes").value = String(state.settings?.bufferMinutes ?? 10);
   }
+  if ($("aiServiceName")) {
+    $("aiServiceName").value = state.settings?.aiServiceName || "AI";
+  }
+  if ($("aiServiceUrl")) {
+    $("aiServiceUrl").value = state.settings?.aiServiceUrl || state.settings?.chatgptUrl || "";
+  }
+  if ($("aiPlanningDays")) {
+    $("aiPlanningDays").value = String(state.settings?.aiPlanningDays || 1);
+  }
   if ($("chatgptUrl")) {
     $("chatgptUrl").value = state.settings?.chatgptUrl || "";
   }
@@ -121,6 +146,7 @@ export function hydrateSettingsInputs() {
 
 function syncExternalLinkButtons() {
   const mappings = [
+    ["openAiServiceLinkBtn", state.settings?.aiServiceUrl || state.settings?.chatgptUrl],
     ["openChatgptLinkBtn", state.settings?.chatgptUrl],
     ["openGeminiLinkBtn", state.settings?.geminiUrl],
     ["openCampusPortalLinkBtn", state.settings?.campusPortalUrl]
@@ -170,6 +196,8 @@ export function renderAll() {
   renderOneOffEvents();
   renderTasks();
   renderStudyLocations();
+  renderTravelRoutes();
+  updateKnownPlaceSuggestions();
   renderGoogleEventList();
   renderCurrentState();
   renderSummaries();
@@ -205,7 +233,8 @@ export function renderFixedSchedules() {
         badges: [
           makeBadge("毎週固定", "ok"),
           makeBadge(`${WEEKDAY_NAMES[item.weekday]}曜日`),
-          makeBadge(`${item.start} - ${item.end}`, "blue")
+          makeBadge(`${item.start} - ${item.end}`, "blue"),
+          item.placeName ? makeBadge(`場所:${item.placeName}`) : null
         ],
         detail: item.note ? `補足: ${item.note}` : "",
         note: item.note,
@@ -224,7 +253,7 @@ export function renderOneOffEvents() {
   const wrap = $("eventList");
   wrap.innerHTML = "";
 
-  const items = [...state.oneOffEvents].sort((a, b) =>
+  const items = [...getVisibleOneOffEvents(state.oneOffEvents)].sort((a, b) =>
     `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`)
   );
 
@@ -264,6 +293,9 @@ export function renderOneOffEvents() {
       }
     }
 
+    if (isCleanupCandidateEvent(item)) {
+      actions.push(makeActionButton("片付ける", () => handlers.onDismissEvent?.(item.id)));
+    }
     actions.push(makeDeleteButton(() => handlers.onDeleteEvent?.(item.id)));
 
     wrap.appendChild(
@@ -272,6 +304,7 @@ export function renderOneOffEvents() {
         badges: [
           makeBadge(item.date),
           makeBadge(timeLabel, item.allDay ? "ok" : "blue"),
+          item.placeName ? makeBadge(`場所:${item.placeName}`) : null,
           makeBadge(
             syncLabel,
             syncLabel.includes("失敗")
@@ -458,6 +491,56 @@ export function renderStudyLocations() {
   });
 }
 
+export function renderTravelRoutes() {
+  const wrap = $("travelRouteList");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+
+  const items = sortTravelRoutesForDisplay(state.travelRoutes || []);
+  if (!items.length) {
+    renderEmptyState(wrap, {
+      message: "場所どうしの移動時間やJR時刻表がまだありません。ルートを1本入れると、移動メモをAIに渡せます。",
+      primaryLabel: "＋ 移動ルートを追加する",
+      onPrimary: () => handlers.onCreateTravelRoute?.()
+    });
+    return;
+  }
+
+  wrap.className = "list-wrap";
+  items.forEach((item) => {
+    const departures = parseTimetableEntries(item.timetableText);
+    const timetableLabel = departures.length ? `${describeTimetableMode(item)} / ${departures.length}本` : "時刻表なし";
+    wrap.appendChild(
+      createListItem({
+        title: `${item.fromPlace} → ${item.toPlace}`,
+        badges: [
+          makeBadge(getTravelMethodLabel(item.method), "blue"),
+          item.durationMinutes !== "" ? makeBadge(`${item.durationMinutes}分`, "ok") : null,
+          makeBadge(timetableLabel)
+        ],
+        detail: item.note || "",
+        note: departures.length ? `時刻表: ${departures.slice(0, 6).join(" / ")}${departures.length > 6 ? " / ..." : ""}` : "",
+        actions: [
+          makeActionButton("編集", () => handlers.onEditTravelRoute?.(item.id)),
+          makeDeleteButton(() => handlers.onDeleteTravelRoute?.(item.id))
+        ],
+        itemClassName: "travel-route-item"
+      })
+    );
+  });
+}
+
+function updateKnownPlaceSuggestions() {
+  const datalist = $("knownPlaceNames");
+  if (!datalist) return;
+  datalist.innerHTML = "";
+  collectKnownPlaceNames().forEach((name) => {
+    const option = document.createElement("option");
+    option.value = name;
+    datalist.appendChild(option);
+  });
+}
+
 export function renderGoogleEventList() {
   const wrap = $("googleEventList");
   wrap.innerHTML = "";
@@ -544,6 +627,7 @@ export function renderSummaries() {
   );
   fillSummary($("freeTimeSummary"), buildFreeTimeSummaryLines(protectedBlocks, freeSlots));
   fillSummary($("studyLocationSummary"), buildStudyLocationSummaryLines(selectedDate, ctx));
+  fillSummary($("movementPlanSummary"), buildMovementPlanLines(selectedDate, schedules));
 
   const split = splitSchedulesByNow(schedules, ctx);
   fillSummary($("immediateScheduleSummary"), buildTimelineStatusLines(split).slice(0, 5));

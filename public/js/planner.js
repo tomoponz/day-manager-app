@@ -2,6 +2,7 @@ import { state } from "./state.js";
 import { getCachedGoogleEvents } from "./google-calendar.js";
 import { getNowContext, toMinutes, fromMinutes, formatDateInput, formatTimeOnly } from "./time.js";
 import { $ } from "./utils.js";
+import { getVisibleOneOffEvents } from "./travel.js";
 import { getSchedulingRules, isWeekdayDate, makeProtectedBlock, describeProtectedBlock, summarizeProtectedBlocks, buildRuleModeLabel, intersectMinuteRange, clampBlockWithinSlot, minutesToTimeText } from "./scheduling-rules.js";
 
 function currentContext(dateStr = $("selectedDate")?.value || formatDateInput(new Date())) {
@@ -27,11 +28,11 @@ export function getSchedulesForDate(dateStr) {
     .filter((item) => item.weekday === weekday)
     .map((item) => ({ ...item, type: "fixed", date: dateStr, allDay: false }));
 
-  const oneOff = state.oneOffEvents
+  const oneOff = getVisibleOneOffEvents(state.oneOffEvents)
     .filter((item) => item.date === dateStr)
     .map((item) => ({ ...item, type: "event" }));
 
-  const syncedIds = new Set(oneOff.map((item) => item.googleEventId).filter(Boolean));
+  const syncedIds = new Set((state.oneOffEvents || []).map((item) => item.googleEventId).filter(Boolean));
   const googleSchedules = getCachedGoogleEvents(dateStr)
     .filter((event) => !syncedIds.has(event.id))
     .map((event) => mapGoogleEventToSchedule(event, dateStr));
@@ -103,10 +104,11 @@ export function compareSchedule(a, b) {
 }
 
 export function formatScheduleLine(item) {
-  if (item.allDay) return `終日 / ${item.title}${item.note ? ` / ${item.note}` : ""}`;
+  const place = item.placeName ? ` / 場所:${item.placeName}` : "";
+  if (item.allDay) return `終日 / ${item.title}${place}${item.note ? ` / ${item.note}` : ""}`;
   const time = item.start ? `${item.start}${item.end ? ` - ${item.end}` : ""}` : "時刻未設定";
   const note = item.note ? ` / ${item.note}` : "";
-  return `${time} / ${item.title}${note}`;
+  return `${time} / ${item.title}${place}${note}`;
 }
 
 export function splitSchedulesByNow(schedules, ctx) {

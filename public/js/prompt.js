@@ -1,7 +1,7 @@
 import { state } from "./state.js";
 import { $ } from "./utils.js";
 import { showToast } from "./ui-feedback.js";
-import { WEEKDAY_NAMES, getNowContext } from "./time.js";
+import { WEEKDAY_NAMES, getNowContext, addDays } from "./time.js";
 import {
   getSchedulesForDate,
   getUpcomingTasks,
@@ -13,29 +13,69 @@ import {
   formatScheduleLine
 } from "./planner.js";
 import { buildStudyPromptSection } from "./study-manager.js";
+import { buildMovementPlanLines } from "./travel.js";
 
 export function generatePrompt() {
   const selectedDate = $("selectedDate").value;
-  const ctx = getNowContext(selectedDate, state.uiState?.plannerMode || "auto");
-  const dayData = state.dayConditions[selectedDate] || {};
-  const schedules = getSchedulesForDate(selectedDate);
-  const deadlines = getUpcomingTasks(selectedDate, 48, ctx);
-  const pending = getPendingTasks(selectedDate, ctx);
-  const freeSlots = computeFreeSlots(schedules, ctx);
-  const fatigue = Number(dayData.fatigue || $("fatigue")?.value || 5);
-  const autoPlan = buildAutoPlan(selectedDate, ctx, true, fatigue);
-  const split = splitSchedulesByNow(schedules, ctx);
-  const risks = buildRiskAlerts(selectedDate, ctx, schedules, fatigue);
+  const planningDays = Math.min(14, Math.max(1, Number(state.settings?.aiPlanningDays || 1) || 1));
   const study = buildStudyPromptSection();
-  const studyLocationLines = buildStudyLocationPromptLines(selectedDate, ctx);
+  const sections = [];
+
+  for (let offset = 0; offset < planningDays; offset += 1) {
+    const date = addDays(selectedDate, offset);
+    const ctx = getNowContext(date, state.uiState?.plannerMode || "auto");
+    const dayData = state.dayConditions[date] || {};
+    const schedules = getSchedulesForDate(date);
+    const deadlines = getUpcomingTasks(date, 48, ctx);
+    const pending = getPendingTasks(date, ctx);
+    const freeSlots = computeFreeSlots(schedules, ctx);
+    const fatigue = Number(dayData.fatigue || (offset === 0 ? $("fatigue")?.value : "") || 5);
+    const autoPlan = buildAutoPlan(date, ctx, true, fatigue);
+    const split = splitSchedulesByNow(schedules, ctx);
+    const risks = buildRiskAlerts(date, ctx, schedules, fatigue);
+    const studyLocationLines = buildStudyLocationPromptLines(date, ctx);
+    const movementLines = buildMovementPlanLines(date, schedules);
+
+    sections.push([
+      `## ${date} (${WEEKDAY_NAMES[new Date(`${date}T00:00:00`).getDay()]})`,
+      `現在日時：${ctx.currentDateLabel}`,
+      `運用モード：${ctx.effectiveModeLabel}`,
+      `睡眠・体調：睡眠 ${dayData.sleepHours || "未入力"} 時間 / 体力 ${dayData.fatigue || "未入力"} / メモ ${dayData.note || "なし"}`,
+      "現在地点：",
+      split.current.length ? split.current.map((item) => `- 進行中 / ${formatScheduleLine(item)}`).join("\n") : "- 進行中予定なし",
+      split.upcoming.length ? split.upcoming.slice(0, 5).map((item) => `- これから / ${formatScheduleLine(item)}`).join("\n") : "- これからの予定少なめ",
+      "固定予定・単発予定：",
+      schedules.length ? schedules.map((item) => `- ${formatScheduleLine(item)}`).join("\n") : "- なし",
+      "移動メモ：",
+      movementLines.length ? movementLines.map((line) => `- ${line}`).join("\n") : "- ルート情報なし",
+      "48時間以内の締切：",
+      deadlines.length
+        ? deadlines.map((task) => `- ${task.title} / ${task.deadlineDate}${task.deadlineTime ? ` ${task.deadlineTime}` : ""} / 優先度:${task.priority} / 重要度:${task.importance} / 見積:${task.estimate || "?"}分 / ${task.note || "メモなし"}`).join("\n")
+        : "- なし",
+      "未完了タスク：",
+      pending.length
+        ? pending.map((task) => `- ${task.title} / ${task.category || "分類なし"} / 状態:${task.status} / 重要度:${task.importance} / 優先度:${task.priority} / 見積:${task.estimate || "?"}分 / 締切:${task.deadlineDate || "未設定"}${task.deadlineTime ? ` ${task.deadlineTime}` : ""}${task.deferUntilDate ? ` / 保留:${task.deferUntilDate}` : ""}${task.note ? ` / ${task.note}` : ""}`).join("\n")
+        : "- なし",
+      "残り空き時間候補：",
+      freeSlots.length ? freeSlots.map((slot) => `- ${slot.start} - ${slot.end} (${slot.minutes}分)`).join("\n") : "- ほぼなし",
+      "今日使える自習場所：",
+      studyLocationLines.length ? studyLocationLines.map((line) => `- ${line}`).join("\n") : "- なし",
+      "危険アラート：",
+      risks.length ? risks.map((line) => `- ${line}`).join("\n") : "- 特になし",
+      "アプリ内の自動時間割候補：",
+      autoPlan.timeline.length ? autoPlan.timeline.map((line) => `- ${line}`).join("\n") : "- なし",
+      "アプリ内の最優先3件：",
+      autoPlan.topThree.length ? autoPlan.topThree.map((line) => `- ${line}`).join("\n") : "- なし",
+      "今日切る候補：",
+      autoPlan.cutCandidates.length ? autoPlan.cutCandidates.map((line) => `- ${line}`).join("\n") : "- なし"
+    ].join("\n"));
+  }
 
   const text = [
-    "今日の1日を設計して。",
-    `現在日時：${ctx.currentDateLabel}`,
-    `タイムゾーン：${ctx.timeZone}`,
-    `対象日：${selectedDate} (${WEEKDAY_NAMES[new Date(`${selectedDate}T00:00:00`).getDay()]})`,
-    `運用モード：${ctx.effectiveModeLabel}`,
-    `睡眠・体調：睡眠 ${dayData.sleepHours || "未入力"} 時間 / 体力 ${dayData.fatigue || "未入力"} / メモ ${dayData.note || "なし"}`,
+    `${state.settings?.aiServiceName || "AI"} に貼る計画依頼です。`,
+    `対象開始日：${selectedDate}`,
+    `対象日数：${planningDays}日`,
+    `タイムゾーン：${getNowContext(selectedDate, state.uiState?.plannerMode || "auto").timeZone}`,
     "科目の状況：",
     study.courseLines.join("\n"),
     "教材進度：",
@@ -46,38 +86,16 @@ export function generatePrompt() {
     study.riskLines.join("\n"),
     "学業の締切マップ：",
     study.deadlineLines.join("\n"),
-    "現在地点：",
-    split.current.length ? split.current.map((item) => `- 進行中 / ${formatScheduleLine(item)}`).join("\n") : "- 進行中予定なし",
-    split.upcoming.length ? split.upcoming.slice(0, 5).map((item) => `- これから / ${formatScheduleLine(item)}`).join("\n") : "- これからの予定少なめ",
-    "固定予定・単発予定：",
-    schedules.length ? schedules.map((item) => `- ${formatScheduleLine(item)}`).join("\n") : "- なし",
-    "48時間以内の締切：",
-    deadlines.length
-      ? deadlines.map((task) => `- ${task.title} / ${task.deadlineDate}${task.deadlineTime ? ` ${task.deadlineTime}` : ""} / 優先度:${task.priority} / 重要度:${task.importance} / 見積:${task.estimate || "?"}分 / ${task.note || "メモなし"}`).join("\n")
-      : "- なし",
-    "未完了タスク：",
-    pending.length
-      ? pending.map((task) => `- ${task.title} / ${task.category || "分類なし"} / 状態:${task.status} / 重要度:${task.importance} / 優先度:${task.priority} / 見積:${task.estimate || "?"}分 / 締切:${task.deadlineDate || "未設定"}${task.deadlineTime ? ` ${task.deadlineTime}` : ""}${task.deferUntilDate ? ` / 保留:${task.deferUntilDate}` : ""}${task.note ? ` / ${task.note}` : ""}`).join("\n")
-      : "- なし",
-    "残り空き時間候補：",
-    freeSlots.length ? freeSlots.map((slot) => `- ${slot.start} - ${slot.end} (${slot.minutes}分)`).join("\n") : "- ほぼなし",
-    "今日使える自習場所：",
-    studyLocationLines.length ? studyLocationLines.map((line) => `- ${line}`).join("\n") : "- なし",
-    "危険アラート：",
-    risks.length ? risks.map((line) => `- ${line}`).join("\n") : "- 特になし",
-    "アプリ内の自動時間割候補：",
-    autoPlan.timeline.length ? autoPlan.timeline.map((line) => `- ${line}`).join("\n") : "- なし",
-    "アプリ内の最優先3件：",
-    autoPlan.topThree.length ? autoPlan.topThree.map((line) => `- ${line}`).join("\n") : "- なし",
-    "今日切る候補：",
-    autoPlan.cutCandidates.length ? autoPlan.cutCandidates.map((line) => `- ${line}`).join("\n") : "- なし",
+    "",
+    ...sections,
+    "",
     "出力形式：",
-    "1. いまからの最優先3件",
-    "2. 現在時刻以降の時間ブロック化した1日設計",
-    "3. 学業面で今日進めるべき教材・締切",
+    "1. まず対象日数全体の優先順位",
+    "2. 各日の時間ブロック化した計画",
+    "3. 締切・教材・移動の注意点",
     "4. 今やらないこと",
     "5. 詰まった時の代替案",
-    "6. 夜の締め条件"
+    "6. JSONのみが必要なら、その形式でも出せるようにする"
   ].join("\n");
 
   $("promptOutput").value = text;
@@ -96,7 +114,6 @@ export async function copyPrompt() {
     showToast("コピーしました。", { variant: "ok", duration: 2200 });
   }
 }
-
 
 function buildStudyLocationPromptLines(selectedDate, ctx) {
   const items = Array.isArray(state.studyLocations) ? [...state.studyLocations] : [];

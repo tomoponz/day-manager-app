@@ -23,7 +23,7 @@ function init() {
     existingSection.dataset.bound = '1';
     bindEvents();
     renderPlanningDraftList();
-    setStatus('Gemini提案JSONを読み込むと、ここからローカル予定や Google Calendar に反映できます。');
+    setStatus('AI提案JSONを読み込むと、ここからローカル予定や Google Calendar に反映できます。');
     return;
   }
 
@@ -34,7 +34,7 @@ function init() {
   document.getElementById(AI_SECTION_ID)?.setAttribute('data-bound', '1');
   bindEvents();
   renderPlanningDraftList();
-  setStatus('Gemini提案JSONを読み込むと、ここからローカル予定や Google Calendar に反映できます。');
+  setStatus('AI提案JSONを読み込むと、ここからローカル予定や Google Calendar に反映できます。');
 }
 
 function bindEvents() {
@@ -52,7 +52,7 @@ function handleGeneratePrompt() {
   const textarea = document.getElementById('geminiPromptOutput');
   if (!textarea) return;
   textarea.value = buildGeminiPlanningPrompt(selectedDate);
-  setStatus('Gemini向けのJSON指示を生成しました。', 'ok');
+  setStatus('AI向けのJSON指示を生成しました。', 'ok');
 }
 
 async function handleCopyPrompt() {
@@ -66,7 +66,7 @@ async function handleCopyPrompt() {
     textarea.select();
     document.execCommand('copy');
   }
-  setStatus('Gemini向けの指示をコピーしました。', 'ok');
+  setStatus('AI向けの指示をコピーしました。', 'ok');
 }
 
 function handleImportDrafts() {
@@ -88,7 +88,7 @@ function handleImportDrafts() {
 function handleClearInput() {
   const input = document.getElementById('aiDraftInput');
   if (input) input.value = '';
-  setStatus('Gemini返答JSONの入力欄をクリアしました。');
+  setStatus('AI返答JSONの入力欄をクリアしました。');
 }
 
 async function handleApplyAll(syncToGoogle) {
@@ -230,27 +230,27 @@ function buildSectionHtml() {
     <section class="card" id="${AI_SECTION_ID}">
       <div class="card-header">
         <div>
-          <h2>Gemini提案 → カレンダー反映</h2>
-          <p>Gemini に貼るためのJSON指示を生成し、返ってきた提案JSONを読み込んでローカル予定または Google Calendar に追加します。</p>
+          <h2>AI提案 → カレンダー反映</h2>
+          <p>任意のAIに貼るためのJSON指示を生成し、返ってきた提案JSONを読み込んでローカル予定または Google Calendar に追加します。</p>
         </div>
       </div>
 
       <div class="prompt-actions">
-        <button id="generateGeminiPromptBtn" class="primary" type="button">Gemini向けJSON指示を生成</button>
+        <button id="generateGeminiPromptBtn" class="primary" type="button">AI向けJSON指示を生成</button>
         <button id="copyGeminiPromptBtn" type="button">コピー</button>
       </div>
 
       <label class="prompt-label">
-        Geminiに貼る指示
-        <textarea id="geminiPromptOutput" rows="16" placeholder="ここにGemini向け指示が生成されます"></textarea>
+        AIに貼る指示
+        <textarea id="geminiPromptOutput" rows="16" placeholder="ここにAI向け指示が生成されます"></textarea>
       </label>
 
       <details class="subsection-fold" id="aiDraftImportPanel" open>
-        <summary class="subsection-summary">Gemini返答JSONを読み込む</summary>
+        <summary class="subsection-summary">AI返答JSONを読み込む</summary>
         <div class="subsection-body">
-          <p class="micro-note">Gemini の返答は JSON のみをそのまま貼り付けてください。 <code>proposedEvents</code> 配列を読み込みます。</p>
+          <p class="micro-note">AI の返答は JSON のみをそのまま貼り付けてください。 <code>proposedEvents</code> 配列を読み込みます。</p>
           <label class="prompt-label">
-            Gemini返答JSON
+            AI返答JSON
             <textarea id="aiDraftInput" rows="12" placeholder='例: { &quot;proposedEvents&quot;: [ ... ] }'></textarea>
           </label>
           <div class="quick-add-actions">

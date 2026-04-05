@@ -3,6 +3,7 @@ import { state, saveState } from "./state.js";
 import { buildProtectedTimeBlocks } from "./planner.js";
 import { $ } from "./utils.js";
 import { addDays, formatDateInput } from "./time.js";
+import { getVisibleOneOffEvents } from "./travel.js";
 import {
   googleState,
   hasValidGoogleToken,
@@ -341,7 +342,7 @@ function buildFixedScheduleEvents(startDate, endDate) {
 }
 
 function buildLocalOneOffEvents(startDate, endDate) {
-  return state.oneOffEvents
+  return getVisibleOneOffEvents(state.oneOffEvents)
     .filter((item) => item.date >= startDate && item.date <= endDate)
     .map((item) => {
       const classNames = ["fc-day-manager-local"];
@@ -439,11 +440,11 @@ function getSchedulesForDateForCalendar(dateStr) {
     .filter((item) => Number(item.weekday) === weekday)
     .map((item) => ({ ...item, type: "fixed", date: dateStr, allDay: false }));
 
-  const oneOff = state.oneOffEvents
+  const oneOff = getVisibleOneOffEvents(state.oneOffEvents)
     .filter((item) => item.date === dateStr)
     .map((item) => ({ ...item, type: "event" }));
 
-  const syncedIds = new Set(oneOff.map((item) => item.googleEventId).filter(Boolean));
+  const syncedIds = new Set((state.oneOffEvents || []).map((item) => item.googleEventId).filter(Boolean));
   const googleSchedules = (googleState.eventsByDate?.[dateStr] || [])
     .filter((event) => !syncedIds.has(event.id))
     .map((event) => mapGoogleEventToSchedule(event, dateStr));

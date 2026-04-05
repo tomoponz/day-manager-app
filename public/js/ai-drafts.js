@@ -1,17 +1,17 @@
 import { state, saveState, normalizePlanningDraft, normalizeOneOffEvent } from './state.js';
-import { getWeekDates, getWeekKey, getWeekLabel, formatDateInput, formatDateTimeForDisplay, getNowContext } from './time.js';
+import { getWeekKey, formatDateInput, formatDateTimeForDisplay, getNowContext, addDays } from './time.js';
 import { getSchedulesForDate, getUpcomingTasks, getPendingTasks, computeFreeSlots, formatScheduleLine } from './planner.js';
+import { buildMovementPlanLines } from './travel.js';
 import { hasValidGoogleToken, upsertGoogleEventFromLocal, cacheGoogleEvent, getErrorMessage } from './google-calendar.js';
 import { captureRecoverySnapshot } from './recovery.js';
 import { confirmDialog } from './ui-feedback.js';
 
 export function buildGeminiPlanningPrompt(selectedDate = formatDateInput(new Date())) {
   const safeDate = selectedDate || formatDateInput(new Date());
-  const weekDates = getWeekDates(safeDate);
-  const weekLabel = getWeekLabel(safeDate);
-  const weekKey = getWeekKey(safeDate);
+  const planningDays = Math.min(14, Math.max(1, Number(state.settings?.aiPlanningDays || 1) || 1));
   const pendingTasks = getPendingTasks(safeDate);
-  const upcomingDeadlines = getUpcomingTasks(safeDate, 7 * 24);
+  const upcomingDeadlines = getUpcomingTasks(safeDate, Math.max(48, planningDays * 24));
+  const aiName = state.settings?.aiServiceName || 'AI';
 
   const lines = [
     'あなたは日程調整AIです。以下の情報をもとに、予定提案JSONのみを返してください。',
@@ -38,39 +38,43 @@ export function buildGeminiPlanningPrompt(selectedDate = formatDateInput(new Dat
     '- 1件あたり20分以上にする',
     '- 課題の締切が近いものを優先する',
     '- 現実的な長さで配置する',
-    '- date はこの週の範囲に収める',
+    `- date は開始日から ${planningDays}日以内に収める`,
     '',
+    `対象AI: ${aiName}`,
     `対象基準日: ${safeDate}`,
-    `対象週: ${weekLabel}`,
-    `週キー: ${weekKey}`,
+    `対象日数: ${planningDays}日`,
     '',
     '未完了タスク:',
     pendingTasks.length
-      ? pendingTasks.map((task) => `- ${task.title} / 分類:${task.category || 'なし'} / 締切:${task.deadlineDate || '未設定'}${task.deadlineTime ? ` ${task.deadlineTime}` : ''} / 見積:${task.estimate || '?'}分 / 重要度:${task.importance} / 優先度:${task.priority} / 状態:${task.status}${task.note ? ` / ${task.note}` : ''}`).join('\n')
+      ? pendingTasks.map((task) => `- ${task.title} / 分類:${task.category || 'なし'} / 締切:${task.deadlineDate || '未設定'}${task.deadlineTime ? ` ${task.deadlineTime}` : ''} / 見積:${task.estimate || '?'}分 / 重要度:${task.importance} / 優先度:${task.priority} / 状態:${task.status}${task.note ? ` / ${task.note}` : ''}`).join("\n")
       : '- なし',
     '',
-    '7日以内の締切:',
+    `${planningDays}日以内の締切:`,
     upcomingDeadlines.length
-      ? upcomingDeadlines.map((task) => `- ${task.title} / ${task.deadlineDate}${task.deadlineTime ? ` ${task.deadlineTime}` : ''} / 重要度:${task.importance} / 優先度:${task.priority}`).join('\n')
+      ? upcomingDeadlines.map((task) => `- ${task.title} / ${task.deadlineDate}${task.deadlineTime ? ` ${task.deadlineTime}` : ''} / 重要度:${task.importance} / 優先度:${task.priority}`).join("\n")
       : '- なし',
     '',
     '日別の既存予定と空き時間:'
   ];
 
-  weekDates.forEach((date) => {
+  for (let offset = 0; offset < planningDays; offset += 1) {
+    const date = addDays(safeDate, offset);
     const ctx = getNowContext(date, state.uiState?.plannerMode || 'auto');
     const schedules = getSchedulesForDate(date);
     const freeSlots = computeFreeSlots(schedules, ctx);
+    const movementLines = buildMovementPlanLines(date, schedules);
     lines.push(`## ${date}`);
     lines.push('既存予定:');
-    lines.push(schedules.length ? schedules.map((item) => `- ${formatScheduleLine(item)}`).join('\n') : '- なし');
+    lines.push(schedules.length ? schedules.map((item) => `- ${formatScheduleLine(item)}`).join("\n") : '- なし');
     lines.push('空き時間候補:');
-    lines.push(freeSlots.length ? freeSlots.map((slot) => `- ${slot.start} - ${slot.end} (${slot.minutes}分)`).join('\n') : '- ほぼなし');
+    lines.push(freeSlots.length ? freeSlots.map((slot) => `- ${slot.start} - ${slot.end} (${slot.minutes}分)`).join("\n") : '- ほぼなし');
+    lines.push('移動メモ:');
+    lines.push(movementLines.length ? movementLines.map((line) => `- ${line}`).join("\n") : '- ルート情報なし');
     lines.push('');
-  });
+  }
 
   lines.push('JSONのみを返してください。');
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 export function parsePlanningDraftsResponse(rawText, fallbackDate = formatDateInput(new Date())) {
@@ -83,7 +87,7 @@ export function parsePlanningDraftsResponse(rawText, fallbackDate = formatDateIn
   try {
     parsed = JSON.parse(cleaned);
   } catch {
-    return { ok: false, error: 'JSONとして読めませんでした。Geminiの返答をそのまま貼り付けてください。' };
+    return { ok: false, error: 'JSONとして読めませんでした。AIの返答をそのまま貼り付けてください。' };
   }
 
   const list = Array.isArray(parsed)
@@ -271,7 +275,7 @@ function normalizeProposalItem(item, fallbackDate) {
     note: String(item?.note || '').trim(),
     reason: String(item?.reason || '').trim(),
     status: 'draft',
-    source: 'gemini',
+    source: state.settings?.aiServiceName || 'ai',
     createdAt: formatDateTimeForDisplay(new Date())
   });
 

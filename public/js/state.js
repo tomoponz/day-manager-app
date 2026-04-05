@@ -1,6 +1,6 @@
 export const STORAGE_KEY = "day-manager-v1";
 export const APP_STATE_UPDATED_AT_KEY = "day-manager-app-state-updated-at-v1";
-export const STATE_SCHEMA_VERSION = 6;
+export const STATE_SCHEMA_VERSION = 7;
 
 export const INITIAL_STATE = {
   schemaVersion: STATE_SCHEMA_VERSION,
@@ -8,6 +8,7 @@ export const INITIAL_STATE = {
   oneOffEvents: [],
   tasks: [],
   studyLocations: [],
+  travelRoutes: [],
   courses: [],
   materials: [],
   assessments: [],
@@ -28,6 +29,9 @@ export const INITIAL_STATE = {
     focusBlockMinutes: 90,
     aiDraftOnly: true,
     confirmBeforeGoogleApply: true,
+    aiServiceName: "AI",
+    aiServiceUrl: "https://chatgpt.com/",
+    aiPlanningDays: 1,
     chatgptUrl: "https://chatgpt.com/",
     geminiUrl: "https://gemini.google.com/app",
     campusPortalUrl: ""
@@ -53,6 +57,9 @@ function normalizeSettings(settings) {
     focusBlockMinutes: normalizeNumberWithFallback(settings?.focusBlockMinutes, INITIAL_STATE.settings.focusBlockMinutes),
     aiDraftOnly: normalizeBooleanWithFallback(settings?.aiDraftOnly, INITIAL_STATE.settings.aiDraftOnly),
     confirmBeforeGoogleApply: normalizeBooleanWithFallback(settings?.confirmBeforeGoogleApply, INITIAL_STATE.settings.confirmBeforeGoogleApply),
+    aiServiceName: normalizeTextWithFallback(settings?.aiServiceName, INITIAL_STATE.settings.aiServiceName),
+    aiServiceUrl: normalizeUrlWithFallback(settings?.aiServiceUrl, settings?.chatgptUrl || settings?.geminiUrl || INITIAL_STATE.settings.aiServiceUrl),
+    aiPlanningDays: normalizePlanningDays(settings?.aiPlanningDays, INITIAL_STATE.settings.aiPlanningDays),
     chatgptUrl: normalizeUrlWithFallback(settings?.chatgptUrl, INITIAL_STATE.settings.chatgptUrl),
     geminiUrl: normalizeUrlWithFallback(settings?.geminiUrl, INITIAL_STATE.settings.geminiUrl),
     campusPortalUrl: normalizeUrlWithFallback(settings?.campusPortalUrl, INITIAL_STATE.settings.campusPortalUrl)
@@ -79,6 +86,17 @@ function normalizeBooleanWithFallback(value, fallback) {
 function normalizeTimeValue(value, fallback) {
   const text = String(value || "").trim();
   return /^\d{2}:\d{2}$/.test(text) ? text : fallback;
+}
+
+function normalizeTextWithFallback(value, fallback = "") {
+  const text = String(value || "").trim();
+  return text || fallback;
+}
+
+function normalizePlanningDays(value, fallback = 1) {
+  const number = Number(value);
+  if (!Number.isInteger(number)) return fallback;
+  return Math.min(14, Math.max(1, number));
 }
 
 function normalizeUrlWithFallback(value, fallback = "") {
@@ -111,6 +129,7 @@ export function loadState() {
       oneOffEvents: (parsed.oneOffEvents || []).map(normalizeOneOffEvent),
       tasks: (parsed.tasks || []).map(normalizeTask),
       studyLocations: (parsed.studyLocations || []).map(normalizeStudyLocation),
+      travelRoutes: (parsed.travelRoutes || []).map(normalizeTravelRoute),
       courses: (parsed.courses || []).map(normalizeCourse),
       materials: (parsed.materials || []).map(normalizeMaterial),
       assessments: (parsed.assessments || []).map(normalizeAssessment),
@@ -174,6 +193,7 @@ export function normalizeFixedSchedule(item) {
     weekday: Number(item.weekday ?? 0),
     start: item.start || "",
     end: item.end || "",
+    placeName: item.placeName || "",
     note: item.note || ""
   };
 }
@@ -186,9 +206,11 @@ export function normalizeOneOffEvent(item) {
     start: item.start || "",
     end: item.end || "",
     note: item.note || "",
+    placeName: item.placeName || "",
     allDay: Boolean(item.allDay),
     googleEventId: item.googleEventId || "",
-    googleSyncStatus: item.googleSyncStatus || (item.googleEventId ? "synced" : "local")
+    googleSyncStatus: item.googleSyncStatus || (item.googleEventId ? "synced" : "local"),
+    dismissedAt: item.dismissedAt || ""
   };
 }
 
@@ -226,11 +248,34 @@ export function normalizeStudyLocation(item) {
   };
 }
 
+export function normalizeTravelRoute(item) {
+  return {
+    id: item.id || crypto.randomUUID(),
+    fromPlace: item.fromPlace || "",
+    toPlace: item.toPlace || "",
+    method: normalizeTravelRouteMethod(item.method),
+    durationMinutes: normalizeOptionalNumber(item.durationMinutes),
+    timetableMode: normalizeTravelRouteMode(item.timetableMode),
+    timetableText: item.timetableText || "",
+    note: item.note || ""
+  };
+}
+
 function normalizeStudyLocationKind(kind) {
   const raw = String(kind || "").trim();
   return ["university_library", "pref_library", "city_library", "cafe", "home", "other"].includes(raw)
     ? raw
     : "university_library";
+}
+
+function normalizeTravelRouteMethod(method) {
+  const raw = String(method || "").trim();
+  return ["walk", "bicycle", "jr", "bus", "car", "other"].includes(raw) ? raw : "walk";
+}
+
+function normalizeTravelRouteMode(mode) {
+  const raw = String(mode || "").trim();
+  return ["daily", "weekday", "weekend"].includes(raw) ? raw : "daily";
 }
 
 function normalizeStudyLocationWeeklyHours(weeklyHours) {
@@ -414,6 +459,7 @@ function migrateParsedState(parsed) {
     ? parsed.assessments.map((item) => ({ ...item, status: normalizeAssessmentStatus(item?.status) }))
     : [];
   next.studyLocations = Array.isArray(parsed.studyLocations) ? parsed.studyLocations : [];
+  next.travelRoutes = Array.isArray(parsed.travelRoutes) ? parsed.travelRoutes : [];
   return next;
 }
 
