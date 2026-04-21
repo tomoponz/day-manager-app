@@ -16,6 +16,7 @@ import {
   buildAssessmentDueText,
   isAssessmentDueSoon,
   isAssessmentOverdue,
+  getVisibleAssessments,
   createListItem,
   makeBadge,
   makeButton,
@@ -63,7 +64,7 @@ export function renderCourseList() {
     .sort((a, b) => a.title.localeCompare(b.title, "ja"))
     .forEach((course) => {
       const linkedMaterials = state.materials.filter((material) => material.courseId === course.id).length;
-      const pendingAssessments = state.assessments.filter((assessment) => assessment.courseId === course.id && assessment.status !== "done").length;
+      const pendingAssessments = getVisibleAssessments().filter((assessment) => assessment.courseId === course.id && assessment.status !== "done").length;
       const riskEntry = ranking.find((entry) => entry.courseId === course.id);
 
       const detailParts = [
@@ -157,7 +158,9 @@ export function renderAssessmentList() {
   if (!wrap) return;
   wrap.innerHTML = "";
 
-  if (!state.assessments.length) {
+  const visibleAssessments = getVisibleAssessments();
+
+  if (!visibleAssessments.length) {
     wrap.className = "list-wrap empty";
     wrap.textContent = "まだありません";
     return;
@@ -165,7 +168,7 @@ export function renderAssessmentList() {
 
   wrap.className = "list-wrap";
 
-  state.assessments
+  visibleAssessments
     .slice()
     .sort((a, b) => buildAssessmentSortKey(a).localeCompare(buildAssessmentSortKey(b)))
     .forEach((assessment) => {
@@ -177,15 +180,18 @@ export function renderAssessmentList() {
           makeBadge(dueText, isAssessmentOverdue(assessment) ? "danger" : isAssessmentDueSoon(assessment) ? "warn" : ""),
           makeBadge(`状態:${ASSESSMENT_STATUS_LABELS[assessment.status] || "未着手"}`, assessment.status === "done" ? "ok" : assessment.status === "doing" ? "warn" : ""),
           assessment.weight !== "" ? makeBadge(`配点:${assessment.weight}%`) : null,
-          makeBadge(`重要度:${assessment.importance}`, assessment.importance === "高" ? "danger" : assessment.importance === "中" ? "warn" : "")
+          makeBadge(`重要度:${assessment.importance}`, assessment.importance === "高" ? "danger" : assessment.importance === "中" ? "warn" : ""),
+          assessment.source === "manaba" ? makeBadge("manaba", "ok") : null,
+          assessment.source === "manaba" && assessment.sourceStatus ? makeBadge(`原本:${truncateText(assessment.sourceStatus, 16)}`) : null
         ].filter(Boolean),
-        detail: assessment.note || "",
-        note: ""
+        detail: [assessment.note, assessment.source === "manaba" && assessment.externalUrl ? "manaba の原本あり" : ""].filter(Boolean).join(" / "),
+        note: assessment.sourceCourseName && assessment.sourceCourseName !== getCourseTitle(assessment.courseId) ? `取得元科目: ${assessment.sourceCourseName}` : ""
       });
 
       const actions = item.querySelector(".list-actions");
       if (assessment.status !== "doing") actions.appendChild(makeButton("着手", () => updateAssessmentStatus(assessment.id, "doing")));
       if (assessment.status !== "done") actions.appendChild(makeButton("完了", () => updateAssessmentStatus(assessment.id, "done")));
+      if (assessment.externalUrl) actions.appendChild(makeButton("manaba", () => openExternalUrl(assessment.externalUrl, `${assessment.title} の manaba ページ`)));
       actions.appendChild(makeButton("編集", () => populateAssessmentForm(assessment.id)));
       actions.appendChild(makeDeleteButton(() => deleteAssessment(assessment.id)));
       wrap.appendChild(item);

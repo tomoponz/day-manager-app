@@ -15,7 +15,8 @@ import {
   isAssessmentDueSoon,
   isAssessmentOverdue,
   fillSummaryList,
-  riskRank
+  riskRank,
+  getVisibleAssessments
 } from "./study-manager-shared.js";
 
 export function renderStudyOverview() {
@@ -24,7 +25,7 @@ export function renderStudyOverview() {
 
   const courses = state.courses || [];
   const materials = state.materials || [];
-  const assessments = state.assessments || [];
+  const assessments = getVisibleAssessments();
   const highRiskCount = courses.filter((course) => course.riskStatus === "high").length;
   const reviewCount = materials.filter((material) => material.reviewNeeded).length;
   const lowUnderstandingCount = materials.filter((material) => Number(material.understanding || 0) > 0 && Number(material.understanding || 0) <= 4).length;
@@ -79,7 +80,7 @@ export function buildStudyPromptSection() {
       })
       .map((course) => {
         const linkedCount = state.materials.filter((material) => material.courseId === course.id).length;
-        const linkedAssessments = state.assessments.filter((assessment) => assessment.courseId === course.id && assessment.status !== "done").length;
+        const linkedAssessments = getVisibleAssessments().filter((assessment) => assessment.courseId === course.id && assessment.status !== "done").length;
         const credits = course.credits === "" ? "未入力" : String(course.credits);
         const syllabusSummary = trimForPrompt(course.syllabusSummary, 90);
         const links = [course.syllabusUrl ? "シラバスURLあり" : "", course.coursePortalUrl ? "授業ページあり" : ""].filter(Boolean).join("・");
@@ -115,8 +116,9 @@ export function buildStudyPromptSection() {
     ? riskRanking.slice(0, 5).map((entry) => `- ${entry.courseTitle} / 総合危険度:${entry.levelLabel} / スコア:${entry.score}${entry.reasons.length ? ` / 理由:${entry.reasons.join("・")}` : ""}`)
     : ["- なし"];
 
-  const deadlineLines = state.assessments.length
-    ? state.assessments
+  const visibleAssessments = getVisibleAssessments();
+  const deadlineLines = visibleAssessments.length
+    ? visibleAssessments
       .filter((assessment) => assessment.status !== "done")
       .slice()
       .sort((a, b) => buildAssessmentSortKey(a).localeCompare(buildAssessmentSortKey(b)))

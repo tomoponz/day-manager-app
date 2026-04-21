@@ -1,6 +1,6 @@
 export const STORAGE_KEY = "day-manager-v1";
 export const APP_STATE_UPDATED_AT_KEY = "day-manager-app-state-updated-at-v1";
-export const STATE_SCHEMA_VERSION = 8;
+export const STATE_SCHEMA_VERSION = 9;
 
 export const INITIAL_STATE = {
   schemaVersion: STATE_SCHEMA_VERSION,
@@ -361,16 +361,19 @@ function normalizeOptionalNumber(value) {
 export function normalizeCourse(item) {
   return {
     id: item.id || crypto.randomUUID(),
-    title: item.title || "",
-    instructor: item.instructor || "",
+    title: item.title || item.name || "",
+    instructor: item.instructor || item.teacher || "",
     credits: normalizeOptionalNumber(item.credits),
     scheduleMemo: item.scheduleMemo || "",
     gradingMemo: item.gradingMemo || "",
     syllabusSummary: item.syllabusSummary || "",
     syllabusUrl: normalizeUrlWithFallback(item.syllabusUrl, ""),
-    coursePortalUrl: normalizeUrlWithFallback(item.coursePortalUrl, ""),
-    riskStatus: item.riskStatus || "medium",
-    note: item.note || ""
+    coursePortalUrl: normalizeUrlWithFallback(item.coursePortalUrl, item.sourceUrl || ""),
+    riskStatus: normalizeLegacyRiskStatus(item.riskStatus || item.risk),
+    note: item.note || "",
+    source: normalizeSourceName(item.source, "manual"),
+    externalId: normalizeTextWithFallback(item.externalId, ""),
+    sourceUrl: normalizeUrlWithFallback(item.sourceUrl, item.coursePortalUrl || "")
   };
 }
 
@@ -401,7 +404,15 @@ export function normalizeAssessment(item) {
     weight: normalizeOptionalNumber(item.weight),
     importance: item.importance || "高",
     status: normalizeAssessmentStatus(item.status),
-    note: item.note || ""
+    note: item.note || "",
+    source: normalizeSourceName(item.source, "manual"),
+    externalId: normalizeTextWithFallback(item.externalId, ""),
+    externalUrl: normalizeUrlWithFallback(item.externalUrl, ""),
+    sourceStatus: normalizeTextWithFallback(item.sourceStatus, ""),
+    sourceCourseName: normalizeTextWithFallback(item.sourceCourseName, ""),
+    sourceUpdatedAt: normalizeTextWithFallback(item.sourceUpdatedAt, ""),
+    importedAt: normalizeTextWithFallback(item.importedAt, ""),
+    hiddenAt: normalizeTextWithFallback(item.hiddenAt, "")
   };
 }
 
@@ -500,4 +511,18 @@ function normalizeAssessmentStatus(status) {
     return "done";
   }
   return "todo";
+}
+
+function normalizeLegacyRiskStatus(status) {
+  const raw = String(status || "").trim().toLowerCase();
+  if (!raw) return "medium";
+  if (["low", "安定", "safe"].includes(raw)) return "low";
+  if (["high", "危険", "danger"].includes(raw)) return "high";
+  return "medium";
+}
+
+function normalizeSourceName(source, fallback = "manual") {
+  const raw = String(source || "").trim().toLowerCase();
+  if (!raw) return fallback;
+  return raw;
 }

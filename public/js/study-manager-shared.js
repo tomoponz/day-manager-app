@@ -68,6 +68,14 @@ export function getCourseTitle(courseId) {
   return state.courses.find((course) => course.id === courseId)?.title || "未分類";
 }
 
+export function isAssessmentVisible(assessment) {
+  return !String(assessment?.hiddenAt || "").trim();
+}
+
+export function getVisibleAssessments() {
+  return (state.assessments || []).filter((assessment) => isAssessmentVisible(assessment));
+}
+
 export function buildProgressText(material) {
   const unitLabel = material.unitLabel || "p";
   const current = material.currentUnits === "" ? "?" : material.currentUnits;
@@ -87,7 +95,7 @@ export function buildFocusCandidates() {
 
 export function calculateFocusScore(material) {
   const course = state.courses.find((item) => item.id === material.courseId);
-  const relatedAssessments = state.assessments.filter((item) => item.courseId === material.courseId && item.status !== "done");
+  const relatedAssessments = getVisibleAssessments().filter((item) => item.courseId === material.courseId && item.status !== "done");
   const dueSoonScore = relatedAssessments.reduce((sum, item) => sum + getAssessmentUrgencyScore(item), 0);
 
   const courseRiskScore = course?.riskStatus === "high" ? 25 : course?.riskStatus === "medium" ? 12 : 0;
@@ -106,7 +114,7 @@ export function buildCourseRiskRanking() {
   return state.courses
     .map((course) => {
       const materials = state.materials.filter((item) => item.courseId === course.id);
-      const assessments = state.assessments.filter((item) => item.courseId === course.id && item.status !== "done");
+      const assessments = getVisibleAssessments().filter((item) => item.courseId === course.id && item.status !== "done");
       const reasons = [];
       let score = course.riskStatus === "high" ? 45 : course.riskStatus === "medium" ? 25 : 10;
 
