@@ -52,6 +52,15 @@ export default {
     if (url.pathname.startsWith("/api/google/events/") && request.method === "DELETE") {
       return handleDeleteEvent(request, env);
     }
+    if (url.pathname === "/api/manaba/token" && request.method === "GET") {
+      return handleManabaGetToken(request, env);
+    }
+    if (url.pathname === "/api/manaba/push" && request.method === "POST") {
+      return handleManabaPush(request, env);
+    }
+    if (url.pathname === "/api/manaba/data" && request.method === "GET") {
+      return handleManabaGetData(request, env);
+    }
 
     return env.ASSETS.fetch(request);
   },
@@ -927,4 +936,125 @@ function text(message, status = 200) {
       "Content-Type": "text/plain; charset=utf-8"
     }
   });
+}
+
+
+async function handleManabaGetToken(request, env) {
+  const session = await requireSessionUser(request, env);
+  if (session.error) return session.error;
+
+  const userKey = session.userKey;
+  const kvKey = `manaba_token:${userKey}`;
+  let token = await env.DM_STORE.get(kvKey);
+
+  if (!token) {
+    token = generateOpaqueToken();
+    await env.DM_STORE.put(kvKey, token);
+  }
+
+  await env.DM_STORE.put(`manaba_token_index:${token}`, userKey);
+  return json({ token });
+}
+
+async function handleManabaPush(request, env) {
+  const token = String(request.headers.get("X-Manaba-Token") || "").trim();
+  if (!token) {
+    return json({ error: "X-Manaba-Token ヘッダーが必要です。" }, 401);
+  }
+
+  const userKey = await env.DM_STORE.get(`manaba_token_index:${token}`);
+  if (!userKey) {
+    return json({ error: "manaba 同期トークンが無効です。" }, 403);
+  }
+
+  const body = await request.json().catch(() => null);
+  if (!body || !Array.isArray(body.courses)) {
+    return json({ error: "courses 配列が必要です。" }, 400);
+  }
+
+  const now = new Date().toISOString();
+  const courses = sanitizeManabaCourses(body.courses);
+  const payload = {
+    version: 1,
+    receivedAt: now,
+    scrapedAt: normalizeIsoText(body.scrapedAt) || now,
+    manabaUrl: truncateTextValue(body.manabaUrl, 500),
+    courses
+  };
+
+  await env.DM_STORE.put(`manaba_data:${userKey}`, JSON.stringify(payload), {
+    expirationTtl: 60 * 60 * 24 * 30
+  });
+
+  return json({
+    ok: true,
+    courseCount: courses.length,
+    assignmentCount: courses.reduce((sum, course) => sum + course.assignments.length, 0),
+    receivedAt: now
+  });
+}
+
+async function handleManabaGetData(request, env) {
+  const session = await requireSessionUser(request, env);
+  if (session.error) return session.error;
+
+  const raw = await env.DM_STORE.get(`manaba_data:${session.userKey}`);
+  if (!raw) return json({ data: null });
+
+  return json({ data: JSON.parse(raw) });
+}
+
+function sanitizeManabaCourses(courses) {
+  return courses.slice(0, 300).map((course) => ({
+    title: truncateTextValue(course?.title || course?.name, 200),
+    url: normalizeHttpText(course?.url),
+    externalId: truncateTextValue(course?.externalId || course?.url || course?.title || course?.name, 500),
+    assignments: sanitizeManabaAssignments(course?.assignments)
+  })).filter((course) => course.title);
+}
+
+function sanitizeManabaAssignments(assignments) {
+  if (!Array.isArray(assignments)) return [];
+  return assignments.slice(0, 500).map((assignment) => ({
+    title: truncateTextValue(assignment?.title, 300),
+    dueDate: normalizeDateOnlyText(assignment?.dueDate),
+    dueTime: normalizeTimeOnlyText(assignment?.dueTime),
+    status: truncateTextValue(assignment?.status, 120),
+    url: normalizeHttpText(assignment?.url),
+    type: truncateTextValue(assignment?.type, 80),
+    externalId: truncateTextValue(assignment?.externalId || assignment?.url || assignment?.title, 500),
+    updatedAt: normalizeIsoText(assignment?.updatedAt)
+  })).filter((assignment) => assignment.title);
+}
+
+function normalizeDateOnlyText(value) {
+  const text = String(value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
+}
+
+function normalizeTimeOnlyText(value) {
+  const text = String(value || "").trim();
+  return /^\d{2}:\d{2}$/.test(text) ? text : "";
+}
+
+function normalizeHttpText(value) {
+  const text = String(value || "").trim();
+  return /^https?:\/\//i.test(text) ? text.slice(0, 500) : "";
+}
+
+function normalizeIsoText(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+}
+
+function truncateTextValue(value, maxLength = 200) {
+  return String(value || "").trim().slice(0, maxLength);
+}
+
+function generateOpaqueToken() {
+  const tokenBytes = new Uint8Array(24);
+  crypto.getRandomValues(tokenBytes);
+  return toBase64Url(tokenBytes.buffer);
 }
