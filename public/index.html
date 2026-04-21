@@ -1140,6 +1140,28 @@
 </div>
 </details>
 </section>
+<section class="card inner-card" id="manabaSettingsPanel">
+<div class="card-header compact settings-inline-header">
+<div>
+<h2>manaba 連携 (β)</h2>
+<p>Google接続後にトークンを発行し、Tampermonkey から未提出課題を自動同期します。</p>
+</div>
+<span class="calendar-badge" id="manabaConnectionBadge">待機中</span>
+</div>
+<div class="calendar-actions">
+<button class="ghost" id="manabaShowTokenBtn" type="button">トークン表示</button>
+<button class="ghost" id="manabaCopyTokenBtn" type="button">トークンをコピー</button>
+<button class="ghost" id="manabaRefreshBtn" type="button">最新スナップショットを反映</button>
+</div>
+<div class="calendar-status" id="manabaStatusBox">Googleで接続すると、manaba 同期トークンを発行できます。</div>
+<div class="calendar-status calendar-status--subtle" id="manabaSyncStatus">まだ同期されていません。</div>
+<label class="prompt-label">
+                manaba 同期トークン
+                <textarea id="manabaTokenDisplay" placeholder="Google接続後に表示されます" readonly rows="3"></textarea>
+</label>
+<p class="calendar-note">常時監視ではなく、あなたが manaba を開いたときにブラウザ側で未提出課題を取り込みます。最新スナップショットはこのアプリ起動時にも自動反映されます。</p>
+<p class="calendar-note">Tampermonkey 用の <code>manaba-sync.user.js</code> を入れ、Worker URL と上のトークンを設定してください。</p>
+</section>
 </div>
 </details>
 </main>

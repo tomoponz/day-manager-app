@@ -39,6 +39,7 @@
       studyModule,
       onboardingModule,
       recoveryModule,
+      manabaModule,
       _layoutModule
     ] = await Promise.all([
       importModule("./js/utils.js", "utils.js"),
@@ -50,6 +51,7 @@
       importModule("./js/study-manager.js", "study-manager.js"),
       importModule("./js/onboarding.js", "onboarding.js"),
       importModule("./js/recovery.js", "recovery.js"),
+      importModule("./js/manaba.js", "manaba.js"),
       importModule("./js/main-screen-layout.js", "main-screen-layout.js")
     ]);
 
@@ -111,6 +113,9 @@
       getGoogleConnected: () => Boolean(googleModule.googleState?.connected),
       onConnectGoogle: googleModule.onConnectGoogle,
       onDisconnectGoogle: googleModule.onDisconnectGoogle
+    });
+    await manabaModule.initializeManaba({
+      renderStudyManager: studyModule.renderStudyManager
     });
 
     registerServiceWorker();
