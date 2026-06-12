@@ -56,6 +56,9 @@ export default {
     if (url.pathname === "/api/manaba/data" && request.method === "GET") {
       return handleManabaGetData(request, env);
     }
+    if (url.pathname.startsWith("/api/manaba/data/") && request.method === "GET") {
+      return handleManabaGetDataByToken(request, env, url);
+    }
     return env.ASSETS.fetch(request);
   },
   async scheduled(controller, env, ctx) {
@@ -841,6 +844,20 @@ async function handleManabaPush(request, env) {
     assignmentCount: courses.reduce((sum, course) => sum + course.assignments.length, 0),
     receivedAt: now
   });
+}
+async function handleManabaGetDataByToken(request, env, url) {
+  const pathParts = url.pathname.split("/");
+  const token = String(pathParts[pathParts.length - 1] || "").trim();
+  if (!token) {
+    return json({ error: "トークンが必要です。" }, 400);
+  }
+  const userKey = await env.DM_STORE.get(`manaba_token_index:${token}`);
+  if (!userKey) {
+    return json({ error: "manaba 同期トークンが無効です。" }, 403);
+  }
+  const raw = await env.DM_STORE.get(`manaba_data:${userKey}`);
+  if (!raw) return json({ data: null });
+  return json({ data: JSON.parse(raw) });
 }
 async function handleManabaGetData(request, env) {
   // トークン認証（Claude / 外部API用）— ヘッダーまたはクエリパラメーター
