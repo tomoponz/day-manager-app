@@ -843,8 +843,9 @@ async function handleManabaPush(request, env) {
   });
 }
 async function handleManabaGetData(request, env) {
-  // トークン認証（Claude / 外部API用）
-  const token = String(request.headers.get("X-Manaba-Token") || "").trim();
+  // トークン認証（Claude / 外部API用）— ヘッダーまたはクエリパラメーター
+  const url = new URL(request.url);
+  const token = String(request.headers.get("X-Manaba-Token") || url.searchParams.get("token") || "").trim();
   if (token) {
     const userKey = await env.DM_STORE.get(`manaba_token_index:${token}`);
     if (!userKey) {
