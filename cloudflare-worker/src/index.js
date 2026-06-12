@@ -838,12 +838,69 @@ async function handleManabaPush(request, env) {
   await env.DM_STORE.put(`manaba_data:${userKey}`, JSON.stringify(payload), {
     expirationTtl: 60 * 60 * 24 * 30
   });
+
+  // Google Calendarに課題イベントを同期（非致命的）
+  try {
+    const user = await readUser(env, userKey);
+    if (user) {
+      const freshUser = await ensureFreshAccessToken(env, userKey, user);
+      await syncCoursesToCalendar(freshUser, courses);
+    }
+  } catch (e) {
+    console.error("[calendar sync failed]", String(e));
+  }
+
   return json({
     ok: true,
     courseCount: courses.length,
     assignmentCount: courses.reduce((sum, course) => sum + course.assignments.length, 0),
     receivedAt: now
   });
+}
+async function syncCoursesToCalendar(user, courses) {
+  const now = new Date();
+  const lookahead = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+
+  // 既存の[課題]イベントを取得して削除
+  const existing = await fetchEventsList(user, {
+    timeMin: now.toISOString(),
+    timeMax: lookahead.toISOString()
+  });
+  const manabaEvents = existing.filter((e) => (e.summary || "").startsWith("[課題]"));
+  for (const event of manabaEvents) {
+    await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(event.id)}`,
+      { method: "DELETE", headers: { Authorization: `Bearer ${user.tokens.access_token}` } }
+    );
+  }
+
+  // 未提出の課題を新規作成
+  for (const course of courses) {
+    for (const assignment of (course.assignments || [])) {
+      if (!assignment.dueDate || !assignment.dueTime) continue;
+      const status = assignment.status || "";
+      if (/提出済|submitted/i.test(status)) continue;
+
+      const title = `[課題] ${course.title} | ${assignment.title}`;
+      const startStr = `${assignment.dueDate}T${assignment.dueTime}:00+09:00`;
+      const endDate = new Date(new Date(startStr).getTime() + 60 * 1000); // +1分
+
+      await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${user.tokens.access_token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          summary: title,
+          description: `科目: ${course.title}\n課題: ${assignment.title}\nステータス: ${status || "未提出"}`,
+          start: { dateTime: startStr, timeZone: "Asia/Tokyo" },
+          end: { dateTime: endDate.toISOString(), timeZone: "Asia/Tokyo" },
+          colorId: "11"
+        })
+      });
+    }
+  }
 }
 async function handleManabaGetDataByToken(request, env, url) {
   const pathParts = url.pathname.split("/");
